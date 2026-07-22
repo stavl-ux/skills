@@ -2,6 +2,18 @@ import { z } from 'zod';
 import * as jsYaml from 'js-yaml';
 import { CODE_TAG, REPO_PREFIX } from './evalforge';
 
+// Authoritative source of truth for assertion shapes: `@wix/evalforge-types`
+// (`packages/eval-types/src/assertion/{assertion,system-assertions}.ts` in
+// wix-private/evalforge). This file is a deliberate, hand-written *author-friendly*
+// mirror of that registry — we cannot depend on the package directly because the
+// version we need is published only to Wix's internal registry, while this repo is
+// public. Intentional authoring differences from the wire schema: `tool_called_with_param`
+// uses `tool` + a structured `params` map (mapper JSON-stringifies to `expectedParams`);
+// `api_call` accepts a YAML object or string. When EvalForge changes its assertion
+// registry, update the assertion schemas below AND the mapper in evalforge-mapper.ts.
+// Assertion types mirrored (must match evalforge-types AssertionTypeSchema): skill_was_called,
+// tool_called_with_param, build_passed, time_limit, cost, token_count, llm_judge, api_call.
+
 const NamePattern = /^[a-z0-9][a-z0-9/_-]*$/;
 export const RESERVED_TAG_PREFIXES = ['draft:', 'pending:', 'rejected:', REPO_PREFIX] as const;
 export const RESERVED_TAGS = [CODE_TAG] as const;
