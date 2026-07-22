@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toEvalForgeBody, type ScenarioAssertionLink } from '../src/evalforge-mapper';
+import { toEvalForgeBody, fromEvalForgeBody, type ScenarioAssertionLink } from '../src/evalforge-mapper';
 import type { Scenario } from '../src/schema';
 
 const scenario: Scenario = {
@@ -305,5 +305,137 @@ describe('toEvalForgeBody', () => {
     expect(JSON.parse(String(l.params?.parameters))).toEqual([
       { name: 'foo', label: 'Foo', type: 'string', required: true },
     ]);
+  });
+});
+
+// toEvalForgeBody intentionally drops `tags` (handled separately by sync), so the round-trip
+// helper reattaches the original scenario's tags onto the wire body before feeding it back in —
+// mirroring how the migration will merge EvalForge's JSON with the repo's separately-tracked tags.
+function roundTrip(scenario: Scenario): Scenario {
+  const body = { ...toEvalForgeBody(scenario), tags: scenario.tags };
+  return fromEvalForgeBody(body);
+}
+
+describe('fromEvalForgeBody', () => {
+  it('round-trips a tool_called_with_param scenario (implicit type, no params key when empty)', () => {
+    expect(roundTrip(scenario)).toEqual(scenario);
+  });
+
+  it('round-trips tool_called_with_param with no params (omits the params key, not {})', () => {
+    const s: Scenario = { ...scenario, assertions: [{ tool: 't' }] };
+    expect(roundTrip(s)).toEqual(s);
+  });
+
+  it('round-trips llm_judge with all optional fields, parameters parsed back to an array', () => {
+    const s: Scenario = {
+      ...scenario,
+      assertions: [{
+        type: 'llm_judge',
+        prompt: 'judge {{output}}',
+        minScore: 8,
+        model: 'claude-3-5-haiku-20241022',
+        maxTokens: 2048,
+        temperature: 0.2,
+        scoringMode: 'boolean',
+        browserTools: true,
+        parameters: [{ name: 'foo', label: 'Foo', type: 'string', required: true }],
+        negate: true,
+      }],
+    };
+    const result = roundTrip(s);
+    expect(result).toEqual(s);
+    expect(Array.isArray((result.assertions[0] as { parameters?: unknown }).parameters)).toBe(true);
+  });
+
+  it('round-trips api_call, expectedResponse/requestBody/requestHeaders parsed back to objects', () => {
+    const s: Scenario = {
+      ...scenario,
+      assertions: [{
+        type: 'api_call',
+        url: 'https://x',
+        method: 'POST',
+        requestBody: { k: 'v' },
+        expectedResponse: { ok: true },
+        requestHeaders: { Authorization: 'Bearer y' },
+        timeoutMs: 5000,
+        negate: false,
+      }],
+    };
+    const result = roundTrip(s);
+    expect(result).toEqual(s);
+    const [assertion] = result.assertions as [{ expectedResponse: unknown; requestBody: unknown; requestHeaders: unknown }];
+    expect(typeof assertion.expectedResponse).not.toBe('string');
+    expect(assertion.expectedResponse).toEqual({ ok: true });
+    expect(assertion.requestBody).toEqual({ k: 'v' });
+    expect(assertion.requestHeaders).toEqual({ Authorization: 'Bearer y' });
+  });
+
+  it('round-trips cost', () => {
+    const s: Scenario = { ...scenario, assertions: [{ type: 'cost', maxCostUsd: 0.5, negate: true }] };
+    expect(roundTrip(s)).toEqual(s);
+  });
+
+  it('round-trips time_limit', () => {
+    const s: Scenario = { ...scenario, assertions: [{ type: 'time_limit', maxDurationMs: 60_000, negate: true }] };
+    expect(roundTrip(s)).toEqual(s);
+  });
+
+  it('round-trips skill_was_called, skillNames/referenceFiles parsed back to array/object', () => {
+    const s: Scenario = {
+      ...scenario,
+      assertions: [{
+        type: 'skill_was_called',
+        skillNames: ['wix-app', 'wds-docs'],
+        referenceFiles: { 'wix-app': ['SKILL.md'] },
+        negate: true,
+      }],
+    };
+    const result = roundTrip(s);
+    expect(result).toEqual(s);
+    const [assertion] = result.assertions as [{ skillNames: unknown; referenceFiles: unknown }];
+    expect(Array.isArray(assertion.skillNames)).toBe(true);
+    expect(typeof assertion.referenceFiles).toBe('object');
+  });
+
+  it('round-trips build_passed with fields set', () => {
+    const s: Scenario = {
+      ...scenario,
+      assertions: [{ type: 'build_passed', command: 'yarn build', expectedExitCode: 0, negate: false }],
+    };
+    expect(roundTrip(s)).toEqual(s);
+  });
+
+  it('round-trips build_passed with no fields', () => {
+    const s: Scenario = { ...scenario, assertions: [{ type: 'build_passed' }] };
+    expect(roundTrip(s)).toEqual(s);
+  });
+
+  it('round-trips token_count', () => {
+    const s: Scenario = { ...scenario, assertions: [{ type: 'token_count', maxTokens: 4096, negate: true }] };
+    expect(roundTrip(s)).toEqual(s);
+  });
+
+  it('round-trips a scenario with no siteSetup: NONE on the wire becomes undefined again', () => {
+    expect(scenario.siteSetup).toBeUndefined();
+    const result = roundTrip(scenario);
+    expect(result.siteSetup).toBeUndefined();
+    expect(result).toEqual(scenario);
+  });
+
+  it('round-trips a template siteSetup with bootstrap steps (method case round-trips too)', () => {
+    const s: Scenario = {
+      ...scenario,
+      siteSetup: {
+        mode: 'template',
+        templateId: 'ecommerce',
+        bootstrap: { steps: [{ method: 'post', url: 'https://x', body: { a: 1 }, label: 'seed' }] },
+      },
+    };
+    expect(roundTrip(s)).toEqual(s);
+  });
+
+  it('round-trips a template siteSetup with no bootstrap', () => {
+    const s: Scenario = { ...scenario, siteSetup: { mode: 'template', templateId: 'ecommerce' } };
+    expect(roundTrip(s)).toEqual(s);
   });
 });

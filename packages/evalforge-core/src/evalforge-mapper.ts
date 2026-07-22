@@ -1,8 +1,9 @@
 import {
   isApiCall, isBuildPassed, isCost, isLlmJudge, isSkillWasCalled, isTimeLimit, isTokenCount,
+  ScenarioSchema,
   type ApiCallAssertion, type Assertion, type BuildPassedAssertion, type CostAssertion,
   type LlmJudgeAssertion, type Scenario, type SiteBootstrapStep, type SiteSetup,
-  type SkillWasCalledAssertion, type TimeLimitAssertion, type TokenCountAssertion,
+  type SkillWasCalledAssertion, type TimeLimitAssertion, type ToolCallAssertion, type TokenCountAssertion,
 } from './schema';
 
 // EvalForge v1 TestScenario uses assertionLinks (system-assertion references with primitive params)
@@ -171,4 +172,141 @@ function mapTimeLimit(a: TimeLimitAssertion): ScenarioAssertionLink {
 // a YAML object/array for ergonomics — stringify if so, pass through if already a string.
 function jsonifyMaybe(v: unknown): string {
   return typeof v === 'string' ? v : JSON.stringify(v);
+}
+
+// Inverse of `toEvalForgeBody`, used by the EvalForge -> repo YAML migration. `tags` is not part
+// of the EvalForge wire body (toEvalForgeBody drops it — sync handles tags separately), so callers
+// migrating scenarios must pass the repo/action-managed tags in explicitly. The result is validated
+// through ScenarioSchema so a bad conversion fails loudly rather than emitting invalid YAML.
+export function fromEvalForgeBody(body: {
+  name: string;
+  description?: string;
+  triggerPrompt: string;
+  assertionLinks?: ScenarioAssertionLink[];
+  siteSetup?: EvalForgeSiteSetup;
+  tags?: string[];
+}): Scenario {
+  const siteSetup = body.siteSetup ? unmapSiteSetup(body.siteSetup) : undefined;
+  const scenario: Record<string, unknown> = {
+    name: body.name,
+    description: body.description ?? '',
+    triggerPrompt: body.triggerPrompt,
+    tags: body.tags ?? [],
+    assertions: (body.assertionLinks ?? []).map(unmapAssertion),
+    ...(siteSetup ? { siteSetup } : {}),
+  };
+  return ScenarioSchema.parse(scenario);
+}
+
+function unmapSiteSetup(s: EvalForgeSiteSetup): SiteSetup | undefined {
+  if (s.mode === 'NONE') return undefined;
+  const bootstrap = s.bootstrap
+    ? { steps: s.bootstrap.steps.map(unmapBootstrapStep) }
+    : undefined;
+  return {
+    mode: 'template',
+    templateId: s.templateOptions.templateId,
+    ...(bootstrap ? { bootstrap } : {}),
+  };
+}
+
+function unmapBootstrapStep(step: EvalForgeBootstrapStep): SiteBootstrapStep {
+  // V1 SiteBootstrapHttpMethod enum names are uppercase; schema methods are lowercase.
+  const out: SiteBootstrapStep = {
+    method: step.method.toLowerCase() as SiteBootstrapStep['method'],
+    url: step.url,
+  };
+  if (step.label !== undefined) out.label = step.label;
+  if (step.body !== undefined) out.body = step.body;
+  return out;
+}
+
+function unmapAssertion(link: ScenarioAssertionLink): Assertion {
+  const params: LinkParams = link.params ?? {};
+  switch (link.assertionId) {
+    case SYSTEM_LLM_JUDGE: return unmapLlmJudge(params);
+    case SYSTEM_API_CALL: return unmapApiCall(params);
+    case SYSTEM_COST: return unmapCost(params);
+    case SYSTEM_TIME_LIMIT: return unmapTimeLimit(params);
+    case SYSTEM_SKILL_WAS_CALLED: return unmapSkillWasCalled(params);
+    case SYSTEM_BUILD_PASSED: return unmapBuildPassed(params);
+    case SYSTEM_TOKEN_COUNT: return unmapTokenCount(params);
+    case SYSTEM_TOOL_CALL: return unmapToolCall(params);
+    default: throw new Error(`fromEvalForgeBody: unknown assertionId "${link.assertionId}"`);
+  }
+}
+
+// Matches the authored tool-call shape (`type` is optional in ScenarioSchema for this assertion) —
+// omit `type` on the way back so round-tripping an implicit-type scenario stays implicit-type.
+function unmapToolCall(params: LinkParams): ToolCallAssertion {
+  const out: ToolCallAssertion = { tool: String(params.toolName) };
+  if (params.expectedParams !== undefined) {
+    const parsedParams = JSON.parse(String(params.expectedParams));
+    if (Object.keys(parsedParams).length > 0) out.params = parsedParams;
+  }
+  if (params.negate !== undefined) out.negate = Boolean(params.negate);
+  return out;
+}
+
+function unmapLlmJudge(params: LinkParams): LlmJudgeAssertion {
+  const out: LlmJudgeAssertion = { type: 'llm_judge', prompt: String(params.prompt) };
+  if (params.minScore !== undefined) out.minScore = Number(params.minScore);
+  if (params.model !== undefined) out.model = String(params.model);
+  if (params.maxTokens !== undefined) out.maxTokens = Number(params.maxTokens);
+  if (params.temperature !== undefined) out.temperature = Number(params.temperature);
+  if (params.scoringMode !== undefined) out.scoringMode = params.scoringMode as LlmJudgeAssertion['scoringMode'];
+  if (params.browserTools !== undefined) out.browserTools = Boolean(params.browserTools);
+  if (params.parameters !== undefined) out.parameters = JSON.parse(String(params.parameters));
+  if (params.negate !== undefined) out.negate = Boolean(params.negate);
+  return out;
+}
+
+function unmapSkillWasCalled(params: LinkParams): SkillWasCalledAssertion {
+  const out: SkillWasCalledAssertion = {
+    type: 'skill_was_called',
+    skillNames: JSON.parse(String(params.skillNames)),
+  };
+  if (params.referenceFiles !== undefined) out.referenceFiles = JSON.parse(String(params.referenceFiles));
+  if (params.negate !== undefined) out.negate = Boolean(params.negate);
+  return out;
+}
+
+function unmapBuildPassed(params: LinkParams): BuildPassedAssertion {
+  const out: BuildPassedAssertion = { type: 'build_passed' };
+  if (params.command !== undefined) out.command = String(params.command);
+  if (params.expectedExitCode !== undefined) out.expectedExitCode = Number(params.expectedExitCode);
+  if (params.negate !== undefined) out.negate = Boolean(params.negate);
+  return out;
+}
+
+function unmapTokenCount(params: LinkParams): TokenCountAssertion {
+  const out: TokenCountAssertion = { type: 'token_count', maxTokens: Number(params.maxTokens) };
+  if (params.negate !== undefined) out.negate = Boolean(params.negate);
+  return out;
+}
+
+function unmapApiCall(params: LinkParams): ApiCallAssertion {
+  const out: ApiCallAssertion = {
+    type: 'api_call',
+    url: String(params.url),
+    expectedResponse: JSON.parse(String(params.expectedResponse)),
+  };
+  if (params.method !== undefined) out.method = params.method as ApiCallAssertion['method'];
+  if (params.requestBody !== undefined) out.requestBody = JSON.parse(String(params.requestBody));
+  if (params.requestHeaders !== undefined) out.requestHeaders = JSON.parse(String(params.requestHeaders));
+  if (params.timeoutMs !== undefined) out.timeoutMs = Number(params.timeoutMs);
+  if (params.negate !== undefined) out.negate = Boolean(params.negate);
+  return out;
+}
+
+function unmapCost(params: LinkParams): CostAssertion {
+  const out: CostAssertion = { type: 'cost', maxCostUsd: Number(params.maxCostUsd) };
+  if (params.negate !== undefined) out.negate = Boolean(params.negate);
+  return out;
+}
+
+function unmapTimeLimit(params: LinkParams): TimeLimitAssertion {
+  const out: TimeLimitAssertion = { type: 'time_limit', maxDurationMs: Number(params.maxDurationMs) };
+  if (params.negate !== undefined) out.negate = Boolean(params.negate);
+  return out;
 }
