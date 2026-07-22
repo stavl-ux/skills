@@ -17,6 +17,7 @@ Run in the parent directory where the project folder should be created. Without 
 |---|---|
 | `npm create @wix/new@latest -- app [--app-name <name> -t <template-id>]` | Creates a Wix app project: registers a new app in your account (or extends one via `--extend-app-id`) and scaffolds from a template. |
 | `npm create @wix/new@latest -- headless [--folder-name <f> --business-name <b> --site-template <commerce\|scheduler\|registration\|blank>]` | Creates a Wix-managed headless project: provisions a business and site, scaffolds, and publishes (skip with `--no-publish`). |
+| `npm create @wix/new@latest -- headless link [--business-name <b>]` | Links an **existing Astro project** (run from its root) to Wix as a managed headless project. Requires Astro 5 (Astro 6 unsupported) and an `astro.config.*` file. |
 | `npm create @wix/new@latest init` | Connects the **current folder** (existing code) as a Wix-managed headless project; writes `wix.config.json`. No prompts, no flags. |
 
 ## Project commands (run inside a project)
