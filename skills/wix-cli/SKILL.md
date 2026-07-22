@@ -33,19 +33,16 @@ Run in the parent directory where the project folder should be created. Without 
 | `wix translation pull` / `translation push` | Headless only — sync translations with the Multilingual dashboard. |
 | `wix generate manifest` | Apps only — generates the manifest for an Editor React Component extension (build first). |
 
-## Astro commands (headless projects)
+## Commands loaded in Astro (headless) projects
 
-Wix headless projects are Astro 5 apps, so the standard [Astro CLI](https://docs.astro.build/en/reference/cli-reference/) works too (run as `npx astro <command>`). Prefer `wix dev`/`wix build`/`wix release` for the Wix-integrated flow; use these for Astro-specific tasks.
+In an Astro headless project (`projectType: "Site"` in `wix.config.json`), `npx wix --help` loads this command set. `wix build` and `wix dev` wrap the Astro build/dev process and forward extra command-line arguments to it.
 
 | Command | What it does |
 |---|---|
-| `astro dev` | Local dev server with hot reload (no Wix integration — prefer `wix dev`). |
-| `astro build` | Production build to `dist/`. |
-| `astro preview` | Serves the local build. |
-| `astro add <integration>` | Installs and configures an Astro integration (e.g. `react`, `tailwind`, `sitemap`). |
-| `astro check` | Type-checks `.astro` files and reports diagnostics. |
-| `astro sync` | Regenerates generated types (content collections, env). |
-| `astro info` | Prints environment info for bug reports. |
+| `wix dev` / `wix build` / `wix preview` / `wix release` / `wix generate` / `wix env` | As described above; `build` invokes the Astro build, forwarding all CLI args. |
+| `wix connect` | Connects the project to GitHub to enable Wix Vibe editing. |
+| `wix token` | Prints the current access token, refreshing if needed. Useful for calling Wix APIs from scripts. |
+| `wix schema` | Prints machine-readable schemas for CLI commands (e.g. `wix schema generate --type <TYPE>`). |
 
 ## Global commands
 
