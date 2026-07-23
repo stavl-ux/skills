@@ -138,6 +138,16 @@ type ColumnOverride<T> = (props: IColumnValue<T>) => React.ReactNode;
 - **MUST** import type `IColumnValue` from `@wix/auto-patterns` for type safety.
 - **MUST** return a ReactNode (JSX) or null.
 
+### Operational Status Columns
+
+Treat status, risk, priority, exception, payment, fulfillment, and attention fields as operational signals when users scan the collection to decide what needs action.
+
+- If an operational field is shown as a badge in an entity header or detail surface, use this documented custom-column override to show the same field as a badge in the collection Table/Grid.
+- Keep label normalization and WDS badge skin selection in one shared mapping when both resolvers live in the same feature; do not let the list and detail assign conflicting meanings.
+- Use the exact field ID from the collection schema and register the column override through `useColumns`.
+- Keep ordinary names, descriptions, dates, identifiers, and neutral categories as text unless their workflow meaning is explicitly a status.
+- Read the installed WDS `Badge` documentation before choosing supported skins. Color must communicate the same system meaning on every surface.
+
 ### Canonical Example
 ```tsx
 // components/columns/status.tsx

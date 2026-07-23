@@ -38,6 +38,7 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-05:** Do not use a custom WDS dashboard route until this evaluation records the first `unsupported` capability. A new one-collection manager stays on this route when every requested capability is `supported` or `supported-via-override`.
 - **AP-06:** Keep one physical collection classified as one source even when the workflow is described as an exception queue, review workset, alert list, or saved subset, or uses OR conditions, elapsed-time rules, comparisons, bulk transitions, or contextual record detail. Materialize operational state as maintained fields such as `needsAttention`, `exceptionType`, `exceptionSince`, and `isReviewed`, then configure filters/Views and documented actions against those fields. Do not rebuild the table to express query logic or attach a supplemental surface.
 - **AP-12:** When an app-owned collection grants the intended collaborator `itemUpdate: CMS_EDITOR`, its management workflow must include an edit entity page or paired view/edit pages. A custom transition action does not satisfy general editing.
+- **AP-13:** Preserve operational field semantics across collection and detail surfaces. When a field communicates status, risk, priority, or required attention and appears as a badge in entity detail, render that same field with a documented custom-column badge in the collection Table/Grid when it is shown there. Reuse one label-to-skin mapping. Do not badge descriptive text or ordinary categories merely for decoration.
 
 ### Extension Choice
 
@@ -68,6 +69,7 @@ Before generation, make one compact workflow decision table:
 | Mutability | Which fields and transitions this user may change |
 | Detail mode | `edit`, `view`, or paired `view` + `edit`, with one reason |
 | Action surfaces | Row, bulk, detail, and edit actions that must remain coherent |
+| Field semantics | Which fields are identity, operational status, metric, date, or descriptive text, and how each stays recognizable across list and detail |
 
 Resolve permissions per operation before choosing entity mode. Permissions describe what is technically allowed; they do not automatically add unrelated actions. When the intended CMS collaborator has `itemUpdate: CMS_EDITOR` and the dashboard manages app-owned records, preserve the generated edit default or pair an inspect-first view page with an edit page. Use view-only when update is unavailable to that audience. Named immutable fields may remain read-only inside an otherwise editable workflow; if another surface owns all editing, align collection permissions so this audience is read-only. Collection actions do not automatically appear on entity pages: configure relevant single-record transitions on the detail surface and omit unrelated create/delete defaults.
 
