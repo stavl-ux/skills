@@ -14,7 +14,7 @@ Use this route for a new management surface backed by one CMS collection when Au
 
 ### Capability References
 
-This file owns route evaluation, generation, permissions, and validation. Read only the narrowest matching capability reference below. Do not load custom WDS guidance unless the required capability has no documented Auto Patterns path.
+This file owns route evaluation, standard generation, permissions, and validation. A basic new collection manager can be generated from this file without reading a capability reference. Read only the narrowest matching capability reference when the request needs the capability in that row. Do not load custom WDS guidance unless the required capability has no documented Auto Patterns path.
 
 | Requested capability | Exact Auto Patterns reference |
 | --- | --- |
@@ -25,9 +25,9 @@ This file owns route evaluation, generation, permissions, and validation. Read o
 | Entity page, entity form, or entity header | [Entity workflows](auto-patterns-dashboard/entity-workflows.md) |
 | KPI or chart supplemental region | Check the custom header, section, slot, and child-component references above; then read [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) only for that region's WDS/chart contract |
 | External child component needs collection data or refresh | [Extensions](auto-patterns-dashboard/extensions.md) |
-| Record detail, viewing, or editing beyond the collection row | [Collection workflows](auto-patterns-dashboard/collection-workflows.md) and [Extensions](auto-patterns-dashboard/extensions.md); choose SidePanel, Modal, or entity page through [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) |
+| Record detail, viewing, or editing beyond the collection row | [Collection workflows](auto-patterns-dashboard/collection-workflows.md) and [Extensions](auto-patterns-dashboard/extensions.md); use the surface guidance below |
 | Deep or multi-section record flow | [Entity workflows](auto-patterns-dashboard/entity-workflows.md) |
-| Short focused or blocking record flow | a documented Auto Patterns action plus [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) |
+| Short focused or blocking record flow | a documented Auto Patterns action plus [DASHBOARD_MODAL.md](DASHBOARD_MODAL.md) |
 
 ### Route Contract
 
@@ -49,13 +49,13 @@ Keep Auto Patterns as the owner of the collection table, layouts, filters, selec
 | Extensive or multi-section view/edit flow, complex validation, deep linking, or long work | Link to an Auto Patterns `entityPage` in the appropriate mode. |
 | KPI or chart around a supported one-collection manager | Keep Auto Patterns as the table owner and mount the analytical component through a documented header, section, slot, or child-component override. |
 
-These are best-practice defaults, not intent-to-component rules: viewing and editing may use any surface when its depth and context justify it. Record the chosen `detailSurface` and reason before implementation. The supplemental surface is not evidence that the table itself should be rebuilt in WDS.
+These are best-practice defaults, not intent-to-component rules: viewing and editing may use any surface when its depth and context justify it. For SidePanel or Modal, invoke the Wix Design System skill and read the exact installed component documentation before importing WDS. The supplemental surface is not evidence that the table itself should be rebuilt in WDS.
 
 ### Action Coherence
 
 - Treat inspect, edit, workflow transition, create, and delete as different intents.
 - Give a bulk workflow transition a single-record equivalent in the row detail surface or row actions unless it is inherently bulk-only.
-- Do not add create or delete merely because the collection supports CRUD. Follow the managed entity lifecycle from [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md).
+- Do not add create or delete merely because the collection supports CRUD. Derive actions from the user workflow: expose required transitions consistently for one and many records, and omit unrelated lifecycle actions.
 - For an inspect-first workflow, use `View` or the specific workflow verb as the row action; keep full-record editing available from the chosen detail surface when appropriate.
 
 ### Canonical Auto Patterns Profile: Inventory Manager
@@ -78,7 +78,7 @@ Configure the documented Auto Patterns Table/Grid layouts and action override. D
 3. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
 4. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file.
 5. When the prompt asks for representative data, create 3-5 realistic records and verify the collection and dashboard show the same items.
-6. Before adding any custom dashboard JSX, verify `.dashboard-route.json` says `auto-patterns`, `patterns.json` exists, and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension.
+6. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
 7. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
 
 ### Invalid Implementations
@@ -418,9 +418,9 @@ Do NOT use this skill when:
 - User needs multi-collection data display → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
 - User needs embedded script configuration → see [EMBEDDED_SCRIPT.md](EMBEDDED_SCRIPT.md)
 - User needs custom business logic or external APIs that cannot be implemented through a documented action, override, or child component → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
-- User needs contextual record detail → preserve the Auto Patterns collection page and use its documented row-action/AppContext extension with the WDS SidePanel primitive in [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md)
+- User needs contextual record detail → preserve the Auto Patterns collection page, use its documented row-action/AppContext extension, and invoke the Wix Design System skill for the exact installed `SidePanel` documentation
 - User needs structured inputs → use the linked Auto Patterns entity page before considering an overlay
-- User needs a focused blocking confirmation or isolated input → see [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and use the documented Dashboard Modal action path
+- User needs a focused blocking confirmation or isolated input → use the documented custom action path and [DASHBOARD_MODAL.md](DASHBOARD_MODAL.md)
 - User needs backend endpoints → see [BACKEND_API.md](BACKEND_API.md)
 
 ### Example patterns.json

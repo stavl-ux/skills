@@ -98,6 +98,10 @@ function lineCount(filePath) {
   return fs.readFileSync(filePath, 'utf8').split(/\r?\n/).length;
 }
 
+function wordCount(filePath) {
+  return fs.readFileSync(filePath, 'utf8').trim().split(/\s+/).filter(Boolean).length;
+}
+
 for (const reference of consolidatedReferences) {
   const filePath = path.join(referencesRoot, reference.file);
   if (!fs.existsSync(filePath)) {
@@ -135,10 +139,43 @@ if (!frontmatter) {
   if (unsupported.length) fail(`SKILL.md has unsupported frontmatter keys: ${unsupported.join(', ')}`);
 }
 
-for (const reference of consolidatedReferences) {
+for (const reference of consolidatedReferences.slice(0, 2)) {
   if (!skillContent.includes(`references/${reference.file}`)) {
     fail(`SKILL.md does not directly advertise ${reference.file}`);
   }
+}
+
+const autoPatternsPath = path.join(referencesRoot, 'AUTO_PATTERNS_DASHBOARD.md');
+const autoPatternsContent = fs.readFileSync(autoPatternsPath, 'utf8');
+for (const reference of consolidatedReferences.slice(2)) {
+  if (!autoPatternsContent.includes(reference.file)) {
+    fail(`AUTO_PATTERNS_DASHBOARD.md does not advertise ${reference.file}`);
+  }
+}
+
+if (skillContent.includes('For every dashboard request, read [DASHBOARD_ROUTING.md]')) {
+  fail('SKILL.md forces every dashboard through DASHBOARD_ROUTING.md instead of using progressive disclosure');
+}
+if (!skillContent.includes('new manager backed by one physical CMS collection')) {
+  fail('SKILL.md is missing the direct one-collection Auto Patterns fast path');
+}
+if (!skillContent.includes('Standard generated Auto Patterns pages do not require this custom-route audit')) {
+  fail('SKILL.md does not scope the custom dashboard audit away from standard Auto Patterns pages');
+}
+
+const simpleAutoPatternsHotPath = [
+  skillPath,
+  autoPatternsPath,
+  path.join(referencesRoot, 'DATA_COLLECTION.md'),
+];
+const hotPathWords = simpleAutoPatternsHotPath.reduce((sum, filePath) => sum + wordCount(filePath), 0);
+if (hotPathWords > 8000) {
+  fail(`simple Auto Patterns hot path exceeds 8000 words (${hotPathWords})`);
+}
+
+const routingContent = fs.readFileSync(path.join(referencesRoot, 'DASHBOARD_ROUTING.md'), 'utf8');
+if (!routingContent.includes('scaffold the Dashboard Page first')) {
+  fail('DASHBOARD_ROUTING.md must create the route record after CLI scaffolding');
 }
 
 const ruleOwners = new Map();

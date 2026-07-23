@@ -58,26 +58,24 @@ If a page combines analytics with a table, assign ownership per region before ch
 
 ### Route Record
 
-Before using a custom route or scaffolding, save `.dashboard-route.json` in the dashboard source directory:
+For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `.dashboard-route.json` in the generated dashboard source directory before implementing custom UI:
 
 ```json
 {
-  "route": "auto-patterns",
-  "sourceCount": 1,
-  "sources": ["Inventory Products"],
-  "secondary": "SidePanel detail via row-action override",
+  "route": "custom-table-panel",
+  "sourceCount": 2,
+  "sources": ["Appointments", "Clients"],
+  "secondary": "SidePanel detail",
   "regionOwners": {
-    "collection": "auto-patterns",
+    "collection": "custom-wds-table",
     "metrics": null,
     "chart": null,
     "detail": "wds-side-panel"
   },
   "detailSurface": "side-panel",
   "detailSurfaceReason": "Moderate record detail; preserve table context",
-  "dataAdaptation": "Maintain inventoryStatus for saved filtering",
-  "fallbackCategory": null,
-  "firstUnsupportedCapability": null,
-  "checkedReference": "auto-patterns-dashboard/collection-workflows.md"
+  "dataAdaptation": "Resolve client display fields by appointment reference",
+  "fallbackCategory": "multi-source"
 }
 ```
 
@@ -87,7 +85,7 @@ For multi-region pages, `regionOwners` records which implementation owns `collec
 
 When record detail exists, set `detailSurface` to `side-panel`, `modal`, or `entity-page` and explain the choice in `detailSurfaceReason`. This records a design decision; it does not make one surface mandatory for viewing or editing.
 
-Do not proceed without this record. Update it if evidence changes the route.
+Do not proceed with custom or hybrid implementation without this record. Standard generated Auto Patterns pages use `patterns.json` and their registered wrapper as ownership evidence and do not need a route record. Update a custom route record if evidence changes the route.
 
 ## Custom Table Route
 

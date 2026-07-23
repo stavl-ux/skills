@@ -12,27 +12,22 @@ The Wix CLI owns scaffolding. This skill classifies the request, selects one exe
 ## Core Workflow
 
 1. Classify the extension, physical data sources, and primary user workflow.
-2. Read one selected extension guide. For dashboards, read the consolidated dashboard workflow guide.
+2. Read one selected extension guide. Do not open a general dashboard guide before checking the dashboard fast path below.
 3. Read only the exact API/component documentation named by that guide.
-4. For dashboards, save the selected route in `.dashboard-route.json`, then scaffold with the CLI and implement in generated files.
-5. Validate build and the real browser workflow before reporting completion.
+4. Scaffold with the CLI, then implement only in generated files. Custom and hybrid dashboards also save `.dashboard-route.json` after scaffolding and before implementation.
+5. Validate with the checks available in the current environment before reporting completion.
 
 For non-dashboard extensions, read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. Dashboard quality and runtime gates live in the dashboard workflow guide. Do not claim completion after a build alone.
 
 ## Dashboard Route
 
-For every dashboard request, read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). It contains route selection, custom dashboard contracts, shared data rules, WDS documentation gates, and runtime validation.
+Use this fast path before opening any dashboard reference:
 
-Additionally read [AUTO_PATTERNS_DASHBOARD.md](references/AUTO_PATTERNS_DASHBOARD.md) only for a new one-collection manager or an existing page with `patterns.json`. It links to four consolidated capability references; read only the ones required by the requested workflow.
+- Existing page with `patterns.json`, or a new manager backed by one physical CMS collection: read [AUTO_PATTERNS_DASHBOARD.md](references/AUTO_PATTERNS_DASHBOARD.md) directly. Do not read the general dashboard router unless that guide identifies a custom or analytical region that needs it.
+- Multi-source, external-data, primarily analytical, or genuinely unsupported custom dashboard: read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md).
+- Ambiguous source count or page ownership: inspect the project and data model first, then choose one of the two routes above.
 
-Auto Patterns capability references:
-
-- AppConfig, page relationships, routing, and Table/Grid structure: [configuration.md](references/auto-patterns-dashboard/configuration.md)
-- Saved views, collection/row actions, selection, and bulk operations: [collection-workflows.md](references/auto-patterns-dashboard/collection-workflows.md)
-- Entity pages, view/edit actions, forms, and entity headers: [entity-workflows.md](references/auto-patterns-dashboard/entity-workflows.md)
-- Custom actions, columns, sections, slots, AppContext, and SDK utilities: [extensions.md](references/auto-patterns-dashboard/extensions.md)
-
-The selected route section owns behavior and acceptance criteria. Exact extension, SDK, Auto Patterns, and WDS references own APIs. Do not load unrelated capability references.
+The Auto Patterns guide routes to its focused capability references. Read only the capability reference needed by the requested workflow. The selected route owns behavior and acceptance criteria; exact extension, SDK, Auto Patterns, and WDS references own APIs.
 
 ## Auto Patterns Extension And Fallback Gate
 
@@ -66,7 +61,7 @@ For every CLI-supported extension except Backend API, use `npx wix generate --pa
 | Wix business data or external API | Read its exact API; create CMS storage only for explicit app-owned persistence. |
 | Unknown | Inspect context or ask one targeted question. |
 
-For dashboard collection schema, references, joins, assignments, and writes, use the Data Model and Operations section of [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). For non-dashboard data work, use the exact data references below. A reference field defines schema only; separately plan population and missing-reference behavior.
+For a one-collection Auto Patterns page, use [DATA_COLLECTION.md](references/DATA_COLLECTION.md) for app-owned schema and the selected Auto Patterns guide for the page. For custom joins or multi-source dashboard operations, use the Data Model and Operations section of [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). A reference field defines schema only; separately plan population and missing-reference behavior.
 
 ## Documentation Discipline
 
@@ -82,7 +77,7 @@ Use focused discovery only when the selected local guide does not cover the requ
 
 ## Validation
 
-1. Run `npx tsc --noEmit`, `npx wix build`, and `npx wix preview`.
-2. For every generated dashboard, run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>`. This blocking audit validates the route record and generated ownership; a TypeScript/build validator does not replace it.
-3. Open the registered dashboard route in a browser. Confirm the loader resolves, representative records render, console and network are clean, and the primary filter/action/detail workflow persists after refresh.
-4. Report runtime status as `passed`, `failed`, or `blocked`, followed by separate manual steps.
+1. Run the available TypeScript and Wix build validator once. Fix reported errors and rerun only after a code change.
+2. For custom WDS or hybrid dashboards, run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>`. Standard generated Auto Patterns pages do not require this custom-route audit.
+3. Run `wix preview` and browser checks only when the environment exposes an interactive preview/runtime session. Do not start a long-lived preview command in a non-interactive codegen worker.
+4. When browser access exists, open the registered route and verify loader, representative data, console/network, primary workflow, and persistence. Otherwise report runtime validation as `blocked` with the exact manual check; do not retry or wait indefinitely.
