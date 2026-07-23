@@ -17,6 +17,8 @@ const badWorkflowRoot = path.join(root, 'bad-workflow');
 const badWritableRoot = path.join(root, 'bad-writable');
 const badActionsRoot = path.join(root, 'bad-actions');
 const badSavedViewTransitionRoot = path.join(root, 'bad-saved-view-transition');
+const badSavedViewFilterRoot = path.join(root, 'bad-saved-view-filter');
+const badSavedViewFieldRoot = path.join(root, 'bad-saved-view-field');
 const goodSavedViewTransitionRoot = path.join(root, 'good-saved-view-transition');
 const badRemoveRoot = path.join(root, 'bad-remove');
 const badModalRoot = path.join(root, 'bad-modal');
@@ -32,6 +34,8 @@ fs.mkdirSync(badWorkflowRoot);
 fs.mkdirSync(badWritableRoot);
 fs.mkdirSync(badActionsRoot);
 fs.mkdirSync(badSavedViewTransitionRoot);
+fs.mkdirSync(badSavedViewFilterRoot);
+fs.mkdirSync(badSavedViewFieldRoot);
 fs.mkdirSync(goodSavedViewTransitionRoot);
 fs.mkdirSync(badRemoveRoot);
 fs.mkdirSync(badModalRoot);
@@ -511,6 +515,94 @@ export default function OrderExceptions() {
 }`,
   );
 
+  write(
+    badSavedViewFilterRoot,
+    'patterns.json',
+    JSON.stringify({
+      pages: [{
+        id: 'orders',
+        type: 'collectionPage',
+        collectionPage: {
+          components: [{
+            type: 'collection',
+            collection: {
+              collectionId: 'app-id/order-exceptions',
+              entityTypeSource: 'cms',
+            },
+            filters: {
+              items: [{ id: 'channel-filter', fieldId: 'channel' }],
+            },
+            views: {
+              enabled: true,
+              presets: {
+                type: 'views',
+                views: [{
+                  id: 'reviewed',
+                  label: 'Reviewed',
+                  filters: {
+                    'reviewed-filter': {
+                      filterType: 'boolean',
+                      value: [{ id: 'checked', name: 'Reviewed' }],
+                    },
+                  },
+                }],
+              },
+            },
+          }],
+        },
+      }],
+    }),
+  );
+
+  writeNested(
+    badSavedViewFieldRoot,
+    'src/extensions/backend/data-collections/order-exceptions.ts',
+    `export const config = {
+  idSuffix: 'order-exceptions',
+  fields: [
+    { key: 'isReviewed', displayName: 'Reviewed', type: 'BOOLEAN' },
+  ],
+};`,
+  );
+  writeNested(
+    badSavedViewFieldRoot,
+    'src/extensions/dashboard-pages/order-exceptions/patterns.json',
+    JSON.stringify({
+      pages: [{
+        id: 'orders',
+        type: 'collectionPage',
+        collectionPage: {
+          components: [{
+            type: 'collection',
+            collection: {
+              collectionId: 'app-id/order-exceptions',
+              entityTypeSource: 'cms',
+            },
+            filters: {
+              items: [{ id: 'attention-filter', fieldId: 'needsAttention' }],
+            },
+            views: {
+              enabled: true,
+              presets: {
+                type: 'views',
+                views: [{
+                  id: 'needs-attention',
+                  label: 'Needs Attention',
+                  filters: {
+                    'attention-filter': {
+                      filterType: 'boolean',
+                      value: [{ id: 'checked', name: 'Needs Attention' }],
+                    },
+                  },
+                }],
+              },
+            },
+          }],
+        },
+      }],
+    }),
+  );
+
   write(goodSavedViewTransitionRoot, 'patterns.json', savedViewPatterns);
   write(
     goodSavedViewTransitionRoot,
@@ -890,6 +982,32 @@ export default function SubscriptionHealth() {
   ) {
     console.error('Dashboard audit self-test accepted a Saved View transition without collection refresh.');
     console.error(badSavedViewTransitionOutput.trim());
+    process.exit(1);
+  }
+
+  const badSavedViewFilter = spawnSync(
+    process.execPath,
+    [auditPath, badSavedViewFilterRoot],
+    { encoding: 'utf8' },
+  );
+  const badSavedViewFilterOutput =
+    `${badSavedViewFilter.stdout}\n${badSavedViewFilter.stderr}`;
+  if (badSavedViewFilter.status === 0 || !badSavedViewFilterOutput.includes('AP-18')) {
+    console.error('Dashboard audit self-test accepted a Saved View with an undeclared filter.');
+    console.error(badSavedViewFilterOutput.trim());
+    process.exit(1);
+  }
+
+  const badSavedViewField = spawnSync(
+    process.execPath,
+    [auditPath, badSavedViewFieldRoot],
+    { encoding: 'utf8' },
+  );
+  const badSavedViewFieldOutput =
+    `${badSavedViewField.stdout}\n${badSavedViewField.stderr}`;
+  if (badSavedViewField.status === 0 || !badSavedViewFieldOutput.includes('AP-18')) {
+    console.error('Dashboard audit self-test accepted a filter for an unknown collection field.');
+    console.error(badSavedViewFieldOutput.trim());
     process.exit(1);
   }
 

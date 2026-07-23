@@ -147,6 +147,7 @@ const collectionEntityLinks = [];
 const editableCollectionSuffixes = new Set();
 const restrictedRemoveCollections = new Map();
 const managedCollectionSuffixes = new Set();
+const collectionFieldsBySuffix = new Map();
 const collectionActionChecks = [];
 const savedViewFieldIds = new Set();
 let hasEntityPagePattern = false;
@@ -159,6 +160,11 @@ for (const filePath of dataCollectionFiles) {
   );
   const suffixMatch = /\bidSuffix\s*:\s*(?:['"]([^'"]+)['"]|([A-Za-z_$][\w$]*))/.exec(content);
   const suffix = suffixMatch?.[1] ?? constants.get(suffixMatch?.[2]);
+  const fieldIds = new Set(
+    [...content.matchAll(/\bkey\s*:\s*['"]([^'"]+)['"]/g)]
+      .map((match) => match[1]),
+  );
+  if (suffix && fieldIds.size) collectionFieldsBySuffix.set(suffix, fieldIds);
   if (suffix && /\bitemUpdate\s*:\s*['"]CMS_EDITOR['"]/.test(content)) {
     editableCollectionSuffixes.add(suffix);
     if (
@@ -270,18 +276,53 @@ for (const document of patternDocuments) {
         managedCollectionSuffixes.add(collectionId.split('/').filter(Boolean).at(-1));
       }
 
+      const collectionSuffix = typeof collectionId === 'string'
+        ? collectionId.split('/').filter(Boolean).at(-1)
+        : undefined;
+      const filterItems = value.filters?.items ?? [];
       const filterFieldsById = new Map(
-        (value.filters?.items ?? [])
+        filterItems
           .filter((filter) => typeof filter?.id === 'string' && typeof filter?.fieldId === 'string')
           .map((filter) => [filter.id, filter.fieldId]),
       );
+      const collectionFields = collectionFieldsBySuffix.get(collectionSuffix);
+      if (collectionFields) {
+        for (const filter of filterItems) {
+          if (
+            typeof filter?.id !== 'string'
+            || typeof filter?.fieldId !== 'string'
+            || collectionFields.has(filter.fieldId)
+          ) {
+            continue;
+          }
+          const content = fs.readFileSync(document.path, 'utf8');
+          addFinding(
+            document.path,
+            content,
+            content.indexOf(`"${filter.fieldId}"`),
+            'AP-18',
+            `Filter "${filter.id}" references unknown collection field "${filter.fieldId}". Define the field in the app-owned collection or correct the filter before using it in a Saved View.`,
+          );
+        }
+      }
       walkJson(value.views?.presets, (preset) => {
         if (!preset?.filters || typeof preset.filters !== 'object' || Array.isArray(preset.filters)) {
           return;
         }
         for (const filterId of Object.keys(preset.filters)) {
           const fieldId = filterFieldsById.get(filterId);
-          if (fieldId) savedViewFieldIds.add(fieldId);
+          if (fieldId) {
+            savedViewFieldIds.add(fieldId);
+            continue;
+          }
+          const content = fs.readFileSync(document.path, 'utf8');
+          addFinding(
+            document.path,
+            content,
+            content.indexOf(`"${filterId}"`),
+            'AP-18',
+            `Saved View filter "${filterId}" has no matching declaration in filters.items. Declare the filter and its fieldId before using it in a View.`,
+          );
         }
       });
 

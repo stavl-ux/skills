@@ -76,6 +76,7 @@ interface PresetView {
 - **IF** controlling columns in views **THEN** `table.customColumns.enabled` MUST be true.
 - **IF** setting `columnPreferences` **THEN** must list ALL visible columns if reordering/hiding.
 - **IF** setting filters **THEN** keys MUST match defined filter IDs.
+- **IF** a View represents workflow state **THEN** include every maintained field that defines membership.
 
 ### Implementation Rules
 - **MUST** set `enabled: true` to activate.
@@ -86,26 +87,34 @@ interface PresetView {
 
 ### Canonical Example
 ```typescript
+filters: {
+  items: [
+    { id: 'reviewed-filter', fieldId: 'isReviewed' },
+    { id: 'attention-filter', fieldId: 'needsAttention' }
+  ]
+},
 views: {
   enabled: true,
   presets: {
-    type: 'categories',
-    categories: [{
-      id: 'status-cat',
-      label: 'By Status',
-      views: [{
-        id: 'active-items',
-        label: 'Active Only',
+    type: 'views',
+    views: [
+      {
+        id: 'needs-attention',
+        label: 'Needs Attention',
         isDefaultView: true,
         filters: {
-          'status-filter': { filterType: 'boolean', value: [{ id: 'checked', name: 'Active' }] }
-        },
-        columnPreferences: [
-          { id: 'name', show: true },
-          { id: 'status', show: true, direction: 'asc' }
-        ]
-      }]
-    }]
+          'reviewed-filter': { filterType: 'boolean', value: [{ id: 'unchecked', name: 'Not Reviewed' }] },
+          'attention-filter': { filterType: 'boolean', value: [{ id: 'checked', name: 'Needs Attention' }] }
+        }
+      },
+      {
+        id: 'reviewed',
+        label: 'Reviewed',
+        filters: {
+          'reviewed-filter': { filterType: 'boolean', value: [{ id: 'checked', name: 'Reviewed' }] }
+        }
+      }
+    ]
   }
 }
 ```
@@ -118,6 +127,7 @@ A workflow action may move a record between operational worksets, such as `Needs
 - Persist first, then call `sdk.refreshCollection()` so Auto Patterns re-runs filters, counts, and selection against canonical data.
 - Apply the same transition and refresh behavior to row, bulk, and detail actions.
 - Verify the record disappears from Views it no longer matches, appears once in the destination View, and cannot remain selected while absent.
+- Keep operational filter declarations when adding display filters; replacing `filters.items` can invalidate every View that references them.
 
 Optimistic updates provide immediate row feedback but do not replace collection refresh when the mutation changes Saved View membership.
 
