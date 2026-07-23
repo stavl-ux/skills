@@ -170,7 +170,7 @@ type CustomActionCollectionPageActionOnRowClickResolver = (params: {
 - **MUST** use `actionParams.item` to produce the selected surface outcome. For a SidePanel, call a page-owned `openItem(item)` callback; for a Modal or entity page, invoke its documented navigation API. Do not rebuild the collection table or own a parallel data lifecycle.
 - **MUST** choose the detail surface from depth and context: SidePanel for moderate contextual work, Modal for short blocking work, and entity page for deep or multi-section work. These are recommendations, not rules based only on `view` versus `edit`.
 - **MUST** decide row, bulk, detail, and edit actions together before generation. Table actions do not automatically propagate to a linked entity page.
-- **MUST** preserve editing for app-owned writable records when the workflow manages those records. Use an edit entity page or a paired view/edit flow; make a view-only detail page only when read-only intent is explicit and justified.
+- **MUST** map each audience permission to the matching workflow capability. For app-owned records with `itemUpdate: CMS_EDITOR`, use an edit entity page or paired view/edit flow; a custom row or bulk transition does not substitute for field editing. Use view-only when update is unavailable to that audience, and keep only named immutable fields read-only inside an otherwise editable workflow.
 - **NEVER** mix `create` logic with `custom` action types.
 - **NEVER** assume `schema` or `optimisticActions` exist without checking.
 

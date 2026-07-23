@@ -235,6 +235,21 @@ Use `SITE_MEMBER_AUTHOR` on `itemUpdate` / `itemRemove` when members should only
 2. **Use the least restrictive context as the floor.** If a custom element widget reads the data AND a dashboard page also reads it, `itemRead` must be `ANYONE` (because the widget is public).
 3. **Apply per-operation.** A collection can have `itemRead: ANYONE` (widget displays it) but `itemInsert: CMS_EDITOR` (only dashboard users add items). Each operation is independent.
 
+### Permission-to-Interface Contract
+
+Resolve permissions for the intended dashboard audience per operation; do not infer one global read-only or editor mode.
+
+| Permission available to the audience | Dashboard capability |
+|---|---|
+| `itemRead` | List and inspect records. |
+| `itemInsert` | Offer create only when creation belongs to the workflow. |
+| `itemUpdate` | Provide an edit entity page or a paired inspect/edit flow for app-owned records managed by this dashboard. |
+| `itemRemove` | Offer delete only when deletion belongs to the workflow. |
+
+Permissions are the capability ceiling, while product intent determines which relevant operations appear. Never expose an operation the audience cannot perform. Conversely, do not silently make an app-owned management surface view-only when its intended audience has `itemUpdate: CMS_EDITOR`; either provide editing or change the permission/workflow contract. A deliberately narrower interface must name the alternate editing owner or the immutable source/fields.
+
+There is no separate `CMS_VIEWER` value. A CMS collaborator is effectively a viewer for an operation when they satisfy `itemRead` but not that operation's write permission.
+
 ## Relationships
 
 **One-to-One / Many-to-One (REFERENCE):**

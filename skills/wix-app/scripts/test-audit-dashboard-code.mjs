@@ -14,6 +14,8 @@ const badAutoRoot = path.join(root, 'bad-auto');
 const badAnalyticsRoot = path.join(root, 'bad-analytics');
 const badRerouteRoot = path.join(root, 'bad-reroute');
 const badWorkflowRoot = path.join(root, 'bad-workflow');
+const badWritableRoot = path.join(root, 'bad-writable');
+const viewerRoot = path.join(root, 'viewer');
 const goodRoot = path.join(root, 'good');
 const autoRoot = path.join(root, 'auto');
 const hybridRoot = path.join(root, 'hybrid');
@@ -22,12 +24,20 @@ fs.mkdirSync(badAutoRoot);
 fs.mkdirSync(badAnalyticsRoot);
 fs.mkdirSync(badRerouteRoot);
 fs.mkdirSync(badWorkflowRoot);
+fs.mkdirSync(badWritableRoot);
+fs.mkdirSync(viewerRoot);
 fs.mkdirSync(goodRoot);
 fs.mkdirSync(autoRoot);
 fs.mkdirSync(hybridRoot);
 
 function write(directory, fileName, content) {
   fs.writeFileSync(path.join(directory, fileName), content);
+}
+
+function writeNested(directory, relativePath, content) {
+  const filePath = path.join(directory, relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content);
 }
 
 try {
@@ -283,6 +293,114 @@ export default function Orders() {
 }`,
   );
 
+  writeNested(
+    badWritableRoot,
+    'src/extensions/dashboard-pages/order-exceptions/patterns.json',
+    JSON.stringify({
+      pages: [
+        {
+          id: 'orders',
+          type: 'collectionPage',
+          collectionPage: {
+            components: [{
+              type: 'collection',
+              entityPageId: 'order-detail',
+            }],
+          },
+        },
+        {
+          id: 'order-detail',
+          type: 'entityPage',
+          entityPage: {
+            mode: 'view',
+            parentPageId: 'orders',
+            collectionId: 'app-id/order-exceptions',
+            route: { path: '/order/:entityId', params: { id: 'entityId' } },
+            actions: {
+              primaryActions: {
+                type: 'action',
+                action: {
+                  item: {
+                    id: 'reviewOrder',
+                    type: 'custom',
+                    label: 'Mark as Reviewed',
+                    biName: 'review-order',
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    }),
+  );
+  writeNested(
+    badWritableRoot,
+    'src/extensions/dashboard-pages/order-exceptions/OrderExceptions.tsx',
+    `import { AutoPatternsApp } from '@wix/auto-patterns';
+export const reviewOrder = ({ actionParams: { entity } }) => {
+  if (!entity) return { label: 'Review', biName: 'review-order', disabled: true, onClick: () => {} };
+  return { label: 'Review', biName: 'review-order', onClick: () => update(entity.id) };
+};
+export default function OrderExceptions() {
+  return <AutoPatternsApp />;
+}`,
+  );
+  writeNested(
+    badWritableRoot,
+    'src/extensions/backend/data-collections/OrderExceptions.ts',
+    `const collectionIdSuffix = 'order-exceptions';
+export default {
+  idSuffix: collectionIdSuffix,
+  fields: [],
+  dataPermissions: {
+    itemRead: 'CMS_EDITOR',
+    itemInsert: 'CMS_EDITOR',
+    itemUpdate: 'CMS_EDITOR',
+    itemRemove: 'CMS_EDITOR',
+  },
+};`,
+  );
+
+  writeNested(
+    viewerRoot,
+    'src/extensions/dashboard-pages/catalog/patterns.json',
+    JSON.stringify({
+      pages: [{
+        id: 'catalog-detail',
+        type: 'entityPage',
+        entityPage: {
+          mode: 'view',
+          parentPageId: 'catalog',
+          collectionId: 'app-id/catalog',
+          route: { path: '/catalog/:entityId', params: { id: 'entityId' } },
+        },
+      }],
+    }),
+  );
+  writeNested(
+    viewerRoot,
+    'src/extensions/dashboard-pages/catalog/Catalog.tsx',
+    `import { AutoPatternsApp } from '@wix/auto-patterns';
+export default function Catalog() {
+  return <AutoPatternsApp />;
+}`,
+  );
+  writeNested(
+    viewerRoot,
+    'src/extensions/backend/data-collections/Catalog.ts',
+    `export default {
+  idSuffix: 'catalog',
+  fields: [],
+  dataPermissions: {
+    itemRead: 'CMS_EDITOR',
+    itemInsert: 'PRIVILEGED',
+    itemUpdate: 'PRIVILEGED',
+    itemRemove: 'PRIVILEGED',
+  },
+};`,
+  );
+
   write(
     goodRoot,
     '.dashboard-route.json',
@@ -456,6 +574,22 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const badWritableDashboard = path.join(
+    badWritableRoot,
+    'src/extensions/dashboard-pages/order-exceptions',
+  );
+  const badWritable = spawnSync(
+    process.execPath,
+    [auditPath, badWritableDashboard],
+    { encoding: 'utf8' },
+  );
+  const badWritableOutput = `${badWritable.stdout}\n${badWritable.stderr}`;
+  if (badWritable.status === 0 || !badWritableOutput.includes('AP-12')) {
+    console.error('Dashboard audit self-test accepted a CMS_EDITOR-writable collection with no editing surface.');
+    console.error(badWritableOutput.trim());
+    process.exit(1);
+  }
+
   const badAnalytics = spawnSync(process.execPath, [auditPath, badAnalyticsRoot], { encoding: 'utf8' });
   const badAnalyticsOutput = `${badAnalytics.stdout}\n${badAnalytics.stderr}`;
   if (badAnalytics.status === 0 || !badAnalyticsOutput.includes('RT-06')) {
@@ -478,6 +612,14 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const viewerDashboard = path.join(viewerRoot, 'src/extensions/dashboard-pages/catalog');
+  const viewer = spawnSync(process.execPath, [auditPath, viewerDashboard], { encoding: 'utf8' });
+  if (viewer.status !== 0) {
+    console.error('Dashboard audit self-test rejected a CMS viewer with no update permission.');
+    console.error(`${viewer.stdout}\n${viewer.stderr}`.trim());
+    process.exit(1);
+  }
+
   const hybrid = spawnSync(process.execPath, [auditPath, hybridRoot], { encoding: 'utf8' });
   if (hybrid.status !== 0) {
     console.error('Dashboard audit self-test rejected the valid Auto Patterns collection with supplemental analytics regions.');
@@ -485,7 +627,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, native panel controls, and unnecessary custom analytics tables rejected; custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: bad routes, missing editor surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

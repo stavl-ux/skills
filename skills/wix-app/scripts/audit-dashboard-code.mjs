@@ -34,6 +34,24 @@ function namedFiles(inputPath, fileName) {
   );
 }
 
+function projectSourceRoots(inputPath) {
+  const absolute = path.resolve(inputPath);
+  if (!fs.existsSync(absolute)) return [];
+  let current = fs.statSync(absolute).isDirectory() ? absolute : path.dirname(absolute);
+  const roots = [];
+
+  while (true) {
+    if (path.basename(current) === 'src') roots.push(current);
+    const nestedSource = path.join(current, 'src');
+    if (fs.existsSync(path.join(nestedSource, 'extensions'))) roots.push(nestedSource);
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return roots;
+}
+
 function lineAt(content, index) {
   return content.slice(0, index).split(/\r?\n/).length;
 }
@@ -53,12 +71,22 @@ function report(filePath, content, rule, pattern, message) {
 let files;
 let routeRecordPaths;
 let patternsPaths;
+let dataCollectionFiles;
 try {
   files = routeOnly ? [] : [...new Set(inputs.flatMap(sourceFiles))];
   routeRecordPaths = [...new Set(inputs.flatMap((input) => namedFiles(input, routeRecordName)))];
   patternsPaths = routeOnly
     ? []
     : [...new Set(inputs.flatMap((input) => namedFiles(input, 'patterns.json')))];
+  dataCollectionFiles = routeOnly
+    ? []
+    : [...new Set(
+      inputs
+        .flatMap(projectSourceRoots)
+        .map((sourceRoot) => path.join(sourceRoot, 'extensions', 'backend', 'data-collections'))
+        .filter(fs.existsSync)
+        .flatMap(sourceFiles),
+    )];
 } catch (error) {
   console.error(error.message);
   process.exit(2);
@@ -101,7 +129,21 @@ const customRowActionIds = new Set();
 const entityRuntimeResolvers = new Map();
 const entityPages = new Map();
 const collectionEntityLinks = [];
+const editableCollectionSuffixes = new Set();
 let hasEntityPagePattern = false;
+
+for (const filePath of dataCollectionFiles) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const constants = new Map(
+    [...content.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*['"]([^'"]+)['"]/g)]
+      .map((match) => [match[1], match[2]]),
+  );
+  const suffixMatch = /\bidSuffix\s*:\s*(?:['"]([^'"]+)['"]|([A-Za-z_$][\w$]*))/.exec(content);
+  const suffix = suffixMatch?.[1] ?? constants.get(suffixMatch?.[2]);
+  if (suffix && /\bitemUpdate\s*:\s*['"]CMS_EDITOR['"]/.test(content)) {
+    editableCollectionSuffixes.add(suffix);
+  }
+}
 
 function registerEntityRuntimeResolver(id, kind) {
   if (typeof id !== 'string' || !id.trim()) return;
@@ -216,6 +258,27 @@ for (const link of collectionEntityLinks) {
       line: 1,
       rule: 'AP-10',
       message: `Collection links mutating row or bulk actions to view-only entity page "${link.entityPageId}" with no entity actions or paired edit page. Preserve the relevant single-record workflow or remove unrelated collection mutations.`,
+    });
+  }
+}
+
+for (const entityPage of entityPages.values()) {
+  if (entityPage.mode !== 'view' || typeof entityPage.collectionId !== 'string') continue;
+  const collectionSuffix = entityPage.collectionId.split('/').filter(Boolean).at(-1);
+  if (!editableCollectionSuffixes.has(collectionSuffix)) continue;
+
+  const hasPairedEditPage = [...entityPages.values()].some((candidate) =>
+    candidate.mode === 'edit'
+    && candidate.id !== entityPage.id
+    && candidate.collectionId === entityPage.collectionId
+    && candidate.parentPageId === entityPage.parentPageId
+  );
+  if (!hasPairedEditPage) {
+    findings.push({
+      filePath: entityPage.path,
+      line: 1,
+      rule: 'AP-12',
+      message: `Entity page "${entityPage.id}" is view-only, but its app-owned collection grants itemUpdate to CMS_EDITOR. Use edit mode or add a paired edit page so the dashboard matches the audience's editing capability.`,
     });
   }
 }

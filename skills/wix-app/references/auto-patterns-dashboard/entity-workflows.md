@@ -78,11 +78,11 @@ type EntityPageHeaderBadges = (entity: any) => {
 
 ### Mutability Decision
 
-- **MUST** decide entity mode from workflow intent, data ownership, permissions, and field mutability before editing generated configuration.
-- **MUST** keep the default `edit` mode for an app-owned writable management flow unless the request is explicitly inspect-only or a named source/field is intentionally immutable.
-- **MUST** use a paired view page and edit page when users should inspect first and then edit. The linked edit page provides the automatic Edit affordance.
+- **MUST** resolve `itemRead`, `itemInsert`, `itemUpdate`, and `itemRemove` for the intended dashboard audience before choosing entity mode.
+- **MUST** keep the default `edit` mode, or use paired `view` + `edit` pages, when an app-owned management collection grants that audience `itemUpdate`. The linked edit page provides the automatic Edit affordance.
+- **MUST** use `view` only when update is unavailable to that audience. Keep named immutable fields read-only inside an otherwise editable workflow; if another surface owns all editing, align collection permissions so this audience is read-only.
 - **MUST** keep relevant single-record transitions available on the entity surface when equivalent row or bulk actions exist. Collection actions do not propagate automatically.
-- **MUST** state the reason when selecting a view-only entity page for writable app-owned data.
+- **MUST** treat business-field editing and workflow transitions as separate capabilities; a custom transition such as **Mark as Reviewed** does not replace general editing when both are allowed.
 - **NEVER** infer read-only product intent merely from words such as "show", "details", or "inspect" when the same workflow also updates or deletes records.
 
 ### Implementation Rules
