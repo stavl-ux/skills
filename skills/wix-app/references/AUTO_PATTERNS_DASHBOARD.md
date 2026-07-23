@@ -40,7 +40,8 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-12:** When an app-owned collection grants the intended collaborator `itemUpdate: CMS_EDITOR`, its management workflow must include an edit entity page or paired view/edit pages. A custom transition action does not satisfy general editing.
 - **AP-13:** Preserve operational field semantics across collection and detail surfaces. When a field communicates status, risk, priority, or required attention and appears as a badge in entity detail, render that same field with a documented custom-column badge in the collection Table/Grid when it is shown there. Reuse one label-to-skin mapping. Do not badge descriptive text or ordinary categories merely for decoration.
 - **AP-14:** Model bounded values before generating the collection. Use `TEXT` for one controlled value, `ARRAY_STRING` for zero-to-many controlled values, and `BOOLEAN` for binary state; use references instead when the options are managed records. Reuse one canonical value contract across schema, sample data, filters, forms, validation, and badges.
-- **AP-15:** When an app-owned management collection grants `itemRemove: CMS_EDITOR` and deletion belongs to the entity lifecycle, expose a confirmed single-record Delete action in the row or detail surface and add bulk Delete when useful. If deletion is intentionally unavailable, remove that permission or record the workflow reason. Never use record deletion to process or dismiss a derived queue.
+- **AP-15:** App-owned editor collections default `itemRemove` to `CMS_EDITOR`, confirmed row/detail Delete, and useful bulk Delete. Restrict only for an explicit recorded ownership or safety reason. Process source queues with transitions; app-owned exception records remain deletable.
+- **AP-16:** Name the workflow-defining action first. It is primary for row, requested bulk selection, and detail. Row navigation or `entityPageId` handles inspection; Edit supports and Delete remains destructive.
 
 ### Extension Choice
 
@@ -58,9 +59,10 @@ These are best-practice defaults, not intent-to-component rules: viewing and edi
 ### Action Coherence
 
 - Treat inspect, edit, workflow transition, create, and delete as different intents.
-- Give a bulk workflow transition a single-record equivalent in the row detail surface or row actions unless it is inherently bulk-only.
-- For an app-owned editor workflow, expose the lifecycle operations granted to that audience when they belong to the managed entity. If `itemRemove` is granted, provide confirmed single-record deletion and add bulk deletion only when useful. Omit deletion for derived queues, immutable records, or workflows where another system owns removal.
-- For an inspect-first workflow, use `View` or the specific workflow verb as the row action; keep full-record editing available from the chosen detail surface when appropriate.
+- Mirror a primary bulk transition as the primary row action unless inherently bulk-only.
+- If row click or `entityPageId` opens details, omit redundant custom View.
+- Default app-owned editor deletion as AP-15 specifies.
+- When transition and editing both matter, pair view/edit pages: view owns the transition; edit owns persistence.
 
 Before generation, make one compact workflow decision table:
 
@@ -68,12 +70,13 @@ Before generation, make one compact workflow decision table:
 | --- | --- |
 | Data ownership | App-owned, site-owned, Wix business data, or external |
 | Audience capabilities | `itemRead`, `itemInsert`, `itemUpdate`, and `itemRemove` available to the intended user |
+| Primary job | The one action that resolves or advances the user's main operational task |
 | Mutability | Which fields and transitions this user may change |
 | Detail mode | `edit`, `view`, or paired `view` + `edit`, with one reason |
 | Action surfaces | Row, bulk, detail, and edit actions that must remain coherent |
 | Field semantics | Which fields are identity, operational status, metric, date, or descriptive text, and how each stays recognizable across list and detail |
 
-Resolve permissions per operation before choosing entity mode. When the intended CMS collaborator has `itemUpdate: CMS_EDITOR` and the dashboard manages app-owned records, preserve the generated edit default or pair an inspect-first view page with an edit page. When `itemRemove: CMS_EDITOR` is granted and deletion belongs to that entity lifecycle, include confirmed single-record deletion and add bulk deletion when useful. Use view-only when update is unavailable to that audience. Named immutable fields may remain read-only inside an otherwise editable workflow; if another surface owns all editing, align collection permissions so this audience is read-only. Collection actions do not automatically appear on entity pages, so configure relevant actions on every required surface.
+Resolve each permission before choosing entity mode. App-owned records with `itemUpdate: CMS_EDITOR` require edit or paired view/edit pages; default `itemRemove` to `CMS_EDITOR` unless a restriction is recorded. Use view-only when update is unavailable. Named immutable fields may stay read-only. Configure required actions on each surface because collection actions do not propagate.
 
 ### Canonical Auto Patterns Profile: Inventory Manager
 

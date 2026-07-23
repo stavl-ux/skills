@@ -288,7 +288,8 @@ type CustomActionCellSecondaryActionResolver = (params: {
 - **IF** `type: 'update'` **THEN** `update` config with `page.id` is **REQUIRED**.
 - **IF** `type: 'delete'` **THEN** `delete.mode: 'modal'` is **REQUIRED**.
 - **IF** `type: 'custom'` **THEN** resolver implementation is **REQUIRED**.
-- **IF** `type: 'custom'` **THEN** resolver MUST be registered via override pattern (see **custom_actions_override**).
+- **IF** `type: 'custom'` **THEN** its `id` MUST exactly match the registered resolver export key; do not mix kebab-case configuration IDs with camelCase exports.
+- **IF** `type: 'custom'` **THEN** its resolver MUST perform the declared outcome. Empty handlers and placeholder callbacks are invalid even when TypeScript and build pass.
 - **IF** using `secondaryActions.inlineCount` **THEN** value MUST be <= items count.
 
 ### Implementation Rules
@@ -297,7 +298,9 @@ type CustomActionCellSecondaryActionResolver = (params: {
 - **MUST** implement custom resolvers using `CustomActionCellPrimaryActionResolver` (for primary actions) or `CustomActionCellSecondaryActionResolver` (for secondary actions).
 - **MUST** use `errorHandler` for Wix API calls in resolvers.
 - **MUST** label the primary action for its user outcome. Use `View` for inspection, `Edit` for editing, and the actual workflow verb for a transition; do not default to generic `Update`.
-- **MUST** keep row, detail-surface, and bulk actions coherent. A bulk workflow transition needs a discoverable single-record equivalent unless it is inherently bulk-only.
+- **MUST** make the workflow-defining transition the primary row action. If the same transition is a primary bulk action, its normalized label and outcome must match the row primary action unless it is inherently bulk-only.
+- **MUST** use row click or `entityPageId` for inspection when already configured; do not add a custom View action whose handler is empty or duplicates that navigation.
+- **MUST** keep row, detail-surface, and bulk actions coherent. Editing is supporting when a stronger operational transition defines the dashboard.
 - **MUST** include a confirmed single-record Delete action when the intended audience has `itemRemove`, the collection is app-owned, and removal belongs to the entity lifecycle. Put it in the row's destructive secondary actions or the detail surface; do not leave deletion available only in bulk.
 - **SHOULD** use `multiplePrimary` for 2-3 equally important actions.
 - **NEVER** use `primaryAction` inside `secondaryActions`.
@@ -310,17 +313,22 @@ type CustomActionCellSecondaryActionResolver = (params: {
 actionCell: {
   primaryAction: {
     item: {
-      id: 'editItem',
-      type: 'update',
-      label: 'Edit',
-      biName: 'edit-action',
-      skin: 'standard',
-      update: { mode: 'page', page: { id: 'edit-page' } }
-    },
-    alwaysVisible: true
+      id: 'markReviewed',
+      type: 'custom',
+      label: 'Mark as Reviewed',
+      biName: 'mark-reviewed-action',
+      skin: 'standard'
+    }
   },
   secondaryActions: {
     items: [
+      {
+        id: 'editItem',
+        type: 'update',
+        label: 'Edit',
+        biName: 'edit-action',
+        update: { mode: 'page', page: { id: 'edit-page' } }
+      },
       {
         id: 'deleteItem',
         type: 'delete',
@@ -335,12 +343,13 @@ actionCell: {
 
 // Resolvers (if custom) - see custom_actions_override for full registration pattern
 
-// Primary action resolver: use prefixIcon (icon is not allowed on primary cell actions)
-export const myPrimaryAction: CustomActionCellPrimaryActionResolver = ({ actionParams }) => ({
-  label: 'Custom',
+// Config ID and export key match exactly.
+export const markReviewed: CustomActionCellPrimaryActionResolver = ({ actionParams, sdk }) => ({
+  label: 'Mark as Reviewed',
   prefixIcon: <MyIcon />,
-  biName: 'custom-action',
-  onClick: () => console.log(actionParams.item)
+  biName: 'mark-reviewed-action',
+  disabled: Boolean(actionParams.item.isReviewed),
+  onClick: () => markReviewedWithOptimisticUpdate(actionParams.item, sdk)
 });
 
 // Secondary action resolver: uses icon
@@ -392,6 +401,7 @@ type CustomBulkActionsActionResolver = (params: {
 ### Validation Logic
 - **IF** `type: 'bulkDelete'` **THEN** `bulkDelete.mode: 'modal'` is **REQUIRED**.
 - **IF** `type: 'custom'` **THEN** resolver implementation is **REQUIRED**.
+- **IF** `type: 'custom'` **THEN** its `id` MUST exactly match the registered resolver export key and its handler MUST perform the declared outcome.
 - **IF** `primaryActions` AND `secondaryActions` both undefined **THEN** toolbar invalid.
 
 ### Implementation Rules
@@ -401,6 +411,7 @@ type CustomBulkActionsActionResolver = (params: {
 - **MUST** register custom resolvers in `AutoPatternsOverridesProvider`.
 - **MUST** use `errorHandler` for Wix API calls in resolvers.
 - **MUST** provide a discoverable single-record equivalent for every bulk workflow transition unless the operation is inherently bulk-only. The equivalent may live in the row action, SidePanel, Modal, or entity page.
+- **MUST** mirror the primary bulk transition as the primary row action. Use the same user-facing label and state change; do not make generic View or Edit primary instead.
 - **MUST** add bulk Delete when `itemRemove` is granted, deleting the managed entity is a valid lifecycle action, and multi-record removal is useful. Keep a confirmed single-record Delete action available as well. Do not use deletion to process or dismiss a queue.
 - **NEVER** use default navigation in bulk actions; implement explicitly.
 
@@ -412,31 +423,31 @@ bulkActionToolbar: {
     type: 'action',
     action: {
       item: {
-        id: 'bulkDelete',
-        type: 'bulkDelete',
-        label: 'Delete',
-        biName: 'bulk-delete-action',
-        bulkDelete: { mode: 'modal', modal: {} }
+        id: 'bulkMarkReviewed',
+        type: 'custom',
+        label: 'Mark as Reviewed',
+        biName: 'bulk-mark-reviewed-action'
       }
     }
   }],
   secondaryActions: [
     {
-      id: 'bulkExport',
-      type: 'custom',
-      label: 'Export',
-      biName: 'bulk-export-action'
+      id: 'bulkDelete',
+      type: 'bulkDelete',
+      label: 'Delete',
+      biName: 'bulk-delete-action',
+      bulkDelete: { mode: 'modal', modal: {} }
     }
   ]
 }
 
 // Resolver
-export const bulkExport: CustomBulkActionsActionResolver = ({ actionParams }) => ({
-  label: 'Export',
-  icon: <Download />,
-  biName: 'bulk-export-action',
+export const bulkMarkReviewed: CustomBulkActionsActionResolver = ({ actionParams, sdk }) => ({
+  label: 'Mark as Reviewed',
+  icon: <Check />,
+  biName: 'bulk-mark-reviewed-action',
   onClick: () => {
-    // Logic using actionParams.selectedValues
+    markReviewedWithOptimisticUpdate(actionParams.selectedValues, sdk);
   }
 });
 ```

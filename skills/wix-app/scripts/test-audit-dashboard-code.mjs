@@ -15,6 +15,8 @@ const badAnalyticsRoot = path.join(root, 'bad-analytics');
 const badRerouteRoot = path.join(root, 'bad-reroute');
 const badWorkflowRoot = path.join(root, 'bad-workflow');
 const badWritableRoot = path.join(root, 'bad-writable');
+const badActionsRoot = path.join(root, 'bad-actions');
+const badRemoveRoot = path.join(root, 'bad-remove');
 const viewerRoot = path.join(root, 'viewer');
 const goodRoot = path.join(root, 'good');
 const autoRoot = path.join(root, 'auto');
@@ -25,6 +27,8 @@ fs.mkdirSync(badAnalyticsRoot);
 fs.mkdirSync(badRerouteRoot);
 fs.mkdirSync(badWorkflowRoot);
 fs.mkdirSync(badWritableRoot);
+fs.mkdirSync(badActionsRoot);
+fs.mkdirSync(badRemoveRoot);
 fs.mkdirSync(viewerRoot);
 fs.mkdirSync(goodRoot);
 fs.mkdirSync(autoRoot);
@@ -362,6 +366,111 @@ export default {
 };`,
   );
 
+  write(
+    badActionsRoot,
+    'patterns.json',
+    JSON.stringify({
+      pages: [{
+        id: 'orders',
+        type: 'collectionPage',
+        collectionPage: {
+          components: [{
+            type: 'collection',
+            collection: {
+              collectionId: 'app-id/order-exceptions',
+              entityTypeSource: 'cms',
+            },
+            actionCell: {
+              primaryAction: {
+                item: {
+                  id: 'view-order',
+                  type: 'custom',
+                  label: 'View',
+                  biName: 'view-order',
+                },
+              },
+            },
+            table: {
+              bulkActionToolbar: {
+                primaryActions: [{
+                  type: 'action',
+                  action: {
+                    item: {
+                      id: 'markReviewedBulk',
+                      type: 'custom',
+                      label: 'Mark as Reviewed',
+                      biName: 'bulk-mark-reviewed',
+                    },
+                  },
+                }],
+              },
+            },
+          }],
+        },
+      }],
+    }),
+  );
+  write(
+    badActionsRoot,
+    'OrderExceptions.tsx',
+    `import { AutoPatternsApp } from '@wix/auto-patterns';
+export const viewOrder = ({ actionParams }) => ({
+  label: 'View',
+  biName: 'view-order',
+  onClick: () => { void actionParams; },
+});
+export const markReviewedBulk = ({ actionParams }) => ({
+  label: 'Mark as Reviewed',
+  biName: 'bulk-mark-reviewed',
+  onClick: () => { void actionParams; },
+});
+export default function OrderExceptions() {
+  return <AutoPatternsApp />;
+}`,
+  );
+
+  writeNested(
+    badRemoveRoot,
+    'src/extensions/dashboard-pages/order-exceptions/patterns.json',
+    JSON.stringify({
+      pages: [{
+        id: 'orders',
+        type: 'collectionPage',
+        collectionPage: {
+          components: [{
+            type: 'collection',
+            collection: {
+              collectionId: 'app-id/order-exceptions',
+              entityTypeSource: 'cms',
+            },
+          }],
+        },
+      }],
+    }),
+  );
+  writeNested(
+    badRemoveRoot,
+    'src/extensions/dashboard-pages/order-exceptions/OrderExceptions.tsx',
+    `import { AutoPatternsApp } from '@wix/auto-patterns';
+export default function OrderExceptions() {
+  return <AutoPatternsApp />;
+}`,
+  );
+  writeNested(
+    badRemoveRoot,
+    'src/extensions/backend/data-collections/OrderExceptions.ts',
+    `export default {
+  idSuffix: 'order-exceptions',
+  fields: [],
+  dataPermissions: {
+    itemRead: 'CMS_EDITOR',
+    itemInsert: 'CMS_EDITOR',
+    itemUpdate: 'CMS_EDITOR',
+    itemRemove: 'PRIVILEGED',
+  },
+};`,
+  );
+
   writeNested(
     viewerRoot,
     'src/extensions/dashboard-pages/catalog/patterns.json',
@@ -590,6 +699,38 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const badActions = spawnSync(
+    process.execPath,
+    [auditPath, badActionsRoot],
+    { encoding: 'utf8' },
+  );
+  const badActionsOutput = `${badActions.stdout}\n${badActions.stderr}`;
+  const missedActionRules = ['AP-07', 'AP-16'].filter(
+    (rule) => !badActionsOutput.includes(rule),
+  );
+  if (badActions.status === 0 || missedActionRules.length) {
+    console.error('Dashboard audit self-test accepted broken row and bulk action wiring.');
+    if (missedActionRules.length) console.error(`Missing rules: ${missedActionRules.join(', ')}`);
+    console.error(badActionsOutput.trim());
+    process.exit(1);
+  }
+
+  const badRemoveDashboard = path.join(
+    badRemoveRoot,
+    'src/extensions/dashboard-pages/order-exceptions',
+  );
+  const badRemove = spawnSync(
+    process.execPath,
+    [auditPath, badRemoveDashboard],
+    { encoding: 'utf8' },
+  );
+  const badRemoveOutput = `${badRemove.stdout}\n${badRemove.stderr}`;
+  if (badRemove.status === 0 || !badRemoveOutput.includes('AP-15')) {
+    console.error('Dashboard audit self-test accepted an editor collection with silently restricted removal.');
+    console.error(badRemoveOutput.trim());
+    process.exit(1);
+  }
+
   const badAnalytics = spawnSync(process.execPath, [auditPath, badAnalyticsRoot], { encoding: 'utf8' });
   const badAnalyticsOutput = `${badAnalytics.stdout}\n${badAnalytics.stderr}`;
   if (badAnalytics.status === 0 || !badAnalyticsOutput.includes('RT-06')) {
@@ -627,7 +768,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, missing editor surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: bad routes, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

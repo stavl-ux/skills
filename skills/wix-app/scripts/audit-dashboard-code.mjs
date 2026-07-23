@@ -125,11 +125,14 @@ for (const patternsPath of patternsPaths) {
   }
 }
 
-const customRowActionIds = new Set();
+const collectionRuntimeResolvers = new Map();
 const entityRuntimeResolvers = new Map();
 const entityPages = new Map();
 const collectionEntityLinks = [];
 const editableCollectionSuffixes = new Set();
+const restrictedRemoveCollections = new Map();
+const managedCollectionSuffixes = new Set();
+const collectionActionChecks = [];
 let hasEntityPagePattern = false;
 
 for (const filePath of dataCollectionFiles) {
@@ -142,7 +145,21 @@ for (const filePath of dataCollectionFiles) {
   const suffix = suffixMatch?.[1] ?? constants.get(suffixMatch?.[2]);
   if (suffix && /\bitemUpdate\s*:\s*['"]CMS_EDITOR['"]/.test(content)) {
     editableCollectionSuffixes.add(suffix);
+    if (
+      !/\bitemRemove\s*:\s*['"]CMS_EDITOR['"]/.test(content)
+      && !/dashboard-item-remove:\s*restricted\s*-\s*\S/i.test(content)
+    ) {
+      restrictedRemoveCollections.set(suffix, filePath);
+    }
   }
+}
+
+function registerCollectionRuntimeResolver(id, kind) {
+  if (typeof id !== 'string' || !id.trim()) return;
+  const normalizedId = id.trim();
+  const kinds = collectionRuntimeResolvers.get(normalizedId) ?? new Set();
+  kinds.add(kind);
+  collectionRuntimeResolvers.set(normalizedId, kinds);
 }
 
 function registerEntityRuntimeResolver(id, kind) {
@@ -170,6 +187,32 @@ function containsMutatingAction(value) {
     );
   });
   return found;
+}
+
+function customActions(value) {
+  const actions = [];
+  walkJson(value, (candidate) => {
+    if (
+      candidate
+      && typeof candidate === 'object'
+      && !Array.isArray(candidate)
+      && candidate.type === 'custom'
+      && typeof candidate.id === 'string'
+      && candidate.id.trim()
+    ) {
+      actions.push(candidate);
+    }
+  });
+  return actions;
+}
+
+function normalizedActionOutcome(action) {
+  return String(action?.label ?? action?.id ?? '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\bbulk\b/gi, '')
+    .replace(/[^a-z0-9]+/gi, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 for (const document of patternDocuments) {
@@ -203,12 +246,36 @@ for (const document of patternDocuments) {
 
     if (page?.type !== 'collectionPage' || !page.collectionPage) continue;
     walkJson(page.collectionPage.components, (value) => {
-      if (
-        !value
-        || typeof value !== 'object'
-        || Array.isArray(value)
-        || typeof value.entityPageId !== 'string'
-      ) return;
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+      if (value.type !== 'collection' && !value.collection?.collectionId) return;
+
+      const collectionId = value.collection?.collectionId;
+      if (typeof collectionId === 'string') {
+        managedCollectionSuffixes.add(collectionId.split('/').filter(Boolean).at(-1));
+      }
+
+      const rowPrimaryActions = customActions(value.actionCell?.primaryAction);
+      const bulkPrimaryActions = [
+        ...customActions(value.bulkActionToolbar?.primaryActions),
+        ...customActions(value.table?.bulkActionToolbar?.primaryActions),
+        ...customActions(value.grid?.bulkActionToolbar?.primaryActions),
+      ];
+      collectionActionChecks.push({
+        path: document.path,
+        rowPrimaryActions,
+        bulkPrimaryActions,
+      });
+
+      for (const action of customActions(value.actionCell)) {
+        registerCollectionRuntimeResolver(action.id, 'row action');
+      }
+      for (const action of customActions({
+        bulkActionToolbar: value.bulkActionToolbar,
+        tableBulkActionToolbar: value.table?.bulkActionToolbar,
+        gridBulkActionToolbar: value.grid?.bulkActionToolbar,
+      })) {
+        registerCollectionRuntimeResolver(action.id, 'bulk action');
+      }
 
       const actionConfig = JSON.stringify({
         actionCell: value.actionCell,
@@ -216,11 +283,13 @@ for (const document of patternDocuments) {
         tableBulkActionToolbar: value.table?.bulkActionToolbar,
         gridBulkActionToolbar: value.grid?.bulkActionToolbar,
       });
-      collectionEntityLinks.push({
-        path: document.path,
-        entityPageId: value.entityPageId.trim(),
-        hasMutatingActions: containsMutatingAction(JSON.parse(actionConfig)),
-      });
+      if (typeof value.entityPageId === 'string' && value.entityPageId.trim()) {
+        collectionEntityLinks.push({
+          path: document.path,
+          entityPageId: value.entityPageId.trim(),
+          hasMutatingActions: containsMutatingAction(JSON.parse(actionConfig)),
+        });
+      }
     });
   }
 
@@ -232,9 +301,36 @@ for (const document of patternDocuments) {
       && typeof value.onRowClick.id === 'string'
       && value.onRowClick.id.trim()
     ) {
-      customRowActionIds.add(value.onRowClick.id.trim());
+      registerCollectionRuntimeResolver(value.onRowClick.id, 'onRowClick');
     }
   });
+}
+
+for (const suffix of managedCollectionSuffixes) {
+  const collectionFile = restrictedRemoveCollections.get(suffix);
+  if (!collectionFile) continue;
+  findings.push({
+    filePath: collectionFile,
+    line: 1,
+    rule: 'AP-15',
+    message: `App-owned editor collection "${suffix}" restricts itemRemove without a recorded product reason. Default it to CMS_EDITOR and expose confirmed Delete, or add "dashboard-item-remove: restricted - <reason>" beside the permission.`,
+  });
+}
+
+for (const check of collectionActionChecks) {
+  for (const bulkAction of check.bulkPrimaryActions) {
+    const bulkOutcome = normalizedActionOutcome(bulkAction);
+    const hasMatchingRowAction = check.rowPrimaryActions.some(
+      (rowAction) => normalizedActionOutcome(rowAction) === bulkOutcome,
+    );
+    if (hasMatchingRowAction) continue;
+    findings.push({
+      filePath: check.path,
+      line: 1,
+      rule: 'AP-16',
+      message: `Primary bulk action "${bulkAction.label ?? bulkAction.id}" is not mirrored by a primary row action with the same outcome. Keep the dashboard's defining transition primary in both contexts.`,
+    });
+  }
 }
 
 for (const link of collectionEntityLinks) {
@@ -537,34 +633,35 @@ for (const [resolverId, kinds] of entityRuntimeResolvers) {
   }
 }
 
-for (const actionId of customRowActionIds) {
-  const escapedId = escapeRegExp(actionId);
-  const resolverStart = new RegExp(`(?:const|let|var|function)\\s+${escapedId}\\b`).exec(projectSource);
-  if (!resolverStart) {
+function resolverHasNoOpHandler(content) {
+  return (
+    /onClick\s*:\s*\(\s*\)\s*=>\s*\{\s*(?:(?:void\s+[^;]+|return\s+undefined)\s*;?\s*)*\}/.test(
+      content,
+    )
+    || /onClick\s*:\s*\(\s*\)\s*=>\s*(?:undefined|null)\b/.test(content)
+  );
+}
+
+for (const [actionId, kinds] of collectionRuntimeResolvers) {
+  const resolver = findResolver(actionId);
+  const kindLabel = [...kinds].join('/');
+  if (!resolver) {
     findings.push({
       filePath: patternDocuments[0]?.path ?? routeRecordPaths[0],
       line: 1,
       rule: 'AP-07',
-      message: `Custom onRowClick "${actionId}" has no matching resolver implementation.`,
+      message: `Custom ${kindLabel} "${actionId}" has no matching resolver implementation. The patterns.json id must exactly match its resolver export key.`,
     });
     continue;
   }
 
-  const resolverSlice = projectSource.slice(resolverStart.index, resolverStart.index + 2400);
-  const noOpHandler =
-    /onClick\s*:\s*\(\s*\)\s*=>\s*\{\s*(?:(?:void\s+[^;]+|return\s+undefined)\s*;?\s*)*\}/.test(
-      resolverSlice,
-    )
-    || /onClick\s*:\s*\(\s*\)\s*=>\s*(?:undefined|null)\b/.test(resolverSlice);
-  if (noOpHandler) {
-    const sourceEntry = [...contents].find(([, content]) =>
-      new RegExp(`(?:const|let|var|function)\\s+${escapedId}\\b`).test(content),
-    );
+  const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2400);
+  if (resolverHasNoOpHandler(resolverSlice)) {
     findings.push({
-      filePath: sourceEntry?.[0] ?? files[0],
-      line: sourceEntry ? lineAt(sourceEntry[1], sourceEntry[1].search(new RegExp(`\\b${escapedId}\\b`))) : 1,
+      filePath: resolver.filePath,
+      line: lineAt(resolver.content, resolver.index),
       rule: 'AP-07',
-      message: `Custom onRowClick "${actionId}" resolves to a no-op; it must open the declared detail surface or perform its stated action.`,
+      message: `Custom ${kindLabel} "${actionId}" resolves to a no-op; it must open the declared detail surface or perform its stated action.`,
     });
   }
 }

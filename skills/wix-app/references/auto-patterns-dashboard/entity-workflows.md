@@ -80,9 +80,10 @@ type EntityPageHeaderBadges = (entity: any) => {
 
 - **MUST** resolve `itemRead`, `itemInsert`, `itemUpdate`, and `itemRemove` for the intended dashboard audience before choosing entity mode.
 - **MUST** keep the default `edit` mode, or use paired `view` + `edit` pages, when an app-owned management collection grants that audience `itemUpdate`. The linked edit page provides the automatic Edit affordance.
+- **MUST** use paired `view` + `edit` pages when an operational transition must remain a primary detail action while general field editing is also required. The view page owns the transition and links to edit; the edit page owns Save/Cancel.
 - **MUST** use `view` only when update is unavailable to that audience. Keep named immutable fields read-only inside an otherwise editable workflow; if another surface owns all editing, align collection permissions so this audience is read-only.
 - **MUST** keep relevant single-record transitions available on the entity surface when equivalent row or bulk actions exist. Collection actions do not propagate automatically.
-- **MUST** include a confirmed Delete action in entity `moreActions` when the intended audience has `itemRemove`, the entity is app-owned, and deletion belongs to its lifecycle. Omit it for derived queues and immutable or externally owned records.
+- **MUST** keep the workflow-defining transition primary on the view page, editing supporting, and confirmed Delete destructive in `moreActions` when `itemRemove` is available.
 - **MUST** treat business-field editing and workflow transitions as separate capabilities; a custom transition such as **Mark as Reviewed** does not replace general editing when both are allowed.
 - **NEVER** infer read-only product intent merely from words such as "show", "details", or "inspect" when the same workflow also updates or deletes records.
 
