@@ -144,6 +144,7 @@ Treat status, risk, priority, exception, payment, fulfillment, and attention fie
 
 - If an operational field is shown as a badge in an entity header or detail surface, use this documented custom-column override to show the same field as a badge in the collection Table/Grid.
 - Keep label normalization and WDS badge skin selection in one shared mapping when both resolvers live in the same feature; do not let the list and detail assign conflicting meanings.
+- For bounded `ARRAY_STRING` operational fields, render one badge per stored value from the canonical mapping. Allow wrapping or horizontal table scrolling as documented; never let badges overlap adjacent cells or controls.
 - Use the exact field ID from the collection schema and register the column override through `useColumns`.
 - Keep ordinary names, descriptions, dates, identifiers, and neutral categories as text unless their workflow meaning is explicitly a status.
 - Read the installed WDS `Badge` documentation before choosing supported skins. Color must communicate the same system meaning on every surface.

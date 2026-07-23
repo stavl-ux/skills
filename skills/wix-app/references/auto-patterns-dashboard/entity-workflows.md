@@ -82,6 +82,7 @@ type EntityPageHeaderBadges = (entity: any) => {
 - **MUST** keep the default `edit` mode, or use paired `view` + `edit` pages, when an app-owned management collection grants that audience `itemUpdate`. The linked edit page provides the automatic Edit affordance.
 - **MUST** use `view` only when update is unavailable to that audience. Keep named immutable fields read-only inside an otherwise editable workflow; if another surface owns all editing, align collection permissions so this audience is read-only.
 - **MUST** keep relevant single-record transitions available on the entity surface when equivalent row or bulk actions exist. Collection actions do not propagate automatically.
+- **MUST** include a confirmed Delete action in entity `moreActions` when the intended audience has `itemRemove`, the entity is app-owned, and deletion belongs to its lifecycle. Omit it for derived queues and immutable or externally owned records.
 - **MUST** treat business-field editing and workflow transitions as separate capabilities; a custom transition such as **Mark as Reviewed** does not replace general editing when both are allowed.
 - **NEVER** infer read-only product intent merely from words such as "show", "details", or "inspect" when the same workflow also updates or deletes records.
 
@@ -332,6 +333,7 @@ type CustomComponent = React.FC<CustomComponentProps>;
 
 ### Validation Logic
 - **IF** overriding an input field **THEN** MUST use `useController` from `@wix/patterns/form` to bind to form state.
+- **IF** editing a bounded `ARRAY_STRING` field **THEN** use a documented WDS multi-select through this custom-component override, backed by the canonical stored values. Do not render it as free text or a generic JSON input.
 - **IF** needing reactivity **THEN** MUST use `form.watch()`, NEVER rely on `entity` prop for updates (it is initial state only).
 - **IF** implementing a standalone widget (not input) **THEN** can use `entity` for display-only static data.
 - **NEVER** import `useController` from `react-hook-form` directly; use `@wix/patterns/form`.

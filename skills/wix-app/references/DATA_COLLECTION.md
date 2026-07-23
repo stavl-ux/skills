@@ -181,6 +181,19 @@ Text fields used by dashboard filters need a deliberate value contract. Decide w
 
 Wix Data equality filters are exact. Never use a label such as `Paid` as a query value for an uncontrolled text field unless the stored records are verified to use exactly `Paid`.
 
+## Bounded Value Contracts
+
+The Data Collection extension has no native enum or choice field type. Choose storage from cardinality and ownership:
+
+| Meaning | Field type |
+|---|---|
+| Binary state such as reviewed | `BOOLEAN` |
+| Exactly one controlled value | `TEXT` |
+| Zero-to-many controlled values such as issue types or tags | `ARRAY_STRING` |
+| One or many options managed as records with their own metadata | `REFERENCE` / `MULTI_REFERENCE` |
+
+Define one canonical set of stable stored values and reuse it in schema fixtures, create/edit inputs, validation, filters, and badge mappings. `ARRAY_STRING` preserves multiple values but does not create a multi-select automatically; the dashboard must provide a documented controlled input rather than a free-text or generic JSON editor.
+
 ## Naming Conventions
 
 - **Field keys:** `lowerCamelCase`, ASCII only (e.g., `productName`, `isActive`, `createdAt`)
@@ -244,9 +257,9 @@ Resolve permissions for the intended dashboard audience per operation; do not in
 | `itemRead` | List and inspect records. |
 | `itemInsert` | Offer create only when creation belongs to the workflow. |
 | `itemUpdate` | Provide an edit entity page or a paired inspect/edit flow for app-owned records managed by this dashboard. |
-| `itemRemove` | Offer delete only when deletion belongs to the workflow. |
+| `itemRemove` | For an app-owned editor workflow, provide confirmed single-record deletion when removal belongs to the entity lifecycle; add bulk deletion when useful. |
 
-Permissions are the capability ceiling, while product intent determines which relevant operations appear. Never expose an operation the audience cannot perform. Conversely, do not silently make an app-owned management surface view-only when its intended audience has `itemUpdate: CMS_EDITOR`; either provide editing or change the permission/workflow contract. A deliberately narrower interface must name the alternate editing owner or the immutable source/fields.
+Permissions are the capability ceiling, while product intent determines which relevant operations appear. Never expose an operation the audience cannot perform. Conversely, do not silently make an app-owned management surface view-only when its intended audience has `itemUpdate: CMS_EDITOR`, or omit deletion when it has `itemRemove: CMS_EDITOR` and removal is a valid lifecycle operation. Either provide the matching interface capability or change the permission/workflow contract. Derived queues must use their workflow transition instead of deleting the underlying source record.
 
 There is no separate `CMS_VIEWER` value. A CMS collaborator is effectively a viewer for an operation when they satisfy `itemRead` but not that operation's write permission.
 

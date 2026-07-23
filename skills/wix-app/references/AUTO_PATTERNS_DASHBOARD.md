@@ -39,6 +39,8 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-06:** Keep one physical collection classified as one source even when the workflow is described as an exception queue, review workset, alert list, or saved subset, or uses OR conditions, elapsed-time rules, comparisons, bulk transitions, or contextual record detail. Materialize operational state as maintained fields such as `needsAttention`, `exceptionType`, `exceptionSince`, and `isReviewed`, then configure filters/Views and documented actions against those fields. Do not rebuild the table to express query logic or attach a supplemental surface.
 - **AP-12:** When an app-owned collection grants the intended collaborator `itemUpdate: CMS_EDITOR`, its management workflow must include an edit entity page or paired view/edit pages. A custom transition action does not satisfy general editing.
 - **AP-13:** Preserve operational field semantics across collection and detail surfaces. When a field communicates status, risk, priority, or required attention and appears as a badge in entity detail, render that same field with a documented custom-column badge in the collection Table/Grid when it is shown there. Reuse one label-to-skin mapping. Do not badge descriptive text or ordinary categories merely for decoration.
+- **AP-14:** Model bounded values before generating the collection. Use `TEXT` for one controlled value, `ARRAY_STRING` for zero-to-many controlled values, and `BOOLEAN` for binary state; use references instead when the options are managed records. Reuse one canonical value contract across schema, sample data, filters, forms, validation, and badges.
+- **AP-15:** When an app-owned management collection grants `itemRemove: CMS_EDITOR` and deletion belongs to the entity lifecycle, expose a confirmed single-record Delete action in the row or detail surface and add bulk Delete when useful. If deletion is intentionally unavailable, remove that permission or record the workflow reason. Never use record deletion to process or dismiss a derived queue.
 
 ### Extension Choice
 
@@ -57,7 +59,7 @@ These are best-practice defaults, not intent-to-component rules: viewing and edi
 
 - Treat inspect, edit, workflow transition, create, and delete as different intents.
 - Give a bulk workflow transition a single-record equivalent in the row detail surface or row actions unless it is inherently bulk-only.
-- Do not add create or delete merely because the collection supports CRUD. Derive actions from the user workflow: expose required transitions consistently for one and many records, and omit unrelated lifecycle actions.
+- For an app-owned editor workflow, expose the lifecycle operations granted to that audience when they belong to the managed entity. If `itemRemove` is granted, provide confirmed single-record deletion and add bulk deletion only when useful. Omit deletion for derived queues, immutable records, or workflows where another system owns removal.
 - For an inspect-first workflow, use `View` or the specific workflow verb as the row action; keep full-record editing available from the chosen detail surface when appropriate.
 
 Before generation, make one compact workflow decision table:
@@ -71,7 +73,7 @@ Before generation, make one compact workflow decision table:
 | Action surfaces | Row, bulk, detail, and edit actions that must remain coherent |
 | Field semantics | Which fields are identity, operational status, metric, date, or descriptive text, and how each stays recognizable across list and detail |
 
-Resolve permissions per operation before choosing entity mode. Permissions describe what is technically allowed; they do not automatically add unrelated actions. When the intended CMS collaborator has `itemUpdate: CMS_EDITOR` and the dashboard manages app-owned records, preserve the generated edit default or pair an inspect-first view page with an edit page. Use view-only when update is unavailable to that audience. Named immutable fields may remain read-only inside an otherwise editable workflow; if another surface owns all editing, align collection permissions so this audience is read-only. Collection actions do not automatically appear on entity pages: configure relevant single-record transitions on the detail surface and omit unrelated create/delete defaults.
+Resolve permissions per operation before choosing entity mode. When the intended CMS collaborator has `itemUpdate: CMS_EDITOR` and the dashboard manages app-owned records, preserve the generated edit default or pair an inspect-first view page with an edit page. When `itemRemove: CMS_EDITOR` is granted and deletion belongs to that entity lifecycle, include confirmed single-record deletion and add bulk deletion when useful. Use view-only when update is unavailable to that audience. Named immutable fields may remain read-only inside an otherwise editable workflow; if another surface owns all editing, align collection permissions so this audience is read-only. Collection actions do not automatically appear on entity pages, so configure relevant actions on every required surface.
 
 ### Canonical Auto Patterns Profile: Inventory Manager
 
@@ -170,10 +172,10 @@ Without these scopes, the dashboard page renders but all data operations fail.
 
 #### Enum Handling
 
-- **IF** `enumConfig` is required (implicit or explicit):
-  - **THEN** ASK user for possible option values.
-  - **THEN** Derive `label` from `value` (e.g., "dog" -> "Dog") unless specified.
-  - **NEVER** guess or invent enum values.
+- Decide cardinality before creating the field: one controlled value uses `TEXT`; zero-to-many controlled values use `ARRAY_STRING`.
+- Use values stated in the request. If a required controlled set is missing and cannot be derived safely from an existing schema, ask for it rather than inventing values.
+- Derive labels from stable stored values only when labels are not specified.
+- Reuse the same values for `enumConfig`, entity inputs, sample data, validation, and badge rendering. `enumConfig` configures filtering; it does not turn an `ARRAY_STRING` entity field into a multi-select automatically.
 
 #### Structural Limits
 

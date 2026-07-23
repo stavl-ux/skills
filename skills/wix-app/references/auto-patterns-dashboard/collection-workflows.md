@@ -298,6 +298,7 @@ type CustomActionCellSecondaryActionResolver = (params: {
 - **MUST** use `errorHandler` for Wix API calls in resolvers.
 - **MUST** label the primary action for its user outcome. Use `View` for inspection, `Edit` for editing, and the actual workflow verb for a transition; do not default to generic `Update`.
 - **MUST** keep row, detail-surface, and bulk actions coherent. A bulk workflow transition needs a discoverable single-record equivalent unless it is inherently bulk-only.
+- **MUST** include a confirmed single-record Delete action when the intended audience has `itemRemove`, the collection is app-owned, and removal belongs to the entity lifecycle. Put it in the row's destructive secondary actions or the detail surface; do not leave deletion available only in bulk.
 - **SHOULD** use `multiplePrimary` for 2-3 equally important actions.
 - **NEVER** use `primaryAction` inside `secondaryActions`.
 - **NEVER** use `actionResolvers` prop on `AutoPatternsApp` - this prop does not exist.
@@ -400,7 +401,7 @@ type CustomBulkActionsActionResolver = (params: {
 - **MUST** register custom resolvers in `AutoPatternsOverridesProvider`.
 - **MUST** use `errorHandler` for Wix API calls in resolvers.
 - **MUST** provide a discoverable single-record equivalent for every bulk workflow transition unless the operation is inherently bulk-only. The equivalent may live in the row action, SidePanel, Modal, or entity page.
-- **MUST** add bulk delete only when deleting the managed entity is a valid requested lifecycle action; do not use deletion to process or dismiss a queue.
+- **MUST** add bulk Delete when `itemRemove` is granted, deleting the managed entity is a valid lifecycle action, and multi-record removal is useful. Keep a confirmed single-record Delete action available as well. Do not use deletion to process or dismiss a queue.
 - **NEVER** use default navigation in bulk actions; implement explicitly.
 
 ### Canonical Example
