@@ -1,8 +1,132 @@
-# Auto Patterns Dashboard Page
+# Auto Patterns Dashboard
+
+Use this guide for new and existing one-collection management surfaces. It owns route evaluation, generation, updates, supported extension paths, and validation.
+
+## Contents
+
+- [Route and workflow contract](#route-and-workflow-contract)
+- [Change workflow](#change-workflow)
+- [Generation and configuration](#generation-and-configuration)
+
+## Route And Workflow Contract
+
+Use this route for a new management surface backed by one CMS collection when Auto Patterns supports the complete physical page.
+
+### Capability References
+
+This file owns route evaluation, generation, permissions, and validation. Read only the narrowest matching capability reference below. Do not load custom WDS guidance unless the required capability has no documented Auto Patterns path.
+
+| Requested capability | Exact Auto Patterns reference |
+| --- | --- |
+| AppConfig, pages, collection structure, or Table/Grid configuration | [Configuration](auto-patterns-dashboard/configuration.md) |
+| Saved Views, row actions, or bulk actions | [Collection workflows](auto-patterns-dashboard/collection-workflows.md) |
+| Custom row action resolver | [Extensions](auto-patterns-dashboard/extensions.md) and, when selection is involved, [Collection workflows](auto-patterns-dashboard/collection-workflows.md) |
+| Custom displayed field, column, section, or slot | [Extensions](auto-patterns-dashboard/extensions.md) |
+| Entity page, entity form, or entity header | [Entity workflows](auto-patterns-dashboard/entity-workflows.md) |
+| KPI or chart supplemental region | Check the custom header, section, slot, and child-component references above; then read [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) only for that region's WDS/chart contract |
+| External child component needs collection data or refresh | [Extensions](auto-patterns-dashboard/extensions.md) |
+| Record detail, viewing, or editing beyond the collection row | [Collection workflows](auto-patterns-dashboard/collection-workflows.md) and [Extensions](auto-patterns-dashboard/extensions.md); choose SidePanel, Modal, or entity page through [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) |
+| Deep or multi-section record flow | [Entity workflows](auto-patterns-dashboard/entity-workflows.md) |
+| Short focused or blocking record flow | a documented Auto Patterns action plus [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) |
+
+### Route Contract
+
+- **AP-01:** Mark each requested capability `supported`, `supported-via-override`, or `unsupported`, with the checked documentation target.
+- **AP-02:** Use Auto Patterns when the collection manager and every extension of its physical workflow have a documented configuration or override path. A contextual WDS `SidePanel` is supported-via-override when a documented row action sets the selected record and the panel is an `AutoPatternsApp` child with AppContext/refresh access. A Dashboard Modal is supported as a bounded action launched through the dashboard API. A KPI or chart may be supported-via-override when a documented header, section, slot, or child-component path owns its placement. Unsupported analytics behavior changes only that region's implementation; it does not transfer collection-table ownership.
+- **AP-03:** A Table/Grid switch, row action, derived display, or named workset is not automatically unsupported. Check its focused reference before falling back; record that exact file in the capability decision.
+- **AP-04:** Auto Patterns documents Table and Grid. Do not promise the native CMS layout menu, List layout, custom layout labels, or a configurable initial layout unless the installed docs explicitly support them.
+- **AP-05:** Do not use a custom WDS dashboard route until this evaluation records the first `unsupported` capability. A new one-collection manager stays on this route when every requested capability is `supported` or `supported-via-override`.
+- **AP-06:** Keep one physical collection classified as one source even when the workflow uses OR conditions, elapsed-time rules, comparisons, or several saved subsets. Materialize operational state as maintained fields and configure filters/Views against those fields; do not rebuild the table to express query logic.
+
+### Extension Choice
+
+Keep Auto Patterns as the owner of the collection table, layouts, filters, selection, CRUD, and refresh lifecycle. Add only the narrow supplemental surface required by the workflow:
+
+| Workflow shape | Recommended extension |
+| --- | --- |
+| Moderate view/edit depth where table context should remain visible | Custom row/action override opens a WDS `SidePanel` child of `AutoPatternsApp`. |
+| Short, focused, blocking view/edit task or confirmation | Launch a Dashboard Modal from a documented custom action. |
+| Extensive or multi-section view/edit flow, complex validation, deep linking, or long work | Link to an Auto Patterns `entityPage` in the appropriate mode. |
+| KPI or chart around a supported one-collection manager | Keep Auto Patterns as the table owner and mount the analytical component through a documented header, section, slot, or child-component override. |
+
+These are best-practice defaults, not intent-to-component rules: viewing and editing may use any surface when its depth and context justify it. Record the chosen `detailSurface` and reason before implementation. The supplemental surface is not evidence that the table itself should be rebuilt in WDS.
+
+### Action Coherence
+
+- Treat inspect, edit, workflow transition, create, and delete as different intents.
+- Give a bulk workflow transition a single-record equivalent in the row detail surface or row actions unless it is inherently bulk-only.
+- Do not add create or delete merely because the collection supports CRUD. Follow the managed entity lifecycle from [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md).
+- For an inspect-first workflow, use `View` or the specific workflow verb as the row action; keep full-record editing available from the chosen detail surface when appropriate.
+
+### Canonical Auto Patterns Profile: Inventory Manager
+
+Use Auto Patterns for a single `Inventory Products`-style collection that needs product name, image, SKU, category, stock/reorder values, standard search or filters, Table and Grid presentation, and a documented row action such as **Mark restocked**.
+
+This remains an Auto Patterns page even when the user asks for:
+
+- a card/gallery-first presentation alongside a table;
+- filters for category or stock status;
+- representative sample records; or
+- a row action that updates the same collection.
+
+Configure the documented Auto Patterns Table/Grid layouts and action override. Do not replace them with a custom WDS gallery, a hand-built layout toggle, or a custom React table unless a required capability is explicitly documented as unsupported.
+
+### Build Contract
+
+1. Reuse a verified collection or create the required app-owned Data Collection and obtain its namespace.
+2. Define schema, permissions, references, operational derived fields, indexes, initial data, and missing-reference behavior before page generation.
+3. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
+4. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file.
+5. When the prompt asks for representative data, create 3-5 realistic records and verify the collection and dashboard show the same items.
+6. Before adding any custom dashboard JSX, verify `.dashboard-route.json` says `auto-patterns`, `patterns.json` exists, and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension.
+7. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
+
+### Invalid Implementations
+
+- Rebuilding supported CRUD, filters, pagination, Table/Grid layouts, or actions in custom WDS React.
+- Rebuilding the collection table because a chart, KPI, or other neighboring region is unsupported.
+- Adding JSX directly to an Auto Patterns-owned page instead of using a documented override.
+- Creating an unregistered `page.tsx` beside the CLI-scaffolded page component.
+- Treating a schema reference field as populated data.
+
+### Acceptance
+
+- The collection, schema, permissions, and representative records exist as planned.
+- The generated page uses `patterns.json` and the documented page lifecycle.
+- Table/Grid, Saved Views, actions, create/edit/delete flows, and overrides behave as requested.
+- Individual, bulk, and detail-surface actions form one coherent workflow and follow the managed entity lifecycle.
+- Loading, empty, no-results, error, and populated states are intentional.
+- Browser, console, network, and persistence checks pass.
+- The registered dashboard page opens, its loader settles, and a build-only success is not reported as runtime success.
+
+## Change Workflow
+
+Use this route when the existing Dashboard Page directory contains `patterns.json`.
+
+### Required Documentation
+
+Read the existing `patterns.json`, then read only the matching consolidated capability reference listed above.
+
+### Change Contract
+
+- **APC-01:** Treat `patterns.json` as ownership evidence. Inspect configuration and registered overrides before editing.
+- **APC-02:** Change content, layouts, columns, actions, and page configuration in `patterns.json` when supported.
+- **APC-03:** Put action, column, component, header, section, and slot overrides in their documented separate files and register them through the existing page component. Keep the Auto Patterns collection page as owner when adding a contextual SidePanel child, Dashboard Modal action, or linked entity-page input flow.
+- **APC-04:** Do not hand-write UI in the generated page component or create a second page component.
+- **APC-05:** If no documented configuration, slot, or override supports the requested capability, record the missing path and move the entire physical page to a custom Dashboard Page or split the workflow. Do not partially replace the generated lifecycle.
+
+### Acceptance
+
+- Existing collection/entity navigation and CRUD behavior remain intact.
+- The change uses the narrowest documented configuration or override.
+- No generated lifecycle logic is duplicated in custom React.
+- The changed workflow passes browser, console, network, and persistence checks.
+
+## Generation And Configuration
 
 Generates declarative `patterns.json` + a thin page component (`<page-name>.tsx`) for simple CRUD dashboard pages using `@wix/auto-patterns`. Supports both creating new pages and updating existing ones.
 
-## Quick Start Checklist
+### Quick Start Checklist
 
 - [ ] **Step 1:** Determine if this is a new page or update to existing
 - [ ] **Step 2:** For new pages — scaffold via `wix generate`, generate schema, run generator script
@@ -10,9 +134,7 @@ Generates declarative `patterns.json` + a thin page component (`<page-name>.tsx`
 - [ ] **Step 3:** Install dependencies (`@wix/auto-patterns`, `@wix/patterns`)
 - [ ] **Step 4:** Verify per [APP_VALIDATION.md](APP_VALIDATION.md)
 
----
-
-## Required App Permissions
+### Required App Permissions
 
 Auto-patterns calls `@wix/data` at runtime to CRUD the collection. The app must declare these scopes in the Wix Dev Center — they are NOT added automatically:
 
@@ -23,52 +145,48 @@ Add them at: `https://manage.wix.com/apps/{app-id}/dev-center-permissions` (repl
 
 Without these scopes, the dashboard page renders but all data operations fail.
 
----
+### Core Rules
 
-## Core Rules
-
-### Configuration Generation
+#### Configuration Generation
 
 1. **Analyze** schema requirements.
 2. **Select** fields based on data types (max 3 initially).
 3. **Validate** against the constraints below.
 
-### Enum Handling
+#### Enum Handling
 
 - **IF** `enumConfig` is required (implicit or explicit):
   - **THEN** ASK user for possible option values.
   - **THEN** Derive `label` from `value` (e.g., "dog" -> "Dog") unless specified.
   - **NEVER** guess or invent enum values.
 
-### Structural Limits
+#### Structural Limits
 
 - **MUST** have exactly 2 pages in `pages` array (`collectionPage` + `entityPage`).
 - **MUST** have exactly 1 component with `layout` array in `collectionPage`.
 - **MUST** use TypeScript for configuration.
 
-### Field Selection
+#### Field Selection
 
 - **MAX** 3 columns initially for `collectionPage`.
 - **IF** the workflow allows users to create the managed entity **THEN** include a `create` action in `collectionPage` navigating to `entityPage`.
 - **IF** the page represents a derived queue, alert set, or processing workset **THEN** do not add create/delete actions unless they belong to the underlying entity lifecycle.
 - **NEVER** fill optional fields unless explicitly requested.
 
-### Type Binding
+#### Type Binding
 
 - **IF** `type: 'collectionPage'` **THEN** only `collectionPage` field allowed.
 - **IF** `type: 'entityPage'` **THEN** only `entityPage` field allowed.
 - **NEVER** mix types in single page config.
 
-### Validation
+#### Validation
 
 - **MUST** align with `AppConfig` structure.
 - **MUST** remove unsupported configuration entries.
 
----
+### Part A: Creating a New Auto-Patterns Page
 
-## Part A: Creating a New Auto-Patterns Page
-
-### Step 1: Scaffold the Dashboard Page
+#### Step 1: Scaffold the Dashboard Page
 
 An auto-patterns page is a dashboard page — scaffold it with the Wix CLI:
 
@@ -87,7 +205,7 @@ src/extensions/dashboard/pages/<page-name>/
 
 > **Why this matters for Step 3:** the generator writes the auto-patterns wrapper to `<page-name>.tsx` — the SAME file the builder already registers — so it overwrites the stub and is wired up automatically. Do NOT let it produce a separate `page.tsx`; that would leave the wrapper unregistered next to the empty stub, and the dashboard would render blank.
 
-### Step 2: Generate the Schema
+#### Step 2: Generate the Schema
 
 You must produce the input JSON for the generator script. Top-level keys: `collection`, `schema`, `relevantCollectionId`, `extensionName`.
 
@@ -160,7 +278,7 @@ Include ALL fields, primary identifiers first. Display names target ≤10 charac
 
 > **🛑 Nesting is required.** Content, layout, columns, and gridItem are **not** top-level keys and **not** flat siblings under `schema`. The generator rejects flat shapes like `"schema": { "collectionRouteId": "...", "main": [...] }`. Always nest as `"schema": { "content": {...}, "layout": {...}, "columns": [...], "gridItem": null }`.
 
-### Step 3: Run the Generator Script
+#### Step 3: Run the Generator Script
 
 The generator script is bundled with this skill at `<SKILL_ROOT>/scripts/generate-auto-patterns.js` — it is **not** copied into the user's app repo. Run it from the project directory using the skill's absolute path (`<SKILL_ROOT>` is the folder containing this skill's `SKILL.md`).
 
@@ -232,7 +350,7 @@ The script produces:
 
 The builder file (`<page-name>.extension.ts`) and `src/extensions.ts` registration from Step 1 stay as-is — no manual registration edit, and no stray `page.tsx`.
 
-### Step 4: Install Dependencies
+#### Step 4: Install Dependencies
 
 The CLI template pins `@wix/auto-patterns` and `@wix/patterns` to exact versions — keep it that way. Check `package.json` first: if both are already in `dependencies`, **skip this step**.
 
@@ -242,52 +360,35 @@ If one is missing, install only that package:
 npm install --save-exact <missing-package>
 ```
 
-### Step 5: Validate
+#### Step 5: Validate
 
 Run validation per [APP_VALIDATION.md](APP_VALIDATION.md) to verify TypeScript compilation and build.
 
----
-
-## Part B: Updating an Existing Auto-Patterns Page
+### Part B: Updating an Existing Auto-Patterns Page
 
 > **🛑 STOP — UI changes go through overrides, NOT page-component edits.**
-> If you're adding a banner, custom header, action, slot, custom column rendering, or row sectioning to an auto-patterns page, you MUST use the matching `custom-*-override.md` reference (see the topic index in Step 2). Do NOT add the UI by hand-writing JSX in the page component (`<page-name>.tsx`) — that bypasses the override registration and breaks the iteration model.
+> If you're adding a banner, custom header, action, slot, custom column rendering, or row sectioning to an auto-patterns page, use the matching override documented in the capability references below. Do NOT add the UI by hand-writing JSX in the page component (`<page-name>.tsx`) — that bypasses the override registration and breaks the iteration model.
 
 When `patterns.json` already exists in a page directory, edit it directly. **This is the iteration model**: changes to layout, columns, actions, and content are made by editing JSON — the page component (`<page-name>.tsx`) only changes to register new overrides. No React rewrite, no rebuild of CRUD logic.
 
-> **Component filename:** the page component is `<page-name>.tsx` (the file the CLI scaffolded and the `<page-name>.extension.ts` builder registers). The override reference files below say "`page.tsx`" as shorthand for this component — edit the existing `<page-name>.tsx`; **never create a new `page.tsx`**, or it will sit unregistered next to the real component.
+> **Component filename:** the page component is `<page-name>.tsx` (the file the CLI scaffolded and the `<page-name>.extension.ts` builder registers). References may use "`page.tsx`" as shorthand for this component — edit the existing `<page-name>.tsx`; **never create a new `page.tsx`**, or it will sit unregistered next to the real component.
 
-### Step 1: Read the Existing Config
+#### Step 1: Read the Existing Config
 
 Read the current `patterns.json` to understand the configuration structure.
 
-### Step 2: Consult Reference Documentation
+#### Step 2: Consult Reference Documentation
 
-Use the topic index below to find the right reference file for your change:
+Choose the smallest capability reference that covers the requested change:
 
-| Topic                                                                            | Keywords                                                                            | Reference File                                                                         |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| AppConfig structure, page types, component types, page.tsx template              | AppConfig, PageConfig, CollectionPageConfig, EntityPageConfig                       | [app-config-structure.md](auto-patterns-dashboard/app-config-structure.md)             |
-| Page setup, relationships, routing, URL configuration, sticky columns            | page relationships, routing, entityPageId, parentPageId, route parameters           | [pages-configuration.md](auto-patterns-dashboard/pages-configuration.md)               |
-| Collection page components, Table/Grid layouts, table configuration               | layouts, layout switcher, columns, customColumns, sticky columns                     | [collection-page.md](auto-patterns-dashboard/collection-page.md)                       |
-| Saved Views configuration, presets, categories, filters integration               | saved views, presets, categories, columnPreferences, filters, default saved view    | [views.md](auto-patterns-dashboard/views.md)                                           |
-| Page-level actions, create actions, custom collection actions, row click actions | primaryActions, secondaryActions, onRowClick, action menus                          | [collection-page-actions.md](auto-patterns-dashboard/collection-page-actions.md)       |
-| Row-level actions, update/delete actions, custom row actions                     | actionCell, edit, delete, inline actions, custom resolver                           | [action-cell.md](auto-patterns-dashboard/action-cell.md)                               |
-| Bulk operations, bulk delete, bulk action toolbar                                | bulk delete, multi-select actions, bulkActionToolbar                                | [bulk-actions.md](auto-patterns-dashboard/bulk-actions.md)                             |
-| Entity page layout, grid system, field layout, containers                        | entity page layout, grid system, column spans, main/sidebar, 12-column grid         | [entity-page.md](auto-patterns-dashboard/entity-page.md)                               |
-| Entity page edit mode actions, moreActions, custom entity actions                | edit mode actions, moreActions, duplicate, clone                                    | [entity-page-actions.md](auto-patterns-dashboard/entity-page-actions.md)               |
-| Entity page view mode actions, primaryActions, secondaryActions                  | view mode actions, read-only entity actions, navigation actions                     | [entity-page-view-actions.md](auto-patterns-dashboard/entity-page-view-actions.md)     |
-| ResolvedAction interface, common return type for custom actions                  | ResolvedAction, label, icon, onClick, disabled, hidden, tooltip, skin               | [resolved-action.md](auto-patterns-dashboard/resolved-action.md)                       |
-| AppContext hook, shared collection data, refresh functionality, panel child       | useAppContext, items, refreshCollection, SidePanel                                  | [app-context.md](auto-patterns-dashboard/app-context.md)                               |
-| SDK utilities, optimistic actions, schema access                                 | AutoPatternsSDK, optimisticActions, getSchema, createOne, updateOne, deleteOne      | [sdk-utilities.md](auto-patterns-dashboard/sdk-utilities.md)                           |
-| Custom action resolvers, action overrides, useActions hook                       | custom actions, action resolver, useActions, ResolvedAction                         | [custom-actions-override.md](auto-patterns-dashboard/custom-actions-override.md)       |
-| Column rendering overrides, IColumnValue, custom column display                  | column override, IColumnValue, useColumns, custom rendering                         | [custom-columns-override.md](auto-patterns-dashboard/custom-columns-override.md)       |
-| Custom form components, useController, entity page customization                 | custom components, useComponents, useController, form, entity                       | [custom-components-override.md](auto-patterns-dashboard/custom-components-override.md) |
-| Entity page header, dynamic subtitle, dynamic badges                             | header override, subtitle, badges, entityPageHeaderSubtitle, entityPageHeaderBadges | [custom-header-override.md](auto-patterns-dashboard/custom-header-override.md)         |
-| Table row grouping, section headers, section renderer                            | sections, grouping, useSections, section renderer, row grouping                     | [custom-sections-override.md](auto-patterns-dashboard/custom-sections-override.md)     |
-| Custom slot components, page slots, banners, informational sections              | slots, useSlots, banner, custom content, top section                                | [custom-slots-override.md](auto-patterns-dashboard/custom-slots-override.md)           |
+| Capability | Use for | Reference |
+| --- | --- | --- |
+| Configuration | AppConfig, page relationships, routing, Table/Grid structure, sticky columns | [configuration.md](auto-patterns-dashboard/configuration.md) |
+| Collection workflows | Saved Views, collection and row actions, selection, bulk operations, `ResolvedAction` | [collection-workflows.md](auto-patterns-dashboard/collection-workflows.md) |
+| Entity workflows | Entity layout, view/edit actions, forms, custom components, dynamic headers | [entity-workflows.md](auto-patterns-dashboard/entity-workflows.md) |
+| Extensions | Custom actions, columns, sections, slots, AppContext, SDK utilities | [extensions.md](auto-patterns-dashboard/extensions.md) |
 
-### Step 3: Make Targeted Edits
+#### Step 3: Make Targeted Edits
 
 Edit `patterns.json` based on the user's request. Key constraints:
 
@@ -297,7 +398,7 @@ Edit `patterns.json` based on the user's request. Key constraints:
 - **`biName` is mandatory** for every action (kebab-case: `{action-purpose}-action`)
 - **`customColumns.enabled: true`** when > 5 columns
 - **Grid item only if IMAGE fields exist**
-- **Named worksets require Saved Views**: when the request names recurring subsets or saved filters, read `views.md` and configure Saved Views in addition to the Table/Grid layout switcher
+- **Named worksets require Saved Views**: when the request names recurring subsets or saved filters, read [collection-workflows.md](auto-patterns-dashboard/collection-workflows.md) and configure Saved Views in addition to the Table/Grid layout switcher
 - **Layout boundary**: Auto Patterns documents only `Table` and `Grid`, with an automatic built-in layout switcher when both exist. It does not document the native CMS `Choose layout` menu, `List`, or a configurable initial layout
 - **Route format**: entity page must be `/[segment]/:entityId`
 - **Exactly 1 `appMainPage: true`** across all pages
@@ -306,26 +407,22 @@ If adding custom overrides (actions, columns, components, slots, etc.):
 
 1. Create the override files in the appropriate `components/` subfolder
 2. Update the page component (`<page-name>.tsx`) to register overrides via `PatternsWizardOverridesProvider`
-3. See the `custom-*-override.md` reference files for implementation patterns
+3. Use the relevant consolidated capability reference above for the exact override pattern
 
 > **🛑 Overrides ALWAYS go in their own file under `components/<type>/`** (e.g. `components/columns/status.tsx`) with a `use*` hook — **regardless of size, even for a single small override.** This is structural, required by the override-registration model. **Never inline override render logic in the page component** (`<page-name>.tsx`), and do NOT apply the general ~300-line "split only if large" rule here — it does not override this requirement.
 
----
-
-## Non-Matching Intents
+### Non-Matching Intents
 
 Do NOT use this skill when:
 
 - User needs multi-collection data display → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
 - User needs embedded script configuration → see [EMBEDDED_SCRIPT.md](EMBEDDED_SCRIPT.md)
 - User needs custom business logic or external APIs that cannot be implemented through a documented action, override, or child component → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
-- User needs contextual record detail → preserve the Auto Patterns collection page and use its documented row-action/AppContext extension with the WDS SidePanel primitive in [OVERLAYS.md](OVERLAYS.md)
+- User needs contextual record detail → preserve the Auto Patterns collection page and use its documented row-action/AppContext extension with the WDS SidePanel primitive in [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md)
 - User needs structured inputs → use the linked Auto Patterns entity page before considering an overlay
-- User needs a focused blocking confirmation or isolated input → see [OVERLAYS.md](OVERLAYS.md) and use the documented Dashboard Modal action path
+- User needs a focused blocking confirmation or isolated input → see [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and use the documented Dashboard Modal action path
 - User needs backend endpoints → see [BACKEND_API.md](BACKEND_API.md)
 
----
-
-## Example patterns.json
+### Example patterns.json
 
 See [auto-patterns-dashboard/example-patterns.json](auto-patterns-dashboard/example-patterns.json) for a complete working example.

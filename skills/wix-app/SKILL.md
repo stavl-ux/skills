@@ -12,31 +12,31 @@ The Wix CLI owns scaffolding. This skill classifies the request, selects one exe
 ## Core Workflow
 
 1. Classify the extension, physical data sources, and primary user workflow.
-2. Read one selected extension guide or dashboard playbook.
+2. Read one selected extension guide. For dashboards, read the consolidated dashboard workflow guide.
 3. Read only the exact API/component documentation named by that guide.
 4. For dashboards, save the selected route in `.dashboard-route.json`, then scaffold with the CLI and implement in generated files.
 5. Validate build and the real browser workflow before reporting completion.
 
-Read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. Do not claim completion after a build alone.
+For non-dashboard extensions, read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. Dashboard quality and runtime gates live in the dashboard workflow guide. Do not claim completion after a build alone.
 
 ## Dashboard Route
 
-For every dashboard request, read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md) and select exactly one primary playbook:
+For every dashboard request, read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). It contains route selection, custom dashboard contracts, shared data rules, WDS documentation gates, and runtime validation.
 
-| Route | Playbook |
-| --- | --- |
-| New supported one-collection manager, including contextual record detail, entity-page inputs, or bounded action overlays | [DASHBOARD_AUTO_PATTERNS_PLAYBOOK.md](references/DASHBOARD_AUTO_PATTERNS_PLAYBOOK.md) |
-| Change an existing page with `patterns.json` | [DASHBOARD_AUTO_PATTERNS_CHANGE_PLAYBOOK.md](references/DASHBOARD_AUTO_PATTERNS_CHANGE_PLAYBOOK.md) |
-| Custom or multi-source WDS table with no analytics regions | [DASHBOARD_CUSTOM_TABLE_PLAYBOOK.md](references/DASHBOARD_CUSTOM_TABLE_PLAYBOOK.md) |
-| Unsupported custom table with selected-record detail and no analytics regions | [DASHBOARD_CUSTOM_TABLE_PANEL_PLAYBOOK.md](references/DASHBOARD_CUSTOM_TABLE_PANEL_PLAYBOOK.md) |
-| KPIs, charts, calculated summaries, or multiple page regions, including table + panel pages | [DASHBOARD_ANALYTICS_PLAYBOOK.md](references/DASHBOARD_ANALYTICS_PLAYBOOK.md) |
-| Focused blocking task | [DASHBOARD_MODAL_PLAYBOOK.md](references/DASHBOARD_MODAL_PLAYBOOK.md) |
+Additionally read [AUTO_PATTERNS_DASHBOARD.md](references/AUTO_PATTERNS_DASHBOARD.md) only for a new one-collection manager or an existing page with `patterns.json`. It links to four consolidated capability references; read only the ones required by the requested workflow.
 
-The selected playbook owns the behavioral contract and acceptance criteria. Detailed extension, SDK, and WDS documentation owns exact APIs. Do not load other dashboard playbooks unless the selected playbook explicitly requires one for a combined surface.
+Auto Patterns capability references:
+
+- AppConfig, page relationships, routing, and Table/Grid structure: [configuration.md](references/auto-patterns-dashboard/configuration.md)
+- Saved views, collection/row actions, selection, and bulk operations: [collection-workflows.md](references/auto-patterns-dashboard/collection-workflows.md)
+- Entity pages, view/edit actions, forms, and entity headers: [entity-workflows.md](references/auto-patterns-dashboard/entity-workflows.md)
+- Custom actions, columns, sections, slots, AppContext, and SDK utilities: [extensions.md](references/auto-patterns-dashboard/extensions.md)
+
+The selected route section owns behavior and acceptance criteria. Exact extension, SDK, Auto Patterns, and WDS references own APIs. Do not load unrelated capability references.
 
 ## Auto Patterns Extension And Fallback Gate
 
-Auto Patterns is the mandatory first route for a new one-collection manager. A contextual SidePanel, Dashboard Modal action, or structured input flow does not make the table custom by itself: first use the documented Auto Patterns row-action/AppContext, Dashboard Modal action, or entity-page path. Read [DASHBOARD_WDS_COMPONENT_GATE.md](references/DASHBOARD_WDS_COMPONENT_GATE.md) when that documented extension needs the exact WDS composition. Only when a required capability is absent from its documented configuration or override path may the agent record it as unsupported and build a custom dashboard surface.
+Auto Patterns is the mandatory first route for a new one-collection manager. A contextual SidePanel, Dashboard Modal action, or structured input flow does not make the table custom by itself. Only when a required capability is absent from its documented configuration or override path may the agent record it as unsupported and build a custom dashboard surface.
 
 ## Extension Directory
 
@@ -66,7 +66,7 @@ For every CLI-supported extension except Backend API, use `npx wix generate --pa
 | Wix business data or external API | Read its exact API; create CMS storage only for explicit app-owned persistence. |
 | Unknown | Inspect context or ask one targeted question. |
 
-For collection schema, references, joins, assignments, and writes, read [DATA_MODEL_AND_OPERATIONS.md](references/DATA_MODEL_AND_OPERATIONS.md). A reference field defines schema only; separately plan population and missing-reference behavior.
+For dashboard collection schema, references, joins, assignments, and writes, use the Data Model and Operations section of [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). For non-dashboard data work, use the exact data references below. A reference field defines schema only; separately plan population and missing-reference behavior.
 
 ## Documentation Discipline
 
@@ -76,7 +76,7 @@ For collection schema, references, joins, assignments, and writes, read [DATA_MO
 - App Market: [APP_MARKET_REVIEW.md](references/APP_MARKET_REVIEW.md)
 - Registration recovery: [EXTENSION_REGISTRATION.md](references/EXTENSION_REGISTRATION.md)
 
-Before importing WDS, invoke the Wix Design System skill and read the exact installed component documentation and examples named by the selected playbook or component gate. Record the component, documentation target, and reason it is required before implementation. Import `@wix/design-system/styles.global.css` once in the main component entry. Do not approximate a documented WDS component with custom markup or positioning.
+Before importing WDS, invoke the Wix Design System skill and read the exact installed component documentation and examples named by the selected route. Record the component, documentation target, and reason it is required before implementation. Import `@wix/design-system/styles.global.css` once in the main component entry. Do not approximate a documented WDS component with custom markup or positioning.
 
 Use focused discovery only when the selected local guide does not cover the required API. Read the discovered method schema before implementation.
 

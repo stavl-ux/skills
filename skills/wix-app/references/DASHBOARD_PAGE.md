@@ -57,7 +57,7 @@ See [Dashboard API Reference](dashboard-page/DASHBOARD_API.md) for complete docu
 When you need a blocking dialog from a dashboard page, use a Dashboard Modal extension, not a regular React modal or WDS `Modal` component.
 
 - **Use dashboard modals** for: confirmations, isolated forms, settings dialogs, and other bounded blocking tasks.
-- **Use WDS `SidePanel`** for a desktop table row's contextual detail, inspection, editing, assignment, or supplementary action flow. Read [OVERLAYS.md](OVERLAYS.md) before choosing its host; a detail view is not automatically a Dashboard Modal.
+- **Use WDS `SidePanel`** for a desktop table row's contextual detail, inspection, editing, assignment, or supplementary action flow. Read [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) before choosing its host; a detail view is not automatically a Dashboard Modal.
 - **Do NOT use** a WDS `Modal` component or custom React modal implementation inside a Dashboard Page.
 - **See [Dashboard Modal reference](DASHBOARD_MODAL.md)** for complete implementation guide
 
@@ -151,7 +151,7 @@ When an API specification is provided, you can make API calls to those endpoints
 
 ## Layout Guidelines
 
-For custom WDS page composition, [DASHBOARD_LAYOUT.md](DASHBOARD_LAYOUT.md) is the canonical routing reference. This section provides background only; do not copy dashboard-frame dimensions or side-panel geometry from it.
+For custom WDS page composition, [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) is the canonical routing reference. This section provides background only; do not copy dashboard-frame dimensions or side-panel geometry from it.
 
 Layout determines how users interact with your dashboard content. It establishes the structure, hierarchy, and rhythm of your dashboard page, contributing to the overall coherence and user experience. By making mindful and calculated choices in how you organize your content, users can move around more smoothly, saving time and frustration when completing tasks.
 
@@ -211,9 +211,9 @@ The dashboard app frame is used by the majority of Wix applications settings. Da
 | 1. Global navigation (top bar) | General navigation at the top of a page which allows users to navigate between different environments. Full width container with a fixed height of 48px. |
 | 2. Sidebar navigation | Local navigation of an environment. Container with a fixed width of 228px. |
 | 3. Content area | Page content area with a width that's adaptive to screen size. |
-| 4. Side panel (optional) | An optional panel that shows additional actions or content associated with a page. Choose and host it through [OVERLAYS.md](OVERLAYS.md); use a floating, non-blocking overlay by default and a pushed layout only when the workflow explicitly requires it. |
+| 4. Side panel (optional) | An optional panel that shows additional actions or content associated with a page. Choose and host it through [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md); use a floating, non-blocking overlay by default and a pushed layout only when the workflow explicitly requires it. |
 
-**Side Panel Guidelines:** See [OVERLAYS.md](OVERLAYS.md). It owns the primitive choice, documented host, scroll ownership, and validation requirements.
+**Side Panel Guidelines:** See [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md). It owns the primitive choice, documented host, scroll ownership, and validation requirements.
 
 
 #### Grid Layout

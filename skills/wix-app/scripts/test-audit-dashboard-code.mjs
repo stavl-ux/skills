@@ -36,7 +36,7 @@ try {
       sources: ['Order Exceptions'],
       fallbackCategory: 'multi-source',
       firstUnsupportedCapability: 'OR filters with an elapsed-time predicate',
-      checkedReference: 'auto-patterns-dashboard/views.md',
+      checkedReference: 'auto-patterns-dashboard/collection-workflows.md',
       whyDataAdaptationCannotSolve: 'The date comparison is complex',
     }),
   );
@@ -150,7 +150,7 @@ export default function CapacityPlanner() {
         detail: null,
       },
       firstUnsupportedCapability: 'Chart region is not supported by Auto Patterns',
-      checkedReference: 'DASHBOARD_AUTO_PATTERNS_PLAYBOOK.md',
+      checkedReference: 'AUTO_PATTERNS_DASHBOARD.md',
     }),
   );
   write(
@@ -232,7 +232,7 @@ export default function Dashboard() {
       dataAdaptation: 'Maintain needsAttention and exceptionType',
       fallbackCategory: null,
       firstUnsupportedCapability: null,
-      checkedReference: 'auto-patterns-dashboard/views.md',
+      checkedReference: 'auto-patterns-dashboard/collection-workflows.md',
     }),
   );
   write(autoRoot, 'patterns.json', JSON.stringify({ collection: { id: 'order-exceptions' } }));
@@ -259,7 +259,7 @@ export default function OrderExceptions() {
         detail: null,
       },
       firstUnsupportedCapability: 'Chart region is not supported by Auto Patterns',
-      checkedReference: 'auto-patterns-dashboard/custom-sections-override.md',
+      checkedReference: 'auto-patterns-dashboard/extensions.md',
     }),
   );
   write(hybridRoot, 'patterns.json', JSON.stringify({ collection: { id: 'subscriptions' } }));
