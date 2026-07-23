@@ -63,12 +63,13 @@ Inside the modal, subscribe via `dashboard.observeState()` to access whatever wa
 import { dashboard } from "@wix/dashboard";
 
 dashboard.observeState((state) => {
+  if (!state?.userId) return;
   // state contains the keys you passed in `openModal({ params: { ... } })`
-  console.log(state.userId, state.itemData);
+  console.log(state.userId);
 });
 ```
 
-Call it inside a `useEffect` if you want to set local React state from the params.
+Call it inside a `useEffect` if you want to set local React state from the params. The observer may run before required params are available, so guard the params object and required identity before dereferencing. Keep `CustomModalLayout` mounted with a deliberate loading or error body while data resolves.
 
 ## Closing Modal
 
@@ -113,16 +114,20 @@ End-to-end edit-item flow. The scaffolded `<modal>.tsx` already wires up `Custom
 const handleEdit = (item: Item) => {
   dashboard.openModal({
     modalId: "edit-item-modal-guid",
-    params: { item }, // objects are passed directly via params
+    params: { itemId: item._id }, // Prefer stable identity over a duplicated mutable record.
   });
 };
 
 // Modal: read params, save, toast, close
 const [formData, setFormData] = useState<Item | null>(null);
+const [loadError, setLoadError] = useState<string | null>(null);
 
 useEffect(() => {
   dashboard.observeState((state) => {
-    if (state.item) setFormData(state.item);
+    if (!state?.itemId) return;
+    void loadItem(state.itemId)
+      .then(setFormData)
+      .catch(() => setLoadError("Could not load this item."));
   });
 }, []);
 
@@ -132,3 +137,13 @@ const handleSave = async () => {
   dashboard.closeModal();
 };
 ```
+
+## Runtime Gate
+
+Compilation proves neither modal registration nor rendering. Before completion:
+
+1. Confirm the `modalId` passed to `openModal()` exactly matches the generated `dashboardModal({ id })`.
+2. Open the modal from its real row/action caller.
+3. Verify loading, missing/invalid params, loaded content, cancel/close, and any mutation result.
+4. Inspect the modal frame's console and network activity. A visible scrim with no surface means the opener ran but the modal extension failed to mount or crashed.
+5. If an interactive browser is unavailable, report this check as `blocked`; do not describe the modal as verified because TypeScript and build passed.

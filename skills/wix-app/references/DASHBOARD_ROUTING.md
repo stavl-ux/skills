@@ -24,7 +24,7 @@ Apply these gates in order. Stop at the first match, then use only that route se
 
 1. Existing `patterns.json` selects the Auto Patterns change route.
 2. A new supported one-collection manager selects Auto Patterns, including a documented Auto Patterns table extended by a contextual SidePanel, a Dashboard Modal action, or an entity page.
-3. A KPI, chart, or calculated summary triggers analytics evaluation, but does not transfer ownership of a supported one-collection table. First check whether the analytics region can be added through the documented Auto Patterns header, section, slot, or child-component path. Select analytics as the primary route only when that composition is unsupported or the page's primary workflow is analytical rather than collection management.
+3. A KPI, chart, or calculated summary triggers analytics evaluation, but does not transfer ownership of a supported one-collection table. First check whether the analytics region can be added through the documented Auto Patterns header, section, slot, or child-component path. The page may use the analytics route for composition while `regionOwners.collection` remains `auto-patterns`.
 4. Only after the Auto Patterns extension path is unavailable, selected-record contextual work selects table-and-panel.
 5. A remaining custom table selects custom-table.
 6. A focused blocking task that is not an action of an Auto Patterns manager selects Dashboard Modal.
@@ -40,7 +40,7 @@ Apply these gates in order. Stop at the first match, then use only that route se
 | KPI, chart, calculated summary, or multi-region page, including table + SidePanel pages | [Analytics and multi-region](#analytics-and-multi-region-route) |
 | Focused blocking form or confirmation | [Focused modal](#focused-modal-route) |
 
-If a page combines analytics with a table, assign ownership per region before choosing the primary route. A supported one-collection management region remains Auto Patterns even when a supplemental KPI or chart requires WDS or a chart library. Use the analytics route as primary only when the analytical composition cannot be added through a documented Auto Patterns extension or analytics is the page's primary workflow. If a genuinely custom table opens record detail, apply the contextual-detail contract to that operational region. This is an explicit combined route, not permission to load every dashboard reference.
+If a page combines analytics with a table, assign ownership per region before choosing the primary route. A supported one-collection management region remains Auto Patterns even when a supplemental KPI or chart requires WDS or a chart library. If a genuinely custom table opens record detail, apply the contextual-detail contract to that operational region. This is an explicit combined route, not permission to replace a supported collection region or load every dashboard reference.
 
 ### Routing Gates
 
@@ -82,6 +82,8 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
 Allowed custom fallback categories are `multi-source`, `external-data`, and `unsupported-presentation`. A one-source custom fallback must use `unsupported-presentation` and also provide non-empty `firstUnsupportedCapability`, `checkedReference`, and `whyDataAdaptationCannotSolve`. Filtering, OR/date logic, derived state, a gallery/table switch, or a detail overlay are never valid fallback categories.
 
 For multi-region pages, `regionOwners` records which implementation owns `collection`, `metrics`, `chart`, and `detail`. Use `auto-patterns` for a supported collection region even when another region uses WDS or a chart library. If a one-source analytics route assigns `collection` to `custom-wds-table`, also record `tableUnsupportedCapability`, `tableCheckedReference`, and `whyAutoPatternsTableCannotBeUsed`; chart- or metric-only evidence is invalid.
+
+When `regionOwners.metrics` is non-null, also record `metricSurface`, `metricCheckedExample`, `metricContainmentOwner`, and `metricLayoutOwner`. `metricSurface` must name the installed composition actually rendered (`AnalyticsSummary` or `StatisticsWidget`). Copy containment from that exact installed example; do not infer that a component either needs or forbids an external Card.
 
 When record detail exists, set `detailSurface` to `side-panel`, `modal`, or `entity-page` and explain the choice in `detailSurfaceReason`. This records a design decision; it does not make one surface mandatory for viewing or editing.
 
@@ -225,7 +227,7 @@ For a new one-collection manager, first evaluate [AUTO_PATTERNS_DASHBOARD.md](AU
 
 ### Required Documentation
 
-Read [DASHBOARD_PAGE.md](DASHBOARD_PAGE.md), then apply the [Visualizations](#visualizations) and [WDS component documentation gate](#wds-component-documentation-gate) sections. Retrieve the installed WDS `Page`, `Layout`, `Cell`, `Card`, and `StatisticsWidget` props and composition examples. Treat `StatisticsWidget` as the owner of its contained metric surface: use `Layout` and `Cell` to place it, and do not add a `Card` wrapper unless the installed example explicitly requires one. Retrieve `AnalyticsSummary` only when its documented behavior better matches the requested workflow; do not select it merely to obtain containment. For every chart, read the exact supported chart-library documentation before implementation; a WDS card or metric component does not supply chart behavior. Apply the custom-table contract when a WDS operational table is present, and the contextual-detail contract when rows open record detail. Those secondary contracts own only their region; this route still owns the whole-page composition.
+Read [DASHBOARD_PAGE.md](DASHBOARD_PAGE.md), then apply the [Visualizations](#visualizations) and [WDS component documentation gate](#wds-component-documentation-gate) sections. Retrieve the installed WDS `Page`, `Layout`, `Cell`, `Card`, `AnalyticsSummary`, and `StatisticsWidget` props plus the exact candidate composition examples. Use `AnalyticsSummary` when the requested top region is a set of summary cards or an analytics summary layout. Use `StatisticsWidget` for the compact grouped-statistic composition demonstrated by its installed example. Copy the selected example's containment instead of assuming either a flat surface or a Card wrapper. For every chart, read the exact supported chart-library documentation before implementation; a WDS card or metric component does not supply chart behavior. Apply the selected table contract to the operational region and the contextual-detail contract when rows open record detail. Those secondary contracts own only their region; this route still owns whole-page composition.
 
 ### Pre-Build Contract
 
@@ -245,21 +247,21 @@ List the page regions in reading order, name the primary operational surface, an
 - **AN-10:** Separate source-empty from filtered-empty operational data. Source-empty hides table controls and presents an in-context primary setup/create CTA. Filtered-empty preserves active filters and presents clear-filters recovery. Do not render a filtered-empty message or `Clear filters` when the source has no records.
 - **AN-11:** A chart lives in a bounded chart region inside its Card. Use the selected chart library's documented responsive-container pattern so its canvas or SVG fills that region and cannot paint into the next dashboard surface. For Chart.js, use `responsive: true` with `maintainAspectRatio: false` when the chart region has an intended height; do not combine a fixed-height chart wrapper with `maintainAspectRatio: true`.
 - **AN-12:** An analytics page with an operational table inherits the selected table route's populated-table contract. Keep `<Table.Content />` for visible rows; `Table.EmptyState` handles only source-empty or filtered-empty states and must not replace the normal table body.
-- **AN-13:** Preserve metric-surface ownership. Render one documented `StatisticsWidget` composition for a coherent KPI group, let it provide its own contained surface, and position it with `Layout` and `Cell`. Do not wrap it in `Card`, rebuild its separators or background, target its internals with custom styling, or split one group into independently styled widgets unless the installed documentation demonstrates that composition.
+- **AN-13:** Preserve the selected metric composition. Top-level summary cards normally use the installed `AnalyticsSummary`/`AnalyticsLayout` example; compact grouped statistics use the installed `StatisticsWidget` example. Record and reproduce that example's containment, separators, spacing, and `Layout`/`Cell` placement. Do not flatten a contained example, invent a wrapper, target internals with custom styling, or split one documented group into manually styled widgets.
 - **AN-14:** Preserve collection-region ownership. For one physical collection, keep the table in Auto Patterns unless the table itself has a documented unsupported capability. A custom chart, metric formula, or neighboring analytical region is not table fallback evidence. When Auto Patterns owns the collection region, use its documented header, section, slot, child-component, action, and AppContext paths to compose supplemental WDS analytics.
 
 ### Invalid Implementations
 
 - Selecting the table-and-panel route as primary for a page that also requests KPIs or several page regions.
 - Replacing a supported one-collection Auto Patterns table with WDS because a neighboring chart or metric region is custom.
-- A `StatisticsWidget` wrapped in `Card`, flattened by custom surface styles, or rebuilt from generic layout primitives.
+- A metric strip whose containment differs from the installed example recorded in the route contract.
 - Multiple separate `StatisticsWidget` instances arranged by horizontal `Box` or flex wrappers instead of the documented widget composition and `Layout`/`Cell` placement.
 - Unequal card widths, unused grid gaps, or a small explanatory card competing with the operational surface.
 - A table or filter region narrowed, clipped, or pushed by the selected-record panel.
 
 ### Acceptance
 
-Verify every metric against known source records and dates, inspect the composition at wide and narrow dashboard widths, and test source-empty, filtered-empty, partial, and populated responses. Compare the rendered KPI region with the installed `StatisticsWidget` example: its contained surface, spacing, separators, and responsive behavior must remain visible and intentional without redundant containment. Confirm equal-level analytics surfaces align, every chart remains inside its own Card, the operational region stays full width, and any combined table/SidePanel acceptance checklist passes. Console and network must remain clean; one failed visualization must not erase unrelated content. Run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>` before build validation.
+Verify every metric against known source records and dates, inspect the composition at wide and narrow dashboard widths, and test source-empty, filtered-empty, partial, and populated responses. Compare the rendered KPI region with the exact installed metric example recorded in the route contract; its containment, spacing, separators, and responsive behavior must remain visible. Confirm equal-level analytics surfaces align, every chart remains inside its own Card, the operational region stays full width, and any combined table/detail acceptance checklist passes. Console and network must remain clean; one failed visualization must not erase unrelated content. Run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>` before build validation.
 
 ## Focused Modal Route
 
@@ -276,10 +278,11 @@ Read [DASHBOARD_MODAL.md](DASHBOARD_MODAL.md), apply the [WDS component document
 - **DM-03:** Use the documented modal header, content, and footer composition. Secondary actions precede a right-aligned primary action.
 - **DM-04:** Give one element ownership of scrolling. Constrain the surface to its documented viewport behavior; only Content scrolls when necessary, and horizontal overflow is forbidden.
 - **DM-05:** Apply the mutation-readiness contract from [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md#4-mutation-readiness): validate inputs, disable a no-op or invalid save, preserve entered data on recoverable failure, communicate success, and intentionally close or return a result to the caller.
+- **DM-06:** Treat `observeState` params as initially absent or partial. Guard the params object and required identity before dereferencing, keep a stable loading/error surface mounted, and prefer passing a record ID plus a small serializable context object when the modal can load authoritative data itself.
 
 ### Acceptance
 
-Open the modal from its real caller, complete and cancel the task, test initial, changed, reverted, saving, validation, and request-failure states, and verify focus, content containment, footer visibility, console, network, and persisted result.
+Open the modal from its real caller, complete and cancel the task, test initial missing params, loading, changed, reverted, saving, validation, and request-failure states, and verify focus, content containment, footer visibility, console, network, and persisted result. A successful build without this runtime check is `blocked`, not verified.
 
 ## WDS Component Documentation Gate
 
@@ -317,7 +320,7 @@ reason: <why this surface fits the workflow>
 | Short, focused, blocking view/edit task, confirmation, or destructive decision | `components Modal CustomModalLayout`; the `CustomModalLayout` composition example; Dashboard Modal API | Use Dashboard Modal for the bounded task without replacing the collection page. |
 | Extensive or multi-section view/edit flow, complex validation, deep linking, or long work | Auto Patterns [entity workflows](auto-patterns-dashboard/entity-workflows.md) | Use the linked entity page; viewing and editing are both valid when the workflow depth warrants a full page. |
 | Mobile sliding work | `component Drawer`; its relevant composition example | Do not substitute it for desktop SidePanel. |
-| Metrics or summary band | `component StatisticsWidget`; its contained composition example; `components Layout Cell` for placement. Retrieve `AnalyticsSummary` only when its documented behavior is required. | Use the analytics route. `StatisticsWidget` owns its surface; do not add `Card` by default. |
+| Top-level summary cards or analytics summary layout | `components AnalyticsSummary StatisticsWidget Layout Cell Card`; compare the exact candidate examples | Use the analytics route and reproduce the chosen example's containment. Prefer `AnalyticsSummary` for requested summary cards; use `StatisticsWidget` only when its compact grouped-statistic composition matches. |
 | Chart or graph | Exact installed/supported chart-library API plus `components Layout Cell Card` | Do not invent chart APIs or claim Auto Patterns chart support. |
 | Custom operational table | `components Table TableToolbar TableActionCell EmptyState`; selected control examples | Use the table route selected by the workflow. |
 
@@ -325,7 +328,7 @@ reason: <why this surface fits the workflow>
 
 - A component name in a prompt is not enough: retrieve its exact documentation and composition example first.
 - Controls inside a documented WDS compound surface use documented WDS controls. Do not place native HTML `button`, `input`, `select`, or `textarea` elements inside SidePanel, Modal, Card, or table action regions when WDS provides the equivalent.
-- For a metric region, record `metric surface`, `containment owner`, `external wrapper`, and `layout owner`. The normal `StatisticsWidget` record is `StatisticsWidget`, `StatisticsWidget`, `none`, and `Layout/Cell`.
+- For a metric region, record the selected component/example, containment owner, and layout owner. These values come from the installed example, not a universal wrapper assumption.
 - Choose SidePanel, Modal, or entity page from information depth, task duration, blocking behavior, need for table context, validation complexity, and deep-linking needs. Do not map `view` or `edit` to one mandatory component.
 - A WDS component gate does not transfer ownership of a supported one-collection table from Auto Patterns to custom React. Extend the generated page with the narrow documented action/AppContext/entity-page path instead.
 - Do not hand-compose a documented surface from generic `Box` or a copied scaffold template. A floating `SidePanel` is the exception only for its mount: use the contextual-detail route's standard `DashboardSidePanelHost` for fixed viewport anchoring. Do not invent other panel positioning, sizing, shadow, or overflow styles.

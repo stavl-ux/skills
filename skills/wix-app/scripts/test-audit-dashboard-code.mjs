@@ -17,6 +17,7 @@ const badWorkflowRoot = path.join(root, 'bad-workflow');
 const badWritableRoot = path.join(root, 'bad-writable');
 const badActionsRoot = path.join(root, 'bad-actions');
 const badRemoveRoot = path.join(root, 'bad-remove');
+const badModalRoot = path.join(root, 'bad-modal');
 const viewerRoot = path.join(root, 'viewer');
 const goodRoot = path.join(root, 'good');
 const autoRoot = path.join(root, 'auto');
@@ -29,6 +30,7 @@ fs.mkdirSync(badWorkflowRoot);
 fs.mkdirSync(badWritableRoot);
 fs.mkdirSync(badActionsRoot);
 fs.mkdirSync(badRemoveRoot);
+fs.mkdirSync(badModalRoot);
 fs.mkdirSync(viewerRoot);
 fs.mkdirSync(goodRoot);
 fs.mkdirSync(autoRoot);
@@ -169,6 +171,13 @@ export default function CapacityPlanner() {
       },
       firstUnsupportedCapability: 'Chart region is not supported by Auto Patterns',
       checkedReference: 'AUTO_PATTERNS_DASHBOARD.md',
+      tableUnsupportedCapability: 'Chart.js monthly time-series chart cannot be expressed in Auto Patterns',
+      tableCheckedReference: 'AUTO_PATTERNS_DASHBOARD.md',
+      whyAutoPatternsTableCannotBeUsed: 'The primary workflow is analytical with KPI and chart regions',
+      metricSurface: 'StatisticsWidget',
+      metricCheckedExample: 'StatisticsWidget contained composition',
+      metricContainmentOwner: 'component',
+      metricLayoutOwner: 'Layout/Cell',
     }),
   );
 
@@ -510,6 +519,58 @@ export default function Catalog() {
 };`,
   );
 
+  writeNested(
+    badModalRoot,
+    'src/extensions/dashboard/pages/subscription-health/.dashboard-route.json',
+    JSON.stringify({
+      route: 'custom-table-panel',
+      sourceCount: 2,
+      sources: ['Subscriptions', 'Payments'],
+      fallbackCategory: 'multi-source',
+      secondary: 'Dashboard Modal detail',
+      detailSurface: 'modal',
+      detailSurfaceReason: 'Focused subscription inspection',
+    }),
+  );
+  writeNested(
+    badModalRoot,
+    'src/extensions/dashboard/pages/subscription-health/SubscriptionHealth.tsx',
+    `const MODAL_ID = 'wrong-subscription-detail-id';
+export default function SubscriptionHealth() {
+  return <Table onRowClick={(subscription) => dashboard.openModal({
+    modalId: MODAL_ID,
+    params: { subscription },
+  })}><Table.Content /></Table>;
+}`,
+  );
+  writeNested(
+    badModalRoot,
+    'src/extensions/dashboard/modals/subscription-detail/subscription-detail.extension.ts',
+    `export default extensions.dashboardModal({
+  id: 'subscription-detail-id',
+  title: 'Subscription detail',
+  component: './extensions/dashboard/modals/subscription-detail/subscription-detail.tsx',
+});`,
+  );
+  writeNested(
+    badModalRoot,
+    'src/extensions/dashboard/modals/subscription-detail/subscription-detail.tsx',
+    `export default function SubscriptionDetail() {
+  const [subscription, setSubscription] = useState(null);
+  useEffect(() => {
+    dashboard.observeState((state) => {
+      if (state.subscription) setSubscription(state.subscription);
+    });
+  }, []);
+  return <CustomModalLayout
+    title="Subscription detail"
+    secondaryButtonText="Close"
+    secondaryButtonOnClick={() => setSubscription(null)}
+    content={subscription ? <Text>{subscription.name}</Text> : <Text>Loading</Text>}
+  />;
+}`,
+  );
+
   write(
     goodRoot,
     '.dashboard-route.json',
@@ -615,6 +676,10 @@ export default function OrderExceptions() {
       },
       firstUnsupportedCapability: 'Chart region is not supported by Auto Patterns',
       checkedReference: 'auto-patterns-dashboard/extensions.md',
+      metricSurface: 'StatisticsWidget',
+      metricCheckedExample: 'StatisticsWidget contained composition',
+      metricContainmentOwner: 'component',
+      metricLayoutOwner: 'Layout/Cell',
     }),
   );
   write(hybridRoot, 'patterns.json', JSON.stringify({ collection: { id: 'subscriptions' } }));
@@ -739,6 +804,40 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const badAnalyticsPreflight = spawnSync(
+    process.execPath,
+    [auditPath, '--route-only', badAnalyticsRoot],
+    { encoding: 'utf8' },
+  );
+  const badAnalyticsPreflightOutput =
+    `${badAnalyticsPreflight.stdout}\n${badAnalyticsPreflight.stderr}`;
+  if (badAnalyticsPreflight.status === 0 || !badAnalyticsPreflightOutput.includes('RT-06')) {
+    console.error('Dashboard route preflight accepted chart-only evidence for replacing a one-source table.');
+    console.error(badAnalyticsPreflightOutput.trim());
+    process.exit(1);
+  }
+
+  const badModalDashboard = path.join(
+    badModalRoot,
+    'src/extensions/dashboard/pages/subscription-health',
+  );
+  const badModal = spawnSync(
+    process.execPath,
+    [auditPath, badModalDashboard],
+    { encoding: 'utf8' },
+  );
+  const badModalOutput = `${badModal.stdout}\n${badModal.stderr}`;
+  const missingModalRules = ['MD-01', 'MD-02', 'MD-03'].filter(
+    (rule) => !badModalOutput.includes(rule),
+  );
+  if (badModal.status === 0 || missingModalRules.length) {
+    console.error(
+      `Dashboard audit self-test accepted an invalid modal contract; missing findings: ${missingModalRules.join(', ') || 'non-zero exit'}.`,
+    );
+    console.error(badModalOutput.trim());
+    process.exit(1);
+  }
+
   const good = spawnSync(process.execPath, [auditPath, goodRoot], { encoding: 'utf8' });
   if (good.status !== 0) {
     console.error('Dashboard audit self-test rejected the good fixture.');
@@ -768,7 +867,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: bad routes, chart-only table fallbacks, unsafe modal state, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

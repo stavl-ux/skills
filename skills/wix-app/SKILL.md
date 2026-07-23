@@ -62,6 +62,7 @@ For every CLI-supported extension except Backend API, use `npx wix generate --pa
 | Unknown | Inspect context or ask one targeted question. |
 
 For a one-collection Auto Patterns page, use [DATA_COLLECTION.md](references/DATA_COLLECTION.md) for app-owned schema and the selected Auto Patterns guide for the page. For custom joins or multi-source dashboard operations, use the Data Model and Operations section of [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). A reference field defines schema only; separately plan population and missing-reference behavior.
+For namespace and code-identifier retrieval, use [APP_IDENTIFIERS.md](references/APP_IDENTIFIERS.md).
 
 ## Documentation Discipline
 
@@ -70,6 +71,7 @@ For a one-collection Auto Patterns page, use [DATA_COLLECTION.md](references/DAT
 - Stores: [STORES_VERSIONING.md](references/STORES_VERSIONING.md)
 - App Market: [APP_MARKET_REVIEW.md](references/APP_MARKET_REVIEW.md)
 - Registration recovery: [EXTENSION_REGISTRATION.md](references/EXTENSION_REGISTRATION.md)
+- Official extension documentation index: [DOCUMENTATION.md](references/DOCUMENTATION.md)
 
 Before importing WDS, invoke the Wix Design System skill and read the exact installed component documentation and examples named by the selected route. Record the component, documentation target, and reason it is required before implementation. Import `@wix/design-system/styles.global.css` once in the main component entry. Do not approximate a documented WDS component with custom markup or positioning.
 

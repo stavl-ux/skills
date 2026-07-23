@@ -102,6 +102,34 @@ function wordCount(filePath) {
   return fs.readFileSync(filePath, 'utf8').trim().split(/\s+/).filter(Boolean).length;
 }
 
+function localMarkdownTargets(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  return [...content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)]
+    .map((match) => match[1].split('#')[0])
+    .filter((target) => target && !/^(?:https?:|mailto:)/.test(target))
+    .map((target) => path.resolve(path.dirname(filePath), target))
+    .filter(
+      (target) =>
+        target.endsWith('.md') &&
+        target.startsWith(`${skillRoot}${path.sep}`) &&
+        fs.existsSync(target),
+    );
+}
+
+function reachableMarkdown(entryPath) {
+  const reachable = new Set();
+  const pending = [entryPath];
+
+  while (pending.length) {
+    const filePath = pending.pop();
+    if (reachable.has(filePath)) continue;
+    reachable.add(filePath);
+    pending.push(...localMarkdownTargets(filePath));
+  }
+
+  return reachable;
+}
+
 for (const reference of consolidatedReferences) {
   const filePath = path.join(referencesRoot, reference.file);
   if (!fs.existsSync(filePath)) {
@@ -199,6 +227,13 @@ for (const filePath of [skillPath, ...markdownFiles(referencesRoot)]) {
     if (!fs.existsSync(resolved)) {
       fail(`broken link in ${path.relative(skillRoot, filePath)}: ${match[1]}`);
     }
+  }
+}
+
+const reachableReferences = reachableMarkdown(skillPath);
+for (const filePath of markdownFiles(referencesRoot)) {
+  if (!reachableReferences.has(filePath)) {
+    fail(`reference is unreachable from SKILL.md: ${path.relative(skillRoot, filePath)}`);
   }
 }
 

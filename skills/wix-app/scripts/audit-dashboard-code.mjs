@@ -72,6 +72,7 @@ let files;
 let routeRecordPaths;
 let patternsPaths;
 let dataCollectionFiles;
+let dashboardModalFiles;
 try {
   files = routeOnly ? [] : [...new Set(inputs.flatMap(sourceFiles))];
   routeRecordPaths = [...new Set(inputs.flatMap((input) => namedFiles(input, routeRecordName)))];
@@ -87,6 +88,16 @@ try {
         .filter(fs.existsSync)
         .flatMap(sourceFiles),
     )];
+  dashboardModalFiles = routeOnly
+    ? []
+    : [...new Set(
+      inputs
+        .flatMap(projectSourceRoots)
+        .map((sourceRoot) => path.join(sourceRoot, 'extensions', 'dashboard', 'modals'))
+        .filter(fs.existsSync)
+        .flatMap(sourceFiles),
+    )];
+  files = [...new Set([...files, ...dashboardModalFiles])];
 } catch (error) {
   console.error(error.message);
   process.exit(2);
@@ -94,6 +105,10 @@ try {
 
 const contents = new Map(files.map((filePath) => [filePath, fs.readFileSync(filePath, 'utf8')]));
 const projectSource = [...contents.values()].join('\n');
+const dashboardPageSource = files
+  .filter((filePath) => !dashboardModalFiles.includes(filePath))
+  .map((filePath) => contents.get(filePath))
+  .join('\n');
 const projectHasSidePanel = [...contents.values()].some((content) => /<SidePanel\b/.test(content));
 const routeRecords = [];
 const patternDocuments = [];
@@ -457,7 +472,7 @@ for (const recordPath of routeRecordPaths) {
     });
   }
   if (isAutoPatterns && !routeOnly) {
-    if (!patternsPaths.length || !/@wix\/auto-patterns/.test(projectSource)) {
+    if (!patternsPaths.length || !/@wix\/auto-patterns/.test(dashboardPageSource)) {
       findings.push({
         filePath: recordPath,
         line: 1,
@@ -519,13 +534,22 @@ for (const recordPath of routeRecordPaths) {
     const missingTableEvidence = requiredTableEvidence.filter(
       (key) => typeof record[key] !== 'string' || !record[key].trim(),
     );
+    const regionalOnlyTableEvidence = /\b(?:analytics?|chart|graph|kpi|metric|summary|time[- ]series|visuali[sz]ation)\b/i.test(
+      String(record.tableUnsupportedCapability ?? ''),
+    );
 
-    if (routeOnly && collectionOwner === 'custom-wds-table' && missingTableEvidence.length) {
+    if (
+      routeOnly
+      && collectionOwner === 'custom-wds-table'
+      && (missingTableEvidence.length || regionalOnlyTableEvidence)
+    ) {
       findings.push({
         filePath: recordPath,
         line: 1,
         rule: 'RT-06',
-        message: `A one-source analytics route cannot assign collection ownership to a custom WDS table without table-specific evidence: ${requiredTableEvidence.join(', ')}.`,
+        message: regionalOnlyTableEvidence
+          ? 'Chart, KPI, metric, summary, and other analytics-region limitations cannot justify replacing a supported one-collection Auto Patterns table.'
+          : `A one-source analytics route cannot assign collection ownership to a custom WDS table without table-specific evidence: ${requiredTableEvidence.join(', ')}.`,
       });
     }
 
@@ -544,7 +568,11 @@ for (const recordPath of routeRecordPaths) {
       }
 
       if (usesCustomWdsTable) {
-        if (collectionOwner !== 'custom-wds-table' || missingTableEvidence.length) {
+        if (
+          collectionOwner !== 'custom-wds-table'
+          || missingTableEvidence.length
+          || regionalOnlyTableEvidence
+        ) {
           findings.push({
             filePath: recordPath,
             line: 1,
@@ -553,6 +581,30 @@ for (const recordPath of routeRecordPaths) {
           });
         }
       }
+    }
+  }
+
+  if (record.route === 'analytics' && record.regionOwners?.metrics) {
+    const requiredMetricEvidence = [
+      'metricSurface',
+      'metricCheckedExample',
+      'metricContainmentOwner',
+      'metricLayoutOwner',
+    ];
+    const missingMetricEvidence = requiredMetricEvidence.filter(
+      (key) => typeof record[key] !== 'string' || !record[key].trim(),
+    );
+    const allowedMetricSurfaces = new Set(['AnalyticsSummary', 'StatisticsWidget']);
+
+    if (missingMetricEvidence.length || !allowedMetricSurfaces.has(record.metricSurface)) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'RT-08',
+        message: missingMetricEvidence.length
+          ? `An analytics metric region must record its installed composition before implementation: ${requiredMetricEvidence.join(', ')}.`
+          : `metricSurface must name the installed WDS composition used by the page: ${[...allowedMetricSurfaces].join(' or ')}.`,
+      });
     }
   }
 }
@@ -694,6 +746,80 @@ for (const { path: recordPath, record } of routeRecords) {
       rule: 'AP-08',
       message: `Route declares detailSurface "${surface}", but the generated project does not contain that surface.`,
     });
+  }
+}
+
+const stringConstants = new Map();
+for (const content of contents.values()) {
+  for (const match of content.matchAll(
+    /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*['"]([^'"]+)['"]/g,
+  )) {
+    stringConstants.set(match[1], match[2]);
+  }
+}
+
+const registeredModalIds = new Set();
+for (const content of contents.values()) {
+  for (const match of content.matchAll(
+    /\bdashboardModal\s*\(\s*\{[\s\S]{0,800}?\bid\s*:\s*['"]([^'"]+)['"]/g,
+  )) {
+    registeredModalIds.add(match[1]);
+  }
+}
+
+for (const [filePath, content] of contents) {
+  for (const match of content.matchAll(
+    /\bopenModal\s*\(\s*\{[\s\S]{0,700}?\bmodalId\s*:\s*(?:['"]([^'"]+)['"]|([A-Za-z_$][\w$]*))/g,
+  )) {
+    const modalId = match[1] ?? stringConstants.get(match[2]);
+    if (!modalId || !registeredModalIds.size || registeredModalIds.has(modalId)) continue;
+    addFinding(
+      filePath,
+      content,
+      match.index,
+      'MD-02',
+      `openModal targets "${modalId}", but no generated Dashboard Modal registration with that id was found.`,
+    );
+  }
+}
+
+for (const filePath of dashboardModalFiles) {
+  const content = contents.get(filePath);
+  if (!/<CustomModalLayout\b/.test(content)) continue;
+
+  if (!/\bdashboard\.closeModal\s*\(/.test(content)) {
+    addFinding(
+      filePath,
+      content,
+      content.indexOf('<CustomModalLayout'),
+      'MD-03',
+      'Dashboard Modal has no dashboard.closeModal action, so its documented cancel/close path is incomplete.',
+    );
+  }
+
+  for (const match of content.matchAll(
+    /\bobserveState\s*\(\s*\(\s*([A-Za-z_$][\w$]*)[^)]*\)\s*=>\s*\{([\s\S]{0,1800}?)\}\s*\)/g,
+  )) {
+    const [, stateName, body] = match;
+    const directAccess = new RegExp(`\\b${escapeRegExp(stateName)}\\s*\\.`).exec(body);
+    if (!directAccess) continue;
+    const beforeAccess = body.slice(0, directAccess.index);
+    const earlyReturnGuard = new RegExp(
+      `\\bif\\s*\\(\\s*!\\s*${escapeRegExp(stateName)}(?:\\?\\.[A-Za-z_$][\\w$]*)?\\s*\\)\\s*\\{?\\s*return\\b`,
+    ).test(beforeAccess);
+    const guardsState =
+      earlyReturnGuard
+      || new RegExp(`\\b${escapeRegExp(stateName)}\\s*&&`).test(beforeAccess)
+      || new RegExp(`\\b${escapeRegExp(stateName)}\\s*=\\s*${escapeRegExp(stateName)}\\s*\\?\\?\\s*\\{`).test(beforeAccess);
+    if (guardsState) continue;
+
+    addFinding(
+      filePath,
+      content,
+      match.index + directAccess.index,
+      'MD-01',
+      'Dashboard Modal dereferences observeState params before guarding the initial missing or partial state. Render a stable loading surface and guard again before using record identity.',
+    );
   }
 }
 
@@ -955,16 +1081,6 @@ for (const filePath of files) {
   }
 
   const statisticsCount = (content.match(/<StatisticsWidget\b/g) || []).length;
-  const statisticsInCard = /<Card\b[^>]*>[\s\S]{0,2400}?<StatisticsWidget\b[\s\S]{0,2400}?<\/Card>/.exec(content);
-  if (statisticsInCard) {
-    addFinding(
-      filePath,
-      content,
-      statisticsInCard.index,
-      'AN-13',
-      'StatisticsWidget already owns its contained metric surface; remove the redundant Card wrapper unless the installed WDS example explicitly requires it.',
-    );
-  }
 
   if (
     statisticsCount > 1
@@ -989,6 +1105,40 @@ for (const filePath of files) {
       'AN-11',
       'Chart.js uses maintainAspectRatio: true inside a fixed-height dashboard chart region; it can overflow into the next surface.',
     );
+  }
+}
+
+for (const { path: recordPath, record } of routeRecords) {
+  if (record.route !== 'analytics' || !record.regionOwners?.metrics) continue;
+  if (record.metricSurface === 'AnalyticsSummary' && !/<AnalyticsSummary\b/.test(dashboardPageSource)) {
+    findings.push({
+      filePath: recordPath,
+      line: 1,
+      rule: 'AN-13',
+      message: 'Route record selects AnalyticsSummary, but the generated analytics source does not render it.',
+    });
+  }
+  if (record.metricSurface === 'StatisticsWidget' && !/<StatisticsWidget\b/.test(dashboardPageSource)) {
+    findings.push({
+      filePath: recordPath,
+      line: 1,
+      rule: 'AN-13',
+      message: 'Route record selects StatisticsWidget, but the generated analytics source does not render it.',
+    });
+  }
+
+  const containmentOwner = String(record.metricContainmentOwner ?? '').toLowerCase();
+  if (
+    containmentOwner === 'card'
+    && record.metricSurface === 'StatisticsWidget'
+    && !/<Card\b[^>]*>[\s\S]{0,3000}?<StatisticsWidget\b[\s\S]{0,3000}?<\/Card>/.test(dashboardPageSource)
+  ) {
+    findings.push({
+      filePath: recordPath,
+      line: 1,
+      rule: 'AN-13',
+      message: 'Route record assigns metric containment to Card, but StatisticsWidget is not rendered in that documented Card composition.',
+    });
   }
 }
 
