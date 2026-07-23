@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -204,6 +205,24 @@ if (hotPathWords > 8000) {
 const routingContent = fs.readFileSync(path.join(referencesRoot, 'DASHBOARD_ROUTING.md'), 'utf8');
 if (!routingContent.includes('scaffold the Dashboard Page first')) {
   fail('DASHBOARD_ROUTING.md must create the route record after CLI scaffolding');
+}
+
+try {
+  execFileSync(
+    process.execPath,
+    [
+      path.join(scriptDirectory, 'generate-auto-patterns.js'),
+      '--validate-config',
+      path.join(referencesRoot, 'auto-patterns-dashboard/example-patterns.json'),
+    ],
+    { stdio: 'pipe' },
+  );
+} catch (error) {
+  fail(
+    `example-patterns.json fails Auto Patterns semantic validation: ${
+      error.stderr?.toString().trim() || error.message
+    }`,
+  );
 }
 
 const ruleOwners = new Map();

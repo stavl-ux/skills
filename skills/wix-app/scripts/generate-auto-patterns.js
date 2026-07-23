@@ -12,6 +12,7 @@
  *
  * Usage:
  *   node <SKILL_ROOT>/scripts/generate-auto-patterns.js --input <path-to-input.json> --output <target-directory>
+ *   node <SKILL_ROOT>/scripts/generate-auto-patterns.js --validate-config <path-to-patterns.json>
  *   node <SKILL_ROOT>/scripts/generate-auto-patterns.js --help
  *
  * <SKILL_ROOT> is the absolute path to the wix-app skill bundle (the folder containing SKILL.md).
@@ -61,12 +62,14 @@ if (args.includes('--help') || args.includes('-h')) {
 
 Usage:
   node <SKILL_ROOT>/scripts/generate-auto-patterns.js --input <path> --output <dir>
+  node <SKILL_ROOT>/scripts/generate-auto-patterns.js --validate-config <path>
 
 <SKILL_ROOT> is the absolute path to the wix-app skill bundle (the folder containing SKILL.md).
 
 Options:
   --input   Path to input JSON file (required)
   --output  Target directory for generated files (required)
+  --validate-config  Validate an existing patterns.json without generating files
   --help    Show this help message
 
 Input JSON shape:
@@ -93,26 +96,129 @@ Output:
 
 const inputPath = getArg('input');
 const outputDir = getArg('output');
+const validateConfigPath = getArg('validate-config');
 
-if (!inputPath) {
+if (!validateConfigPath && !inputPath) {
   console.error('Error: --input is required. Use --help for usage.');
   process.exit(1);
 }
-if (!outputDir) {
+if (!validateConfigPath && !outputDir) {
   console.error('Error: --output is required. Use --help for usage.');
   process.exit(1);
 }
 
 // --- Read and validate input ---
 
-let input;
-try {
-  const raw = readFileSync(resolve(inputPath), 'utf-8');
-  input = JSON.parse(raw);
-} catch (err) {
-  console.error(`Error: Failed to read input file: ${err.message}`);
+function readJsonFile(filePath, label) {
+  try {
+    return JSON.parse(readFileSync(resolve(filePath), 'utf-8'));
+  } catch (err) {
+    console.error(`Error: Failed to read ${label}: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+function collectionComponents(config) {
+  if (!Array.isArray(config?.pages)) return [];
+  return config.pages.flatMap((page) =>
+    page?.type === 'collectionPage' &&
+    Array.isArray(page.collectionPage?.components)
+      ? page.collectionPage.components.filter(
+          (component) => component?.type === 'collection',
+        )
+      : [],
+  );
+}
+
+function presetViews(viewsConfig) {
+  const presets = viewsConfig?.presets;
+  if (!presets) return [];
+  if (presets.type === 'views') return presets.views || [];
+  if (presets.type === 'categories') {
+    return (presets.categories || []).flatMap((category) => category.views || []);
+  }
+  return [];
+}
+
+function validatePatternsConfig(config, collectionFields = []) {
+  const errors = [];
+  const schemaFieldIds = new Set(
+    collectionFields.map((field) => field?.key).filter(Boolean),
+  );
+
+  if (!Array.isArray(config?.pages)) {
+    return ['config.pages must be an array'];
+  }
+
+  for (const [componentIndex, component] of collectionComponents(
+    config,
+  ).entries()) {
+    const filters = component.filters?.items || [];
+    const filterIds = new Set();
+
+    for (const filter of filters) {
+      if (!filter?.id) {
+        errors.push(`collection component ${componentIndex}: filter is missing id`);
+        continue;
+      }
+      if (filterIds.has(filter.id)) {
+        errors.push(
+          `collection component ${componentIndex}: duplicate filter id "${filter.id}"`,
+        );
+      }
+      filterIds.add(filter.id);
+
+      if (!filter.fieldId) {
+        errors.push(
+          `collection component ${componentIndex}: filter "${filter.id}" is missing fieldId`,
+        );
+      } else if (
+        schemaFieldIds.size > 0 &&
+        !schemaFieldIds.has(filter.fieldId)
+      ) {
+        errors.push(
+          `collection component ${componentIndex}: filter "${filter.id}" references unknown schema field "${filter.fieldId}"`,
+        );
+      }
+    }
+
+    for (const view of presetViews(component.views)) {
+      for (const filterId of Object.keys(view?.filters || {})) {
+        if (!filterIds.has(filterId)) {
+          errors.push(
+            `collection component ${componentIndex}: view "${view.id || view.label || 'unnamed'}" references undeclared filter "${filterId}"`,
+          );
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
+function exitOnConfigErrors(config, collectionFields) {
+  const errors = validatePatternsConfig(config, collectionFields);
+  if (!errors.length) return;
+
+  console.error('Error: Invalid Auto Patterns configuration:');
+  errors.forEach((error) => console.error(`- ${error}`));
   process.exit(1);
 }
+
+if (validateConfigPath) {
+  const config = readJsonFile(validateConfigPath, 'patterns.json');
+  exitOnConfigErrors(config);
+  console.log(
+    JSON.stringify({
+      success: true,
+      validated: resolve(validateConfigPath),
+    }),
+  );
+  process.exit(0);
+}
+
+let input;
+input = readJsonFile(inputPath, 'input file');
 
 const { collection, schema, relevantCollectionId } = input;
 
@@ -480,6 +586,7 @@ try {
 }
 
 const patternsConfig = generatePatternsConfig(collection, schema);
+exitOnConfigErrors(patternsConfig, collection.fields);
 const pageTsx = generatePageTsx();
 
 // The Wix CLI scaffolds the page component as `<folder>.tsx` and registers THAT

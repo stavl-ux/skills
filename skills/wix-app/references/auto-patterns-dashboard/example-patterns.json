@@ -107,6 +107,48 @@
                 }
               ]
             },
+            "views": {
+              "enabled": true,
+              "presets": {
+                "type": "views",
+                "views": [
+                  {
+                    "id": "active-fees",
+                    "label": "Active",
+                    "isDefaultView": true,
+                    "filters": {
+                      "isActive-filter": {
+                        "filterType": "boolean",
+                        "value": [
+                          {
+                            "id": "checked",
+                            "name": "Active"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "id": "inactive-fees",
+                    "label": "Inactive",
+                    "filters": {
+                      "isActive-filter": {
+                        "filterType": "boolean",
+                        "value": [
+                          {
+                            "id": "unchecked",
+                            "name": "Inactive"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "viewsDropdownProps": {
+                "showTotal": true
+              }
+            },
             "emptyState": {
               "title": "No Additional Fees Configured",
               "subtitle": "Start by adding your first additional fee for checkout",

@@ -77,6 +77,7 @@ interface PresetView {
 - **IF** setting `columnPreferences` **THEN** must list ALL visible columns if reordering/hiding.
 - **IF** setting filters **THEN** keys MUST match defined filter IDs.
 - **IF** a View represents workflow state **THEN** include every maintained field that defines membership.
+- **IF** a CMS filter appears in the filter panel **THEN** declare it in `filters.items`; do not rely on an automatically exposed field that lacks an Auto Patterns field mapping.
 
 ### Implementation Rules
 - **MUST** set `enabled: true` to activate.
@@ -84,6 +85,8 @@ interface PresetView {
 - **MUST** avoid reserved IDs (`predefined-views`, `saved-views`, `all-items-view`).
 - **SHOULD** set `isDefaultView: true` on exactly one preset if default override needed.
 - **SHOULD** use `type: 'views'` for a short flat set of manager worksets; use categories only when the sets need a meaningful hierarchy.
+
+Views and panel filters share the collection query but have different entry behavior. Selecting a View resets current filters and applies that preset; panel changes then refine the selected View until another View is selected. Do not promise that panel refinements survive a View switch.
 
 ### Canonical Example
 ```typescript
@@ -130,6 +133,8 @@ A workflow action may move a record between operational worksets, such as `Needs
 - Keep operational filter declarations when adding display filters; replacing `filters.items` can invalidate every View that references them.
 
 Optimistic updates provide immediate row feedback but do not replace collection refresh when the mutation changes Saved View membership.
+
+Verify the combined contract in preview: select each View, open the filter panel and confirm its values, add a panel refinement and confirm the table changes, then switch Views and confirm the table and panel reset to the new preset.
 
 ## Collection Page Actions
 

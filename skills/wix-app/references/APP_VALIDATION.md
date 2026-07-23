@@ -44,6 +44,15 @@ pnpm install
 
 ### Step 2: TypeScript Compilation Check
 
+For an Auto Patterns page, validate each final `patterns.json` before TypeScript:
+
+```bash
+node <SKILL_ROOT>/scripts/generate-auto-patterns.js \
+  --validate-config src/extensions/dashboard/pages/<page-name>/patterns.json
+```
+
+This rejects Saved View filter keys that are not declared in `filters.items`, duplicate filter IDs, and missing filter mappings. Fix these configuration errors before compiling.
+
 Run TypeScript compiler to check for type errors.
 
 **Full project check:**
@@ -171,3 +180,13 @@ Read: .wix/debug.log (with offset to the end)
 | UI not rendering | Component errors | Review component code and imports |
 | CLI error with no clear message | Truncated terminal output | Read `.wix/debug.log` for the full error trace and stack details |
 | Mysterious failures after config change | Stale CLI state | Read `.wix/debug.log` to confirm, then delete `.wix/` and rebuild |
+
+## Auto Patterns Filter Verification
+
+When a collection page uses both Saved Views and filter-panel controls:
+
+1. Select each View and verify its rows and total.
+2. Open the filter panel and verify the controls reflect the selected View.
+3. Add a panel filter and verify the table narrows without a hard refresh.
+4. Switch Views and verify the table and panel reset to the new preset.
+5. Confirm every panel filter is explicitly declared in `filters.items`.
