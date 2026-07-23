@@ -13,7 +13,7 @@ The Wix CLI owns scaffolding. This skill classifies the request, selects one exe
 
 1. Classify the extension and count physical data sources before interpreting workflow complexity.
 2. Read one selected extension guide. Do not open a general dashboard guide before checking the dashboard fast path below.
-3. Scaffold with the CLI. Custom and hybrid dashboards then save `.dashboard-route.json` and pass the route-only audit before loading WDS documentation or implementing UI.
+3. Scaffold with the CLI. Custom and hybrid dashboards then save `.dashboard-route.json` and pass the route-only audit before loading WDS documentation or implementing UI. Standard Auto Patterns pages use `patterns.json`; they do not create a route record or run route-only audit.
 4. Read only the exact API/component documentation named by the accepted route, then implement only in generated files.
 5. Validate with the checks available in the current environment before reporting completion.
 
@@ -77,9 +77,9 @@ Use focused discovery only when the selected local guide does not cover the requ
 
 ## Validation
 
-1. For a proposed custom or hybrid dashboard, immediately run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" --route-only <dashboard-source-directory>` after saving `.dashboard-route.json`. On `RT-05` or `RT-06`, return to Auto Patterns ownership; do not rewrite the explanation to preserve the rejected route.
+1. For a proposed custom or hybrid dashboard, immediately run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" --route-only <dashboard-source-directory>` after saving `.dashboard-route.json`. Standard Auto Patterns pages skip this step. On `RT-05` or `RT-06`, return to Auto Patterns ownership; do not rewrite the explanation to preserve the rejected route.
 2. Treat audit output as an API. Never open, grep, or reverse-engineer the audit script during generation. Fix the named rule from the selected guide and rerun only after a route or code change.
-3. Run the available TypeScript and Wix build validator once. Fix reported errors and rerun only after a code change.
-4. For every dashboard implementation, including standard Auto Patterns pages, run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>`. This code audit is local and blocking; it checks route-specific runtime contracts that compilation cannot prove.
+3. For every dashboard implementation, including standard Auto Patterns pages, run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>`. This code audit is local and blocking; it checks route-specific runtime contracts that compilation cannot prove.
+4. Run TypeScript first. Fix its errors and rerun TypeScript only after a code change. After TypeScript and the dashboard audit pass, run exactly one final project build directly, without piping it through `head`, `tail`, or another early-closing command. Do not repeat a successful build to obtain shorter output.
 5. Run `wix preview` and browser checks only when the environment exposes an interactive preview/runtime session. Do not start a long-lived preview command in a non-interactive codegen worker.
 6. When browser access exists, open the registered route and verify loader, representative data, console/network, primary workflow, and persistence. Otherwise report runtime validation as `blocked` with the exact manual check; do not retry or wait indefinitely.

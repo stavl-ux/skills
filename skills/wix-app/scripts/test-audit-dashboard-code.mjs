@@ -13,6 +13,7 @@ const badRoot = path.join(root, 'bad');
 const badAutoRoot = path.join(root, 'bad-auto');
 const badAnalyticsRoot = path.join(root, 'bad-analytics');
 const badRerouteRoot = path.join(root, 'bad-reroute');
+const badWorkflowRoot = path.join(root, 'bad-workflow');
 const goodRoot = path.join(root, 'good');
 const autoRoot = path.join(root, 'auto');
 const hybridRoot = path.join(root, 'hybrid');
@@ -20,6 +21,7 @@ fs.mkdirSync(badRoot);
 fs.mkdirSync(badAutoRoot);
 fs.mkdirSync(badAnalyticsRoot);
 fs.mkdirSync(badRerouteRoot);
+fs.mkdirSync(badWorkflowRoot);
 fs.mkdirSync(goodRoot);
 fs.mkdirSync(autoRoot);
 fs.mkdirSync(hybridRoot);
@@ -222,7 +224,7 @@ export const openOrderDetail = ({ actionParams }) => ({
   biName: 'view-details',
   onClick: () => { void actionParams; },
 });
-export const orderBadges = (entity) => entity.isReviewed ? [{ text: 'Reviewed' }] : [];
+export const orderBadges = (entity) => entity.isReviewed ? [{ text: 'Reviewed', skin: 'destructive' }] : [];
 export const orderSubtitle = (entity) => ({ text: entity.orderNumber });
 export const reviewOrder = ({ actionParams: { entity } }) => ({
   label: entity.isReviewed ? 'Unreview' : 'Review',
@@ -230,6 +232,53 @@ export const reviewOrder = ({ actionParams: { entity } }) => ({
   onClick: () => update(entity.id),
 });
 export default function OrderExceptions() {
+  return <AutoPatternsApp />;
+}`,
+  );
+
+  write(
+    badWorkflowRoot,
+    'patterns.json',
+    JSON.stringify({
+      pages: [
+        {
+          id: 'orders',
+          type: 'collectionPage',
+          collectionPage: {
+            components: [{
+              type: 'collection',
+              entityPageId: 'order-detail',
+              actionCell: {
+                secondaryActions: {
+                  items: [{
+                    id: 'reviewOrder',
+                    type: 'custom',
+                    label: 'Mark as Reviewed',
+                    biName: 'review-order',
+                  }],
+                },
+              },
+            }],
+          },
+        },
+        {
+          id: 'order-detail',
+          type: 'entityPage',
+          entityPage: {
+            mode: 'view',
+            parentPageId: 'orders',
+            collectionId: 'orders',
+            route: { path: '/order/:entityId', params: { id: 'entityId' } },
+          },
+        },
+      ],
+    }),
+  );
+  write(
+    badWorkflowRoot,
+    'Orders.tsx',
+    `import { AutoPatternsApp } from '@wix/auto-patterns';
+export default function Orders() {
   return <AutoPatternsApp />;
 }`,
   );
@@ -387,11 +436,23 @@ export default function SubscriptionHealth() {
 
   const badAuto = spawnSync(process.execPath, [auditPath, badAutoRoot], { encoding: 'utf8' });
   const badAutoOutput = `${badAuto.stdout}\n${badAuto.stderr}`;
-  const missedAutoRules = ['AP-07', 'AP-08', 'AP-09'].filter((rule) => !badAutoOutput.includes(rule));
+  const missedAutoRules = ['RT-07', 'AP-07', 'AP-08', 'AP-09', 'AP-11'].filter((rule) => !badAutoOutput.includes(rule));
   if (badAuto.status === 0 || missedAutoRules.length) {
     console.error('Dashboard audit self-test failed to reject the broken Auto Patterns detail route.');
     if (missedAutoRules.length) console.error(`Missing rules: ${missedAutoRules.join(', ')}`);
     console.error(badAutoOutput.trim());
+    process.exit(1);
+  }
+
+  const badWorkflow = spawnSync(
+    process.execPath,
+    [auditPath, badWorkflowRoot],
+    { encoding: 'utf8' },
+  );
+  const badWorkflowOutput = `${badWorkflow.stdout}\n${badWorkflow.stderr}`;
+  if (badWorkflow.status === 0 || !badWorkflowOutput.includes('AP-10')) {
+    console.error('Dashboard audit self-test accepted a mutating collection linked to a view-only actionless entity page.');
+    console.error(badWorkflowOutput.trim());
     process.exit(1);
   }
 

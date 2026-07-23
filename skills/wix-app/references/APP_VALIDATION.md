@@ -1,7 +1,7 @@
 
 # Wix App Validation
 
-Validates Wix CLI applications through a four-step sequential workflow: package installation, TypeScript compilation check, build, and preview.
+Validates Wix CLI applications through a four-step sequential workflow: dependency readiness, TypeScript compilation check, one final build, and preview.
 
 ## Validation Workflow
 
@@ -9,7 +9,7 @@ Execute these steps sequentially. Stop and report errors if any step fails.
 
 ### Step 1: Package Installation
 
-Ensure all dependencies are installed before proceeding with the build.
+Ensure all dependencies are installed before proceeding. If `node_modules` already exists and dependency files did not change, do not reinstall packages.
 
 **Detect package manager:**
 - Check for `package-lock.json` → use `npm`
@@ -96,18 +96,20 @@ npx tsc --noEmit src/extensions/backend/**/*.ts
 
 ### Step 3: Build Validation
 
-Run the build command and check for compilation errors:
+After TypeScript passes, run the project's build command once and check for compilation errors:
 
 ```bash
 npx wix build
 ```
+
+Use the repository's declared build script instead when it wraps the Wix build. Run the command directly. Never pipe a build through `head`, `tail`, or another command that can close the output stream before the build exits. If concise diagnostics are needed, redirect the complete output to a file and inspect that file after the command finishes.
 
 **Success criteria:**
 - Exit code 0
 - No TypeScript errors
 - No missing dependencies
 
-**On failure:** Report the specific compilation errors, [check the debug log](#debug-log-on-errors) for detailed diagnostics, and stop validation.
+**On failure:** Report the specific compilation errors, [check the debug log](#debug-log-on-errors) for detailed diagnostics, and stop validation. Fix the cause, rerun TypeScript, and then run one new final build. Do not repeat an unchanged failed or successful build merely to obtain a different output slice.
 
 ### Step 4: Preview Deployment
 

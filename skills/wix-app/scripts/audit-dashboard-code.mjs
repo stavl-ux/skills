@@ -99,6 +99,8 @@ for (const patternsPath of patternsPaths) {
 
 const customRowActionIds = new Set();
 const entityRuntimeResolvers = new Map();
+const entityPages = new Map();
+const collectionEntityLinks = [];
 let hasEntityPagePattern = false;
 
 function registerEntityRuntimeResolver(id, kind) {
@@ -109,21 +111,74 @@ function registerEntityRuntimeResolver(id, kind) {
   entityRuntimeResolvers.set(normalizedId, kinds);
 }
 
+function containsMutatingAction(value) {
+  let found = false;
+  walkJson(value, (candidate) => {
+    if (found || !candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return;
+    if (['delete', 'bulkDelete'].includes(candidate.type)) {
+      found = true;
+      return;
+    }
+    if (candidate.type !== 'custom') return;
+    const actionText = [candidate.id, candidate.label, candidate.biName]
+      .filter((part) => typeof part === 'string')
+      .join(' ');
+    found = /\b(?:mark|review|approve|reject|resolve|dismiss|archive|restore|update|edit|assign|contact|activate|deactivate|cancel|refund|reorder|restock)\b/i.test(
+      actionText.replace(/([a-z])([A-Z])/g, '$1 $2'),
+    );
+  });
+  return found;
+}
+
 for (const document of patternDocuments) {
   for (const page of document.value?.pages ?? []) {
-    if (page?.type !== 'entityPage' || !page.entityPage) continue;
-    hasEntityPagePattern = true;
-    registerEntityRuntimeResolver(page.entityPage.title?.badges?.id, 'badge override');
-    registerEntityRuntimeResolver(page.entityPage.subtitle?.id, 'subtitle override');
-    walkJson(page.entityPage.actions, (value) => {
-      if (
-        value
-        && typeof value === 'object'
-        && !Array.isArray(value)
-        && value.type === 'custom'
-      ) {
-        registerEntityRuntimeResolver(value.id, 'entity action');
+    if (page?.type === 'entityPage' && page.entityPage) {
+      hasEntityPagePattern = true;
+      if (typeof page.id === 'string' && page.id.trim()) {
+        entityPages.set(page.id.trim(), {
+          path: document.path,
+          id: page.id.trim(),
+          mode: page.entityPage.mode ?? 'edit',
+          collectionId: page.entityPage.collectionId,
+          parentPageId: page.entityPage.parentPageId,
+          hasActions: Boolean(page.entityPage.actions && Object.keys(page.entityPage.actions).length),
+        });
       }
+      registerEntityRuntimeResolver(page.entityPage.title?.badges?.id, 'badge override');
+      registerEntityRuntimeResolver(page.entityPage.subtitle?.id, 'subtitle override');
+      walkJson(page.entityPage.actions, (value) => {
+        if (
+          value
+          && typeof value === 'object'
+          && !Array.isArray(value)
+          && value.type === 'custom'
+        ) {
+          registerEntityRuntimeResolver(value.id, 'entity action');
+        }
+      });
+      continue;
+    }
+
+    if (page?.type !== 'collectionPage' || !page.collectionPage) continue;
+    walkJson(page.collectionPage.components, (value) => {
+      if (
+        !value
+        || typeof value !== 'object'
+        || Array.isArray(value)
+        || typeof value.entityPageId !== 'string'
+      ) return;
+
+      const actionConfig = JSON.stringify({
+        actionCell: value.actionCell,
+        bulkActionToolbar: value.bulkActionToolbar,
+        tableBulkActionToolbar: value.table?.bulkActionToolbar,
+        gridBulkActionToolbar: value.grid?.bulkActionToolbar,
+      });
+      collectionEntityLinks.push({
+        path: document.path,
+        entityPageId: value.entityPageId.trim(),
+        hasMutatingActions: containsMutatingAction(JSON.parse(actionConfig)),
+      });
     });
   }
 
@@ -138,6 +193,31 @@ for (const document of patternDocuments) {
       customRowActionIds.add(value.onRowClick.id.trim());
     }
   });
+}
+
+for (const link of collectionEntityLinks) {
+  const entityPage = entityPages.get(link.entityPageId);
+  if (
+    !entityPage
+    || entityPage.mode !== 'view'
+    || entityPage.hasActions
+    || !link.hasMutatingActions
+  ) continue;
+
+  const hasPairedEditPage = [...entityPages.values()].some((candidate) =>
+    candidate.mode === 'edit'
+    && candidate.id !== entityPage.id
+    && candidate.collectionId === entityPage.collectionId
+    && candidate.parentPageId === entityPage.parentPageId
+  );
+  if (!hasPairedEditPage) {
+    findings.push({
+      filePath: link.path,
+      line: 1,
+      rule: 'AP-10',
+      message: `Collection links mutating row or bulk actions to view-only entity page "${link.entityPageId}" with no entity actions or paired edit page. Preserve the relevant single-record workflow or remove unrelated collection mutations.`,
+    });
+  }
 }
 
 const requiresRouteRecord = routeOnly || (files.length && !patternsPaths.length);
@@ -209,6 +289,14 @@ for (const recordPath of routeRecordPaths) {
   }
 
   const isAutoPatterns = ['auto-patterns', 'auto-patterns-change'].includes(record.route);
+  if (isAutoPatterns) {
+    findings.push({
+      filePath: recordPath,
+      line: 1,
+      rule: 'RT-07',
+      message: `Standard Auto Patterns pages use patterns.json and full audit; remove ${routeRecordName} and do not run route-only preflight.`,
+    });
+  }
   if (isAutoPatterns && !routeOnly) {
     if (!patternsPaths.length || !/@wix\/auto-patterns/.test(projectSource)) {
       findings.push({
@@ -351,6 +439,19 @@ for (const [resolverId, kinds] of entityRuntimeResolvers) {
   }
 
   const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2600);
+  if (kinds.has('badge override')) {
+    const invalidBadgeSkin = /\bskin\s*:\s*['"]destructive['"]/.exec(resolverSlice);
+    if (invalidBadgeSkin) {
+      addFinding(
+        resolver.filePath,
+        resolver.content,
+        resolver.index + invalidBadgeSkin.index,
+        'AP-11',
+        `Entity badge override "${resolverId}" uses action skin "destructive". Import the installed WDS BadgeSkin type and use its danger value instead.`,
+      );
+    }
+  }
+
   const directEntityAccess = /\bentity\s*(?:\.|\[)/.exec(resolverSlice);
   if (!directEntityAccess) continue;
 

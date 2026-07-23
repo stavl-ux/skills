@@ -58,6 +58,17 @@ These are best-practice defaults, not intent-to-component rules: viewing and edi
 - Do not add create or delete merely because the collection supports CRUD. Derive actions from the user workflow: expose required transitions consistently for one and many records, and omit unrelated lifecycle actions.
 - For an inspect-first workflow, use `View` or the specific workflow verb as the row action; keep full-record editing available from the chosen detail surface when appropriate.
 
+Before generation, make one compact workflow decision table:
+
+| Decision | Required answer |
+| --- | --- |
+| Data ownership | App-owned, site-owned, Wix business data, or external |
+| Mutability | Which fields and transitions this user may change |
+| Detail mode | `edit`, `view`, or paired `view` + `edit`, with one reason |
+| Action surfaces | Row, bulk, detail, and edit actions that must remain coherent |
+
+Permissions describe what is technically allowed; they do not decide product intent. For an app-owned writable manager, preserve the generated edit default unless the request is explicitly inspect-only or a named field/source must remain immutable. An inspect-first manager that still supports editing should pair a view entity page with an edit entity page rather than silently removing edit access. Collection actions do not automatically appear on entity pages: configure the relevant single-record transitions on the detail surface and omit unrelated create/delete defaults.
+
 ### Canonical Auto Patterns Profile: Inventory Manager
 
 Use Auto Patterns for a single `Inventory Products`-style collection that needs product name, image, SKU, category, stock/reorder values, standard search or filters, Table and Grid presentation, and a documented row action such as **Mark restocked**.
@@ -76,7 +87,7 @@ Configure the documented Auto Patterns Table/Grid layouts and action override. D
 1. Reuse a verified collection or create the required app-owned Data Collection and obtain its namespace.
 2. Define schema, permissions, references, operational derived fields, indexes, initial data, and missing-reference behavior before page generation.
 3. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
-4. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file.
+4. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
 5. When the prompt asks for representative data, create 3-5 realistic records and verify the collection and dashboard show the same items.
 6. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
 7. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.

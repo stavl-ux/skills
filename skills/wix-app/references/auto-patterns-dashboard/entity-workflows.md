@@ -63,7 +63,7 @@ type LayoutContent = | { type: 'field'; field: { fieldId: string; span?: number 
 type EntityPageHeaderSubtitle = (entity: any) => { text: string };
 type EntityPageHeaderBadges = (entity: any) => {
   text: string;
-  skin?: 'success' | 'warning' | 'destructive' | 'neutral' | 'premium';
+  skin?: import('@wix/design-system').BadgeSkin;
   prefixIcon?: ReactElement;
   suffixIcon?: ReactElement;
 }[];
@@ -75,6 +75,15 @@ type EntityPageHeaderBadges = (entity: any) => {
 - **IF** `mode: 'view'` **THEN** `primaryActions`, `secondaryActions`, `moreActions` supported.
 - **IF** `badges.id` defined **THEN** implementation MUST return array of badge objects.
 - **IF** `subtitle.id` defined **THEN** implementation MUST return `{ text: string }`.
+
+### Mutability Decision
+
+- **MUST** decide entity mode from workflow intent, data ownership, permissions, and field mutability before editing generated configuration.
+- **MUST** keep the default `edit` mode for an app-owned writable management flow unless the request is explicitly inspect-only or a named source/field is intentionally immutable.
+- **MUST** use a paired view page and edit page when users should inspect first and then edit. The linked edit page provides the automatic Edit affordance.
+- **MUST** keep relevant single-record transitions available on the entity surface when equivalent row or bulk actions exist. Collection actions do not propagate automatically.
+- **MUST** state the reason when selecting a view-only entity page for writable app-owned data.
+- **NEVER** infer read-only product intent merely from words such as "show", "details", or "inspect" when the same workflow also updates or deletes records.
 
 ### Implementation Rules
 - **MUST** use route format `/[segment]/:entityId` (NEVER `/:entityId`).
@@ -366,6 +375,8 @@ export const useComponents = () => ({ CustomInput });
 type SubtitleResolver = (entity?: Record<string, any>) => { text: string };
 
 // Badge Override
+import type { BadgeSkin } from '@wix/design-system';
+
 interface BadgeObject {
   text: string;                     // Required: Text to display
   skin?: BadgeSkin;                 // Optional: Visual styling
@@ -373,10 +384,10 @@ interface BadgeObject {
   suffixIcon?: React.ReactElement;  // Optional: Icon after text (from @wix/wix-ui-icons-common)
 }
 
-type BadgeSkin = 'success' | 'warning' | 'destructive' | 'neutral' | 'premium';
-
 type BadgesResolver = (entity?: Record<string, any>) => BadgeObject[];
 ```
+
+Use the installed WDS `BadgeSkin` type instead of redeclaring its values. In current WDS, danger badges use `danger`; `destructive` is an action skin and is not a valid badge skin.
 
 ### Configuration Schema
 ```json
