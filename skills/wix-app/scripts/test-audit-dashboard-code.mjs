@@ -12,12 +12,14 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wix-dashboard-audit-'));
 const badRoot = path.join(root, 'bad');
 const badAutoRoot = path.join(root, 'bad-auto');
 const badAnalyticsRoot = path.join(root, 'bad-analytics');
+const badRerouteRoot = path.join(root, 'bad-reroute');
 const goodRoot = path.join(root, 'good');
 const autoRoot = path.join(root, 'auto');
 const hybridRoot = path.join(root, 'hybrid');
 fs.mkdirSync(badRoot);
 fs.mkdirSync(badAutoRoot);
 fs.mkdirSync(badAnalyticsRoot);
+fs.mkdirSync(badRerouteRoot);
 fs.mkdirSync(goodRoot);
 fs.mkdirSync(autoRoot);
 fs.mkdirSync(hybridRoot);
@@ -153,6 +155,20 @@ export default function CapacityPlanner() {
       checkedReference: 'AUTO_PATTERNS_DASHBOARD.md',
     }),
   );
+
+  write(
+    badRerouteRoot,
+    '.dashboard-route.json',
+    JSON.stringify({
+      route: 'custom-table-panel',
+      sourceCount: 1,
+      sources: ['Order Exceptions'],
+      fallbackCategory: 'unsupported-presentation',
+      firstUnsupportedCapability: 'Bulk multi-select with a Mark as Reviewed action and contextual SidePanel detail',
+      checkedReference: 'AUTO_PATTERNS_DASHBOARD.md AP-02 and collection-workflows.md',
+      whyDataAdaptationCannotSolve: 'The workflow combines a bulk transition with per-row SidePanel detail',
+    }),
+  );
   write(
     badAnalyticsRoot,
     'SubscriptionHealth.tsx',
@@ -271,6 +287,29 @@ export default function SubscriptionHealth() {
   return <AutoPatternsApp><StatisticsWidget items={items} /><Card><Bar data={chartData} /></Card></AutoPatternsApp>;
 }`,
   );
+
+  const badReroute = spawnSync(
+    process.execPath,
+    [auditPath, '--route-only', badRerouteRoot],
+    { encoding: 'utf8' },
+  );
+  const badRerouteOutput = `${badReroute.stdout}\n${badReroute.stderr}`;
+  if (badReroute.status === 0 || !badRerouteOutput.includes('RT-05')) {
+    console.error('Dashboard route preflight accepted a rephrased one-source custom fallback.');
+    console.error(badRerouteOutput.trim());
+    process.exit(1);
+  }
+
+  const goodPreflight = spawnSync(
+    process.execPath,
+    [auditPath, '--route-only', goodRoot],
+    { encoding: 'utf8' },
+  );
+  if (goodPreflight.status !== 0) {
+    console.error('Dashboard route preflight rejected the valid multi-source route.');
+    console.error(`${goodPreflight.stdout}\n${goodPreflight.stderr}`.trim());
+    process.exit(1);
+  }
 
   const bad = spawnSync(process.execPath, [auditPath, badRoot], { encoding: 'utf8' });
   const badOutput = `${bad.stdout}\n${bad.stderr}`;

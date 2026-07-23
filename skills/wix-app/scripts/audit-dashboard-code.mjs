@@ -3,9 +3,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const inputs = process.argv.slice(2);
+const args = process.argv.slice(2);
+const routeOnly = args.includes('--route-only');
+const inputs = args.filter((argument) => argument !== '--route-only');
 if (!inputs.length) {
-  console.error('Usage: node audit-dashboard-code.mjs <generated-file-or-directory> [...]');
+  console.error('Usage: node audit-dashboard-code.mjs [--route-only] <generated-file-or-directory> [...]');
   process.exit(2);
 }
 
@@ -52,9 +54,11 @@ let files;
 let routeRecordPaths;
 let patternsPaths;
 try {
-  files = [...new Set(inputs.flatMap(sourceFiles))];
+  files = routeOnly ? [] : [...new Set(inputs.flatMap(sourceFiles))];
   routeRecordPaths = [...new Set(inputs.flatMap((input) => namedFiles(input, routeRecordName)))];
-  patternsPaths = [...new Set(inputs.flatMap((input) => namedFiles(input, 'patterns.json')))];
+  patternsPaths = routeOnly
+    ? []
+    : [...new Set(inputs.flatMap((input) => namedFiles(input, 'patterns.json')))];
 } catch (error) {
   console.error(error.message);
   process.exit(2);
@@ -109,17 +113,15 @@ for (const document of patternDocuments) {
   });
 }
 
-if (files.length && routeRecordPaths.length !== 1) {
-  const firstFile = files[0];
-  addFinding(
-    firstFile,
-    contents.get(firstFile),
-    0,
-    'RT-01',
-    routeRecordPaths.length
+if ((routeOnly || files.length) && routeRecordPaths.length !== 1) {
+  findings.push({
+    filePath: files[0] ?? path.resolve(inputs[0]),
+    line: 1,
+    rule: 'RT-01',
+    message: routeRecordPaths.length
       ? `Dashboard source must contain exactly one ${routeRecordName}; found ${routeRecordPaths.length}.`
       : `Dashboard source is missing the required ${routeRecordName}.`,
-  );
+  });
 }
 
 for (const recordPath of routeRecordPaths) {
@@ -172,7 +174,7 @@ for (const recordPath of routeRecordPaths) {
   }
 
   const isAutoPatterns = ['auto-patterns', 'auto-patterns-change'].includes(record.route);
-  if (isAutoPatterns) {
+  if (isAutoPatterns && !routeOnly) {
     if (!patternsPaths.length || !/@wix\/auto-patterns/.test(projectSource)) {
       findings.push({
         filePath: recordPath,
@@ -206,12 +208,12 @@ for (const recordPath of routeRecordPaths) {
       record.firstUnsupportedCapability,
       record.whyDataAdaptationCannotSolve,
     ].filter(Boolean).join(' ');
-    if (/\b(?:filter(?:ing)?|predicate|or logic|date comparison|derived (?:field|state|status)|elapsed time)\b/i.test(fallbackText)) {
+    if (/\b(?:filter(?:ing)?|predicate|or logic|date comparison|derived (?:field|state|status)|elapsed time|bulk(?: action| transition| multi-select| selection)?|multi-select|saved (?:view|subset)|row (?:action|detail)|contextual detail|side\s*panel|sidepanel|dashboard modal|entity page|table\/grid)\b/i.test(fallbackText)) {
       findings.push({
         filePath: recordPath,
         line: 1,
         rule: 'RT-05',
-        message: 'Query/filter complexity is data shaping, not an unsupported presentation capability; keep the one-collection surface in Auto Patterns.',
+        message: 'Data shaping, collection actions, and supplemental detail surfaces do not justify replacing a one-collection Auto Patterns table. Stop custom implementation and return collection ownership to Auto Patterns.',
       });
     }
   }
@@ -227,38 +229,62 @@ for (const recordPath of routeRecordPaths) {
 
   if (record.route === 'analytics' && record.sourceCount === 1) {
     const collectionOwner = record.regionOwners?.collection;
-    const usesAutoPatternsCollection =
-      patternsPaths.length > 0 && /@wix\/auto-patterns/.test(projectSource);
-    const usesCustomWdsTable = /<Table\b/.test(projectSource) && !usesAutoPatternsCollection;
+    const requiredTableEvidence = [
+      'tableUnsupportedCapability',
+      'tableCheckedReference',
+      'whyAutoPatternsTableCannotBeUsed',
+    ];
+    const missingTableEvidence = requiredTableEvidence.filter(
+      (key) => typeof record[key] !== 'string' || !record[key].trim(),
+    );
 
-    if (collectionOwner === 'auto-patterns' && !usesAutoPatternsCollection) {
+    if (routeOnly && collectionOwner === 'custom-wds-table' && missingTableEvidence.length) {
       findings.push({
         filePath: recordPath,
         line: 1,
         rule: 'RT-06',
-        message: 'regionOwners assigns the collection region to Auto Patterns, but patterns.json or @wix/auto-patterns source is missing.',
+        message: `A one-source analytics route cannot assign collection ownership to a custom WDS table without table-specific evidence: ${requiredTableEvidence.join(', ')}.`,
       });
     }
 
-    if (usesCustomWdsTable) {
-      const requiredTableEvidence = [
-        'tableUnsupportedCapability',
-        'tableCheckedReference',
-        'whyAutoPatternsTableCannotBeUsed',
-      ];
-      const missingTableEvidence = requiredTableEvidence.filter(
-        (key) => typeof record[key] !== 'string' || !record[key].trim(),
-      );
-      if (collectionOwner !== 'custom-wds-table' || missingTableEvidence.length) {
+    if (!routeOnly) {
+      const usesAutoPatternsCollection =
+        patternsPaths.length > 0 && /@wix\/auto-patterns/.test(projectSource);
+      const usesCustomWdsTable = /<Table\b/.test(projectSource) && !usesAutoPatternsCollection;
+
+      if (collectionOwner === 'auto-patterns' && !usesAutoPatternsCollection) {
         findings.push({
           filePath: recordPath,
           line: 1,
           rule: 'RT-06',
-          message: `A one-source analytics page may use a custom WDS table only when regionOwners.collection is "custom-wds-table" and table-specific evidence is recorded: ${requiredTableEvidence.join(', ')}. Chart or metric fallback evidence does not transfer table ownership.`,
+          message: 'regionOwners assigns the collection region to Auto Patterns, but patterns.json or @wix/auto-patterns source is missing.',
         });
+      }
+
+      if (usesCustomWdsTable) {
+        if (collectionOwner !== 'custom-wds-table' || missingTableEvidence.length) {
+          findings.push({
+            filePath: recordPath,
+            line: 1,
+            rule: 'RT-06',
+            message: `A one-source analytics page may use a custom WDS table only when regionOwners.collection is "custom-wds-table" and table-specific evidence is recorded: ${requiredTableEvidence.join(', ')}. Chart or metric fallback evidence does not transfer table ownership.`,
+          });
+        }
       }
     }
   }
+}
+
+if (routeOnly) {
+  if (findings.length) {
+    console.error('Dashboard route preflight failed:');
+    for (const finding of findings) {
+      console.error(`- ${finding.rule} ${finding.filePath}:${finding.line} ${finding.message}`);
+    }
+    process.exit(1);
+  }
+  console.log(`Dashboard route preflight passed: ${routeRecordPaths.length} route record checked.`);
+  process.exit(0);
 }
 
 function escapeRegExp(value) {

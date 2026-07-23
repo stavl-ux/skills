@@ -36,7 +36,7 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-03:** A Table/Grid switch, row action, derived display, or named workset is not automatically unsupported. Check its focused reference before falling back; record that exact file in the capability decision.
 - **AP-04:** Auto Patterns documents Table and Grid. Do not promise the native CMS layout menu, List layout, custom layout labels, or a configurable initial layout unless the installed docs explicitly support them.
 - **AP-05:** Do not use a custom WDS dashboard route until this evaluation records the first `unsupported` capability. A new one-collection manager stays on this route when every requested capability is `supported` or `supported-via-override`.
-- **AP-06:** Keep one physical collection classified as one source even when the workflow uses OR conditions, elapsed-time rules, comparisons, or several saved subsets. Materialize operational state as maintained fields and configure filters/Views against those fields; do not rebuild the table to express query logic.
+- **AP-06:** Keep one physical collection classified as one source even when the workflow is described as an exception queue, review workset, alert list, or saved subset, or uses OR conditions, elapsed-time rules, comparisons, bulk transitions, or contextual record detail. Materialize operational state as maintained fields such as `needsAttention`, `exceptionType`, `exceptionSince`, and `isReviewed`, then configure filters/Views and documented actions against those fields. Do not rebuild the table to express query logic or attach a supplemental surface.
 
 ### Extension Choice
 

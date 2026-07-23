@@ -87,6 +87,14 @@ When record detail exists, set `detailSurface` to `side-panel`, `modal`, or `ent
 
 Do not proceed with custom or hybrid implementation without this record. Standard generated Auto Patterns pages use `patterns.json` and their registered wrapper as ownership evidence and do not need a route record. Update a custom route record if evidence changes the route.
 
+Immediately after saving the record, and before WDS lookup, dependency installation, or implementation, run:
+
+```bash
+node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" --route-only <dashboard-source-directory>
+```
+
+Treat the audit output as an API; do not inspect its source. `RT-05` or `RT-06` rejects collection ownership, so return to the Auto Patterns route instead of rephrasing the evidence or repairing custom UI.
+
 ## Custom Table Route
 
 Use this route for a WDS management table that requires multiple sources, joins, external data, unsupported custom logic, or a workflow Auto Patterns cannot represent. Use the contextual-detail route instead when selecting a row opens record detail.
