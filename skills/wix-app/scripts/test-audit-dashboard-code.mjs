@@ -16,6 +16,8 @@ const badRerouteRoot = path.join(root, 'bad-reroute');
 const badWorkflowRoot = path.join(root, 'bad-workflow');
 const badWritableRoot = path.join(root, 'bad-writable');
 const badActionsRoot = path.join(root, 'bad-actions');
+const badSavedViewTransitionRoot = path.join(root, 'bad-saved-view-transition');
+const goodSavedViewTransitionRoot = path.join(root, 'good-saved-view-transition');
 const badRemoveRoot = path.join(root, 'bad-remove');
 const badModalRoot = path.join(root, 'bad-modal');
 const viewerRoot = path.join(root, 'viewer');
@@ -29,6 +31,8 @@ fs.mkdirSync(badRerouteRoot);
 fs.mkdirSync(badWorkflowRoot);
 fs.mkdirSync(badWritableRoot);
 fs.mkdirSync(badActionsRoot);
+fs.mkdirSync(badSavedViewTransitionRoot);
+fs.mkdirSync(goodSavedViewTransitionRoot);
 fs.mkdirSync(badRemoveRoot);
 fs.mkdirSync(badModalRoot);
 fs.mkdirSync(viewerRoot);
@@ -438,6 +442,99 @@ export default function OrderExceptions() {
 }`,
   );
 
+  const savedViewPatterns = JSON.stringify({
+    pages: [{
+      id: 'orders',
+      type: 'collectionPage',
+      collectionPage: {
+        components: [{
+          type: 'collection',
+          collection: {
+            collectionId: 'app-id/order-exceptions',
+            entityTypeSource: 'cms',
+          },
+          filters: {
+            items: [
+              { id: 'reviewed-filter', fieldId: 'isReviewed' },
+              { id: 'attention-filter', fieldId: 'needsAttention' },
+            ],
+          },
+          views: {
+            enabled: true,
+            presets: {
+              type: 'views',
+              views: [{
+                id: 'needs-attention',
+                label: 'Needs Attention',
+                filters: {
+                  'reviewed-filter': {
+                    filterType: 'boolean',
+                    value: [{ id: 'unchecked', name: 'Not Reviewed' }],
+                  },
+                  'attention-filter': {
+                    filterType: 'boolean',
+                    value: [{ id: 'checked', name: 'Needs Attention' }],
+                  },
+                },
+              }],
+            },
+          },
+          actionCell: {
+            primaryAction: {
+              item: {
+                id: 'markReviewed',
+                type: 'custom',
+                label: 'Mark as Reviewed',
+                biName: 'mark-reviewed',
+              },
+            },
+          },
+        }],
+      },
+    }],
+  });
+  write(badSavedViewTransitionRoot, 'patterns.json', savedViewPatterns);
+  write(
+    badSavedViewTransitionRoot,
+    'OrderExceptions.tsx',
+    `import { AutoPatternsApp } from '@wix/auto-patterns';
+export const markReviewed = ({ actionParams, sdk }) => ({
+  label: 'Mark as Reviewed',
+  biName: 'mark-reviewed',
+  onClick: () => sdk.getOptimisticActions(sdk.collectionId).updateOne(
+    { ...actionParams.item, isReviewed: true, needsAttention: false },
+    { submit: async ([item]) => items.update('orders', item) },
+  ),
+});
+export default function OrderExceptions() {
+  return <AutoPatternsApp />;
+}`,
+  );
+
+  write(goodSavedViewTransitionRoot, 'patterns.json', savedViewPatterns);
+  write(
+    goodSavedViewTransitionRoot,
+    'OrderExceptions.tsx',
+    `import { AutoPatternsApp } from '@wix/auto-patterns';
+export const markReviewed = ({ actionParams, sdk }) => ({
+  label: 'Mark as Reviewed',
+  biName: 'mark-reviewed',
+  onClick: () => sdk.getOptimisticActions(sdk.collectionId).updateOne(
+    { ...actionParams.item, isReviewed: true, needsAttention: false },
+    {
+      submit: async ([item]) => {
+        const updated = await items.update('orders', item);
+        sdk.refreshCollection();
+        return updated;
+      },
+    },
+  ),
+});
+export default function OrderExceptions() {
+  return <AutoPatternsApp />;
+}`,
+  );
+
   writeNested(
     badRemoveRoot,
     'src/extensions/dashboard-pages/order-exceptions/patterns.json',
@@ -777,6 +874,35 @@ export default function SubscriptionHealth() {
     console.error('Dashboard audit self-test accepted broken row and bulk action wiring.');
     if (missedActionRules.length) console.error(`Missing rules: ${missedActionRules.join(', ')}`);
     console.error(badActionsOutput.trim());
+    process.exit(1);
+  }
+
+  const badSavedViewTransition = spawnSync(
+    process.execPath,
+    [auditPath, badSavedViewTransitionRoot],
+    { encoding: 'utf8' },
+  );
+  const badSavedViewTransitionOutput =
+    `${badSavedViewTransition.stdout}\n${badSavedViewTransition.stderr}`;
+  if (
+    badSavedViewTransition.status === 0
+    || !badSavedViewTransitionOutput.includes('AP-17')
+  ) {
+    console.error('Dashboard audit self-test accepted a Saved View transition without collection refresh.');
+    console.error(badSavedViewTransitionOutput.trim());
+    process.exit(1);
+  }
+
+  const goodSavedViewTransition = spawnSync(
+    process.execPath,
+    [auditPath, goodSavedViewTransitionRoot],
+    { encoding: 'utf8' },
+  );
+  if (goodSavedViewTransition.status !== 0) {
+    console.error('Dashboard audit self-test rejected a Saved View transition that refreshes after persistence.');
+    console.error(
+      `${goodSavedViewTransition.stdout}\n${goodSavedViewTransition.stderr}`.trim(),
+    );
     process.exit(1);
   }
 

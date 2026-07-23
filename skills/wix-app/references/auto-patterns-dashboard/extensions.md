@@ -393,6 +393,7 @@ interface ToastConfig {
 - **MUST** use `optimisticActions` for data mutations (create/update/delete).
 - **MUST** handle async submit failures in `errorToast`.
 - **MUST** use `sdk.collectionId` for current context.
+- **MUST** call `sdk.refreshCollection()` after a successful write that changes a field used by a Saved View or active filter. Optimistic row updates do not re-evaluate View membership, counts, or stale selection.
 - **NEVER** use OptimisticActions for read-only operations.
 
 ### Canonical Example
@@ -404,7 +405,9 @@ optimisticActions.updateOne(item, {
   submit: async (items) => {
     // Check schema existence
     if (!schema) return items[0];
-    return await schema.actions.update(items[0]);
+    const updatedItem = await schema.actions.update(items[0]);
+    sdk.refreshCollection();
+    return updatedItem;
   },
   successToast: 'Item updated successfully',
   errorToast: (err, { retry }) => ({

@@ -42,6 +42,7 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-14:** Model bounded values before generating the collection. Use `TEXT` for one controlled value, `ARRAY_STRING` for zero-to-many controlled values, and `BOOLEAN` for binary state; use references instead when the options are managed records. Reuse one canonical value contract across schema, sample data, filters, forms, validation, and badges.
 - **AP-15:** App-owned editor collections default `itemRemove` to `CMS_EDITOR`, confirmed row/detail Delete, and useful bulk Delete. Restrict only for an explicit recorded ownership or safety reason. Process source queues with transitions; app-owned exception records remain deletable.
 - **AP-16:** Name the workflow-defining action first. It is primary for row, requested bulk selection, and detail. Row navigation or `entityPageId` handles inspection; Edit supports and Delete remains destructive.
+- **AP-17:** A custom transition that changes a field used by a Saved View must persist every defining field and call `refreshCollection()` after the write succeeds. The item must leave any View it no longer matches, enter the matching destination View, update counts, and clear stale selection.
 
 ### Extension Choice
 

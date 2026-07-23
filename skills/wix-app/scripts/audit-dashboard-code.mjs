@@ -148,6 +148,7 @@ const editableCollectionSuffixes = new Set();
 const restrictedRemoveCollections = new Map();
 const managedCollectionSuffixes = new Set();
 const collectionActionChecks = [];
+const savedViewFieldIds = new Set();
 let hasEntityPagePattern = false;
 
 for (const filePath of dataCollectionFiles) {
@@ -268,6 +269,21 @@ for (const document of patternDocuments) {
       if (typeof collectionId === 'string') {
         managedCollectionSuffixes.add(collectionId.split('/').filter(Boolean).at(-1));
       }
+
+      const filterFieldsById = new Map(
+        (value.filters?.items ?? [])
+          .filter((filter) => typeof filter?.id === 'string' && typeof filter?.fieldId === 'string')
+          .map((filter) => [filter.id, filter.fieldId]),
+      );
+      walkJson(value.views?.presets, (preset) => {
+        if (!preset?.filters || typeof preset.filters !== 'object' || Array.isArray(preset.filters)) {
+          return;
+        }
+        for (const filterId of Object.keys(preset.filters)) {
+          const fieldId = filterFieldsById.get(filterId);
+          if (fieldId) savedViewFieldIds.add(fieldId);
+        }
+      });
 
       const rowPrimaryActions = customActions(value.actionCell?.primaryAction);
       const bulkPrimaryActions = [
@@ -636,6 +652,29 @@ function findResolver(id) {
   return null;
 }
 
+function checkSavedViewRefresh(resolver, resolverSlice, resolverId, kindLabel) {
+  if (!savedViewFieldIds.size) return;
+  if (!/\b(?:updateOne|updateMany|updateAll|updateDataItem|update)\s*\(/.test(resolverSlice)) {
+    return;
+  }
+
+  const mutatedField = [...savedViewFieldIds].find((fieldId) =>
+    new RegExp(`\\b${escapeRegExp(fieldId)}\\s*:`).test(resolverSlice)
+  );
+  if (!mutatedField || /\b(?:sdk\s*\.\s*)?refreshCollection\s*\(/.test(resolverSlice)) {
+    return;
+  }
+
+  const fieldMatch = new RegExp(`\\b${escapeRegExp(mutatedField)}\\s*:`).exec(resolverSlice);
+  addFinding(
+    resolver.filePath,
+    resolver.content,
+    resolver.index + (fieldMatch?.index ?? 0),
+    'AP-17',
+    `Custom ${kindLabel} "${resolverId}" mutates Saved View field "${mutatedField}" without calling refreshCollection() after persistence. Refresh the collection so View membership, counts, and selection are re-evaluated.`,
+  );
+}
+
 for (const [resolverId, kinds] of entityRuntimeResolvers) {
   const resolver = findResolver(resolverId);
   const kindLabel = [...kinds].join('/');
@@ -650,6 +689,7 @@ for (const [resolverId, kinds] of entityRuntimeResolvers) {
   }
 
   const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2600);
+  checkSavedViewRefresh(resolver, resolverSlice, resolverId, kindLabel);
   if (kinds.has('badge override')) {
     const invalidBadgeSkin = /\bskin\s*:\s*['"]destructive['"]/.exec(resolverSlice);
     if (invalidBadgeSkin) {
@@ -708,6 +748,7 @@ for (const [actionId, kinds] of collectionRuntimeResolvers) {
   }
 
   const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2400);
+  checkSavedViewRefresh(resolver, resolverSlice, actionId, kindLabel);
   if (resolverHasNoOpHandler(resolverSlice)) {
     findings.push({
       filePath: resolver.filePath,

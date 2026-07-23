@@ -5,6 +5,7 @@ Use for saved views, collection and row actions, selection, bulk operations, and
 ## Contents
 
 - [Views](#views)
+- [Saved View Transitions](#saved-view-transitions)
 - [Collection Page Actions](#collection-page-actions)
 - [Action Cell](#action-cell)
 - [Bulk Actions](#bulk-actions)
@@ -108,6 +109,17 @@ views: {
   }
 }
 ```
+
+## Saved View Transitions
+
+A workflow action may move a record between operational worksets, such as `Needs Attention` to `Reviewed`. Treat View membership as a post-action contract:
+
+- Update every maintained field used by the source and destination View predicates.
+- Persist first, then call `sdk.refreshCollection()` so Auto Patterns re-runs filters, counts, and selection against canonical data.
+- Apply the same transition and refresh behavior to row, bulk, and detail actions.
+- Verify the record disappears from Views it no longer matches, appears once in the destination View, and cannot remain selected while absent.
+
+Optimistic updates provide immediate row feedback but do not replace collection refresh when the mutation changes Saved View membership.
 
 ## Collection Page Actions
 
