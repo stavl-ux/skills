@@ -159,8 +159,8 @@ if (skillContent.includes('For every dashboard request, read [DASHBOARD_ROUTING.
 if (!skillContent.includes('new manager backed by one physical CMS collection')) {
   fail('SKILL.md is missing the direct one-collection Auto Patterns fast path');
 }
-if (!skillContent.includes('Standard generated Auto Patterns pages do not require this custom-route audit')) {
-  fail('SKILL.md does not scope the custom dashboard audit away from standard Auto Patterns pages');
+if (!skillContent.includes('including standard Auto Patterns pages')) {
+  fail('SKILL.md does not require the lightweight code audit for standard Auto Patterns pages');
 }
 
 const simpleAutoPatternsHotPath = [

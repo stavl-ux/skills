@@ -146,7 +146,7 @@ interface DividerItem {
 // Resolver Type
 type CustomEntityPageActionResolver = (params: {
   actionParams: {
-    entity: any; // Current entity data
+    entity?: Record<string, any>; // May be absent while the route resolves
     form: UseFormReturn; // react-hook-form instance
   };
   sdk: AutoPatternsSDK;
@@ -165,6 +165,7 @@ type CustomEntityPageActionResolver = (params: {
 - **MUST** include `biName` for every action.
 - **MUST** return a valid `ResolvedAction` object (see resolved_action.md).
 - **MUST** use `errorHandler` for Wix API calls.
+- **MUST** tolerate an absent or partial `entity` during route loading. Return a disabled action until required identity and fields exist; guard again inside `onClick`.
 - **NEVER** use `primaryActions` or `secondaryActions` in Edit Mode.
 
 ### Canonical Example
@@ -219,7 +220,7 @@ interface ActionItem {
 }
 
 type CustomEntityPageActionResolver = (params: {
-  actionParams: { entity: any };
+  actionParams: { entity?: Record<string, any> };
   sdk: AutoPatternsSDK;
 }) => ResolvedAction;
 ```
@@ -234,6 +235,7 @@ type CustomEntityPageActionResolver = (params: {
 - **MUST** use `secondaryActions` for supporting workflows.
 - **MUST** use `moreActions` for less common/admin tasks.
 - **MUST** check error handling rules: `errorHandler` for Wix APIs, none for external/SDK.
+- **MUST** tolerate an absent or partial `entity` during route loading. Entity-dependent actions start disabled and their click handlers reject missing identity.
 - **NEVER** manually add "Edit" action; it's automatic if an Edit Mode page exists.
 
 ### Canonical Example
@@ -263,6 +265,23 @@ type CustomEntityPageActionResolver = (params: {
     }
   ]
 }
+```
+
+```typescript
+export const duplicateEntity: CustomEntityPageActionResolver = ({ actionParams }) => {
+  const entity = actionParams.entity;
+  const ready = Boolean(entity?._id);
+  return {
+    label: 'Duplicate',
+    biName: 'duplicate-entity-action',
+    disabled: !ready,
+    tooltip: ready ? undefined : 'Loading record',
+    onClick: async () => {
+      if (!entity?._id) return;
+      await duplicateRecord(entity._id);
+    },
+  };
+};
 ```
 
 ## Custom Form Components
@@ -344,7 +363,7 @@ export const useComponents = () => ({ CustomInput });
 ### Type Definitions
 ```typescript
 // Subtitle Override
-type SubtitleResolver = (entity: Record<string, any>) => { text: string };
+type SubtitleResolver = (entity?: Record<string, any>) => { text: string };
 
 // Badge Override
 interface BadgeObject {
@@ -356,7 +375,7 @@ interface BadgeObject {
 
 type BadgeSkin = 'success' | 'warning' | 'destructive' | 'neutral' | 'premium';
 
-type BadgesResolver = (entity: Record<string, any>) => BadgeObject[];
+type BadgesResolver = (entity?: Record<string, any>) => BadgeObject[];
 ```
 
 ### Configuration Schema
@@ -381,7 +400,7 @@ type BadgesResolver = (entity: Record<string, any>) => BadgeObject[];
 - **IF** overriding subtitle **THEN** function MUST return `{ text: string }` object.
 - **IF** overriding badges **THEN** function MUST return array of `BadgeObject` (NOT JSX components).
 - **IF** `badges.id` or `subtitle.id` defined in config **THEN** matching override MUST exist.
-- **IF** logic depends on entity data **THEN** check for field existence (entity might be partial).
+- **IF** logic depends on entity data **THEN** first guard the entity itself, then check each field. Resolvers may run while the route is loading, before an entity exists.
 - **IF** `id` in config does not match override key **THEN** override will not render.
 
 ### Implementation Rules
@@ -396,7 +415,8 @@ type BadgesResolver = (entity: Record<string, any>) => BadgeObject[];
 #### 1. Subtitle Override
 ```typescript
 // components/entityPageHeaderSubtitle/entityPageHeaderSubtitle.ts
-export const entityPageHeaderSubtitle = (entity: Record<string, any>) => {
+export const entityPageHeaderSubtitle = (entity?: Record<string, any>) => {
+  if (!entity) return { text: 'Loading details' };
   return { text: `Created by ${entity.owner || 'Unknown'} on ${entity.date || 'N/A'}` };
 };
 
@@ -408,7 +428,8 @@ export const useEntityPageHeaderSubtitle = () => ({ entityPageHeaderSubtitle });
 #### 2. Badges Override
 ```typescript
 // components/entityPageHeaderBadges/entityPageHeaderBadges.ts
-export const entityPageHeaderBadges = (entity: Record<string, any>) => {
+export const entityPageHeaderBadges = (entity?: Record<string, any>) => {
+  if (!entity) return [];
   const badges = [];
 
   // Add status badge

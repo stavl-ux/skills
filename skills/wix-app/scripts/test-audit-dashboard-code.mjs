@@ -180,10 +180,37 @@ export default function CapacityPlanner() {
     badAutoRoot,
     'patterns.json',
     JSON.stringify({
-      components: [{
-        type: 'collectionPage',
-        onRowClick: { type: 'custom', id: 'openOrderDetail' },
-      }],
+      pages: [
+        {
+          type: 'collectionPage',
+          collectionPage: {
+            components: [{
+              type: 'collection',
+              onRowClick: { type: 'custom', id: 'openOrderDetail' },
+            }],
+          },
+        },
+        {
+          type: 'entityPage',
+          entityPage: {
+            title: { text: 'Order', badges: { id: 'orderBadges' } },
+            subtitle: { text: 'Order details', id: 'orderSubtitle' },
+            actions: {
+              primaryActions: {
+                type: 'action',
+                action: {
+                  item: {
+                    id: 'reviewOrder',
+                    type: 'custom',
+                    label: 'Review',
+                    biName: 'review-order',
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
     }),
   );
   write(
@@ -194,6 +221,13 @@ export const openOrderDetail = ({ actionParams }) => ({
   label: 'View details',
   biName: 'view-details',
   onClick: () => { void actionParams; },
+});
+export const orderBadges = (entity) => entity.isReviewed ? [{ text: 'Reviewed' }] : [];
+export const orderSubtitle = (entity) => ({ text: entity.orderNumber });
+export const reviewOrder = ({ actionParams: { entity } }) => ({
+  label: entity.isReviewed ? 'Unreview' : 'Review',
+  biName: 'review-order',
+  onClick: () => update(entity.id),
 });
 export default function OrderExceptions() {
   return <AutoPatternsApp />;
@@ -239,23 +273,52 @@ export default function Dashboard() {
 
   write(
     autoRoot,
-    '.dashboard-route.json',
+    'patterns.json',
     JSON.stringify({
-      route: 'auto-patterns',
-      sourceCount: 1,
-      sources: ['Order Exceptions'],
-      secondary: null,
-      dataAdaptation: 'Maintain needsAttention and exceptionType',
-      fallbackCategory: null,
-      firstUnsupportedCapability: null,
-      checkedReference: 'auto-patterns-dashboard/collection-workflows.md',
+      pages: [{
+        type: 'entityPage',
+        entityPage: {
+          title: { text: 'Order', badges: { id: 'safeOrderBadges' } },
+          actions: {
+            primaryActions: {
+              type: 'action',
+              action: {
+                item: {
+                  id: 'safeReviewOrder',
+                  type: 'custom',
+                  label: 'Review',
+                  biName: 'safe-review-order',
+                },
+              },
+            },
+          },
+        },
+      }],
     }),
   );
-  write(autoRoot, 'patterns.json', JSON.stringify({ collection: { id: 'order-exceptions' } }));
   write(
     autoRoot,
     'OrderExceptions.tsx',
     `import { AutoPatternsApp } from '@wix/auto-patterns';
+export const safeOrderBadges = (entity) => {
+  if (!entity) return [];
+  return entity.isReviewed ? [{ text: 'Reviewed' }] : [];
+};
+export const safeReviewOrder = ({ actionParams: { entity } }) => {
+  if (!entity) {
+    return {
+      label: 'Review',
+      biName: 'safe-review-order',
+      disabled: true,
+      onClick: () => {},
+    };
+  }
+  return {
+    label: entity.isReviewed ? 'Unreview' : 'Review',
+    biName: 'safe-review-order',
+    onClick: () => update(entity.id),
+  };
+};
 export default function OrderExceptions() {
   return <AutoPatternsApp />;
 }`,
@@ -324,7 +387,7 @@ export default function SubscriptionHealth() {
 
   const badAuto = spawnSync(process.execPath, [auditPath, badAutoRoot], { encoding: 'utf8' });
   const badAutoOutput = `${badAuto.stdout}\n${badAuto.stderr}`;
-  const missedAutoRules = ['AP-07', 'AP-08'].filter((rule) => !badAutoOutput.includes(rule));
+  const missedAutoRules = ['AP-07', 'AP-08', 'AP-09'].filter((rule) => !badAutoOutput.includes(rule));
   if (badAuto.status === 0 || missedAutoRules.length) {
     console.error('Dashboard audit self-test failed to reject the broken Auto Patterns detail route.');
     if (missedAutoRules.length) console.error(`Missing rules: ${missedAutoRules.join(', ')}`);

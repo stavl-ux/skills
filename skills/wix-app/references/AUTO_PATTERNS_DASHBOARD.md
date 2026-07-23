@@ -362,7 +362,13 @@ npm install --save-exact <missing-package>
 
 #### Step 5: Validate
 
-Run validation per [APP_VALIDATION.md](APP_VALIDATION.md) to verify TypeScript compilation and build.
+Run the lightweight generated-code audit before compilation:
+
+```bash
+node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>
+```
+
+Fix every named Auto Patterns rule, then run [APP_VALIDATION.md](APP_VALIDATION.md) to verify TypeScript compilation and build. Compilation alone does not prove that entity callbacks are safe during route loading.
 
 ### Part B: Updating an Existing Auto-Patterns Page
 

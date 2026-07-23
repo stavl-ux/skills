@@ -98,8 +98,35 @@ for (const patternsPath of patternsPaths) {
 }
 
 const customRowActionIds = new Set();
+const entityRuntimeResolvers = new Map();
 let hasEntityPagePattern = false;
+
+function registerEntityRuntimeResolver(id, kind) {
+  if (typeof id !== 'string' || !id.trim()) return;
+  const normalizedId = id.trim();
+  const kinds = entityRuntimeResolvers.get(normalizedId) ?? new Set();
+  kinds.add(kind);
+  entityRuntimeResolvers.set(normalizedId, kinds);
+}
+
 for (const document of patternDocuments) {
+  for (const page of document.value?.pages ?? []) {
+    if (page?.type !== 'entityPage' || !page.entityPage) continue;
+    hasEntityPagePattern = true;
+    registerEntityRuntimeResolver(page.entityPage.title?.badges?.id, 'badge override');
+    registerEntityRuntimeResolver(page.entityPage.subtitle?.id, 'subtitle override');
+    walkJson(page.entityPage.actions, (value) => {
+      if (
+        value
+        && typeof value === 'object'
+        && !Array.isArray(value)
+        && value.type === 'custom'
+      ) {
+        registerEntityRuntimeResolver(value.id, 'entity action');
+      }
+    });
+  }
+
   walkJson(document.value, (value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return;
     if (value.type === 'entityPage') hasEntityPagePattern = true;
@@ -113,7 +140,8 @@ for (const document of patternDocuments) {
   });
 }
 
-if ((routeOnly || files.length) && routeRecordPaths.length !== 1) {
+const requiresRouteRecord = routeOnly || (files.length && !patternsPaths.length);
+if (requiresRouteRecord && routeRecordPaths.length !== 1) {
   findings.push({
     filePath: files[0] ?? path.resolve(inputs[0]),
     line: 1,
@@ -121,6 +149,13 @@ if ((routeOnly || files.length) && routeRecordPaths.length !== 1) {
     message: routeRecordPaths.length
       ? `Dashboard source must contain exactly one ${routeRecordName}; found ${routeRecordPaths.length}.`
       : `Dashboard source is missing the required ${routeRecordName}.`,
+  });
+} else if (!routeOnly && routeRecordPaths.length > 1) {
+  findings.push({
+    filePath: routeRecordPaths[0],
+    line: 1,
+    rule: 'RT-01',
+    message: `Dashboard source may contain at most one ${routeRecordName}; found ${routeRecordPaths.length}.`,
   });
 }
 
@@ -289,6 +324,53 @@ if (routeOnly) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findResolver(id) {
+  const declarationPattern = new RegExp(
+    `(?:const|let|var|function)\\s+${escapeRegExp(id)}\\b`,
+  );
+  for (const [filePath, content] of contents) {
+    const match = declarationPattern.exec(content);
+    if (match) return { filePath, content, index: match.index };
+  }
+  return null;
+}
+
+for (const [resolverId, kinds] of entityRuntimeResolvers) {
+  const resolver = findResolver(resolverId);
+  const kindLabel = [...kinds].join('/');
+  if (!resolver) {
+    findings.push({
+      filePath: patternDocuments[0]?.path ?? routeRecordPaths[0] ?? files[0],
+      line: 1,
+      rule: 'AP-09',
+      message: `Entity ${kindLabel} "${resolverId}" has no matching resolver implementation.`,
+    });
+    continue;
+  }
+
+  const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2600);
+  const directEntityAccess = /\bentity\s*(?:\.|\[)/.exec(resolverSlice);
+  if (!directEntityAccess) continue;
+
+  const beforeAccess = resolverSlice.slice(0, directEntityAccess.index);
+  const guardsMissingEntity =
+    /\bif\s*\(\s*!entity\b/.test(beforeAccess)
+    || /\bif\s*\(\s*entity\s*(?:==|===)\s*(?:null|undefined)\b/.test(beforeAccess)
+    || /\bif\s*\(\s*entity\s*\)/.test(beforeAccess)
+    || /\bentity\s*=\s*\{\s*\}/.test(beforeAccess)
+    || /\b\w+\s*=\s*entity\s*\?\?\s*\{\s*\}/.test(beforeAccess);
+
+  if (!guardsMissingEntity) {
+    addFinding(
+      resolver.filePath,
+      resolver.content,
+      resolver.index + directEntityAccess.index,
+      'AP-09',
+      `Entity ${kindLabel} "${resolverId}" dereferences entity before a loading guard. Entity callbacks must tolerate an absent or partial entity and return a stable fallback instead of crashing the page.`,
+    );
+  }
 }
 
 for (const actionId of customRowActionIds) {
