@@ -357,20 +357,27 @@ selectedApi: <package + method>
 hostEvidence: <exact installed schema/docs/example>
 requiredScopes: <exact scope IDs, or [] when none>
 permissionStatus: <verified or blocked>
-permissionEvidence: <where granted access was verified>
+permissionEvidence:
+  requestStatus: <not-required, recorded, or applied>
+  installationStatus: <not-required, current, update-required, or unknown>
+  verificationMethod: <not-required, runtime-request, or app-configuration-and-installation>
+  verificationResult: <not-required, succeeded, or blocked>
+  details: <exact configuration/install evidence or successful request status and ID>
 capabilityStatus: <verified or blocked>
 canonicalUrlSource: <official metadata field or not applicable>
 ```
 
 - Match the method to the execution host, identity, and permissions. A matching name, available TypeScript type, package installation, or successful build is not evidence that a host channel exists at runtime.
 - Verify required scopes against the app's actual granted permissions before implementation. Documentation that names a scope, a package being installed, a successful build, or `auth.elevate()` is not proof of a grant. `auth.elevate()` changes the identity used for an authorized call; it does not add scopes or bypass app installation consent.
-- Set `permissionStatus: verified` only when `permissionEvidence` records the actual app permission configuration plus the completed update/reinstall, or a successful authenticated runtime request. Set `capabilityStatus: verified` only when `hostEvidence` names the exact method and explicitly supported execution host. Otherwise mark the capability `blocked`.
+- Call an available permission-recording tool immediately after identifying `requiredScopes`, before implementation. Treat `recorded` as a pending request, not a grant. Set `requestStatus: applied` only after the app configuration contains every scope.
+- For a scoped API, set `permissionStatus: verified` only when `permissionEvidence` is structured, `requestStatus` is `applied`, `installationStatus` is `current`, `verificationResult` is `succeeded`, and `verificationMethod` records either the completed app configuration plus installation update or a successful authenticated runtime request. For an API with no required scopes, use `not-required` for all four evidence states. Free-form evidence is invalid.
+- Set `capabilityStatus: verified` only when `hostEvidence` names the exact method and explicitly supported execution host. Otherwise mark the capability `blocked`.
 - If tooling can add a missing scope, add it and complete any required app update/reinstall before setting `permissionStatus: verified`. Otherwise set both permission or capability status to `blocked`, report the exact scope and user action, and stop. Do not generate a page that can only fail with `401` or `403`.
 - Do not call Site-only frontend host methods from Dashboard or backend code unless the exact method documentation or installed schema explicitly lists that execution host. A backend route does not make a frontend-only API supported. If support is unclear, use a documented service that supports the selected host; do not guess a replacement API.
 - For site-page inventory, verify both the page-list method and the source of the canonical published base URL. A published-URL API proves only the base URL; it does not prove page-list access. Never derive a public site URL by rewriting `window.location.origin`, a dashboard URL, or an editor URL.
 - Do not replace an unavailable Wix page-list capability with guessed REST paths, slug inference, HTML scraping, or `sitemap.xml` parsing unless the user explicitly chose that external-data behavior and its limitations are part of the product contract. If no documented API provides the requested regular-site page inventory, set `capabilityStatus: blocked` instead of declaring the dashboard ready.
 - Validate response shape and API-reported errors before mapping data. Distinguish permission failure, unavailable host method, no published site, and an empty page list.
-- Preserve the original exception in diagnostic output before showing a concise user-facing error. Return and render stable failure states: `MISSING_PERMISSION`, `UNSUPPORTED_CAPABILITY`, `SITE_UNPUBLISHED`, or `TRANSIENT_FAILURE`. Map `401`/`403` to a permission-specific state with the required access or setup action; never render serialized SDK error JSON in the page. Offer Retry only for `TRANSIENT_FAILURE`.
+- Preserve the original exception in diagnostic output before showing a concise user-facing error. Return and render stable failure states: `MISSING_PERMISSION`, `UNSUPPORTED_CAPABILITY`, `SITE_UNPUBLISHED`, or `TRANSIENT_FAILURE`. Backend routes that call permissioned Wix APIs must inspect SDK status from `error.status` or `error.response?.status`, map `401`/`403` to `MISSING_PERMISSION` with `requiredScopes`, and reserve generic `5xx` responses for transient failures. Never render serialized SDK error JSON in the page. Offer Retry only for `TRANSIENT_FAILURE`.
 - When runtime access is unavailable, report the host/API check as `blocked` with the exact Dashboard route and console/network verification required. Do not report the capability as ready after typecheck or build alone.
 
 ### 0. Choose the Data Source

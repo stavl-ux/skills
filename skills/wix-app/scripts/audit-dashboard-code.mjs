@@ -591,7 +591,6 @@ for (const recordPath of routeRecordPaths) {
       'hostEvidence',
       'requiredScopes',
       'permissionStatus',
-      'permissionEvidence',
       'capabilityStatus',
       'canonicalUrlSource',
     ];
@@ -602,13 +601,52 @@ for (const recordPath of routeRecordPaths) {
     });
     const permissionVerified = hostApiCheck?.permissionStatus === 'verified';
     const capabilityVerified = hostApiCheck?.capabilityStatus === 'verified';
-    const permissionEvidence = String(hostApiCheck?.permissionEvidence ?? '');
-    const hasGrantedPermissionEvidence = /(?:app|installation|configuration)[\s\S]{0,100}?(?:scope|permission)[\s\S]{0,100}?(?:granted|enabled|approved)|(?:scope|permission)[\s\S]{0,100}?(?:granted|enabled|approved)[\s\S]{0,100}?(?:app|installation|configuration)|(?:app update|reinstall|re-install)[\s\S]{0,100}?(?:completed|complete|succeeded|successful)|(?:authenticated|runtime|endpoint|request)[\s\S]{0,100}?(?:2\d\d|succeeded|successful)/i.test(permissionEvidence);
-    const claimsElevationAsGrant = /auth\s*\.\s*elevate|\belevate\b/i.test(permissionEvidence);
+    const permissionEvidence = hostApiCheck?.permissionEvidence;
+    const permissionEvidenceIsObject =
+      permissionEvidence != null
+      && typeof permissionEvidence === 'object'
+      && !Array.isArray(permissionEvidence);
+    const permissionEvidenceFields = [
+      'requestStatus',
+      'installationStatus',
+      'verificationMethod',
+      'verificationResult',
+      'details',
+    ];
+    const missingPermissionEvidenceFields = permissionEvidenceIsObject
+      ? permissionEvidenceFields.filter(
+        (key) => typeof permissionEvidence[key] !== 'string' || !permissionEvidence[key].trim(),
+      )
+      : permissionEvidenceFields;
+    const scopesRequired =
+      Array.isArray(hostApiCheck?.requiredScopes)
+      && hostApiCheck.requiredScopes.length > 0;
+    const scopedGrantVerified =
+      permissionEvidenceIsObject
+      && permissionEvidence.requestStatus === 'applied'
+      && permissionEvidence.installationStatus === 'current'
+      && ['runtime-request', 'app-configuration-and-installation'].includes(
+        permissionEvidence.verificationMethod,
+      )
+      && permissionEvidence.verificationResult === 'succeeded'
+      && typeof permissionEvidence.details === 'string'
+      && permissionEvidence.details.trim();
+    const noScopeVerified =
+      permissionEvidenceIsObject
+      && permissionEvidence.requestStatus === 'not-required'
+      && permissionEvidence.installationStatus === 'not-required'
+      && permissionEvidence.verificationMethod === 'not-required'
+      && permissionEvidence.verificationResult === 'not-required'
+      && typeof permissionEvidence.details === 'string'
+      && permissionEvidence.details.trim();
+    const hasVerifiedPermissionEvidence = scopesRequired
+      ? scopedGrantVerified
+      : noScopeVerified;
 
     if (
       !hostApiCheck
       || missingHostFields.length
+      || missingPermissionEvidenceFields.length
       || !permissionVerified
       || !capabilityVerified
     ) {
@@ -618,16 +656,19 @@ for (const recordPath of routeRecordPaths) {
         rule: 'HC-04',
         message: !hostApiCheck
           ? 'External-data dashboard is missing hostApiCheck. Record host support, exact scopes, granted-permission evidence, and capability status before implementation.'
-          : `Host/API contract is not verified. Missing fields: ${missingHostFields.join(', ') || 'none'}; permissionStatus and capabilityStatus must both be "verified" before implementation.`,
+          : `Host/API contract is not verified. Missing fields: ${[
+            ...missingHostFields,
+            ...missingPermissionEvidenceFields.map((key) => `permissionEvidence.${key}`),
+          ].join(', ') || 'none'}; permissionStatus and capabilityStatus must both be "verified" before implementation.`,
       });
     }
 
-    if (permissionVerified && (!hasGrantedPermissionEvidence || claimsElevationAsGrant)) {
+    if (permissionVerified && !hasVerifiedPermissionEvidence) {
       findings.push({
         filePath: recordPath,
         line: 1,
         rule: 'HC-06',
-        message: 'permissionStatus is "verified" without evidence of an actual app grant plus completed installation/update, or a successful authenticated runtime request. Documentation, installed packages, and auth.elevate() are not grant evidence.',
+        message: 'permissionStatus is "verified" without structured evidence that every scope was applied, the active installation is current, and verification succeeded through app configuration plus installation or an authenticated runtime request. A recorded permission request, documentation, installed packages, and auth.elevate() are not grant evidence.',
       });
     }
 
@@ -1065,6 +1106,31 @@ for (const filePath of files) {
       'HC-01',
       /\bgetSiteStructure\s*\(/,
       'Dashboard or backend code calls @wix/site-site getSiteStructure without verified host support. A backend route does not make a Site-only method supported; apply the Host And API Compatibility gate and use only an API whose exact method documentation supports the selected execution host.',
+    );
+  }
+
+  const isBackendApiRoute =
+    /\bAPIRoute\b/.test(content)
+    && /\bexport\s+const\s+(?:GET|POST|PUT|PATCH|DELETE)\b/.test(content);
+  const callsWixSdk = /from\s+['"]@wix\//.test(content);
+  const catchesAsGenericServerFailure =
+    /catch\s*\([^)]*\)\s*\{[\s\S]{0,2400}?(?:\bFETCH_ERROR\b|status\s*:\s*500)/.test(content);
+  const mapsPermissionFailure =
+    /\bMISSING_PERMISSION\b/.test(content)
+    && /\b(?:401|403)\b/.test(content)
+    && /\brequiredScopes\b/.test(content);
+  if (
+    isBackendApiRoute
+    && callsWixSdk
+    && catchesAsGenericServerFailure
+    && !mapsPermissionFailure
+  ) {
+    addFinding(
+      filePath,
+      content,
+      content.search(/catch\s*\(/),
+      'HC-07',
+      'Backend route collapses a Wix SDK failure into a generic 500 without mapping 401/403 to MISSING_PERMISSION and listing requiredScopes. Preserve the original error in logs, return the stable permission state, and reserve retryable 5xx responses for transient failures.',
     );
   }
 

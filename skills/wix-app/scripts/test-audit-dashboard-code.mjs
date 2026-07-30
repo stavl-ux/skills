@@ -26,6 +26,8 @@ const viewerRoot = path.join(root, 'viewer');
 const goodRoot = path.join(root, 'good');
 const goodHostRoot = path.join(root, 'good-host');
 const weakPermissionRoot = path.join(root, 'weak-permission');
+const missingAnalyticsPermissionRoot = path.join(root, 'missing-analytics-permission');
+const goodAnalyticsPermissionRoot = path.join(root, 'good-analytics-permission');
 const autoRoot = path.join(root, 'auto');
 const hybridRoot = path.join(root, 'hybrid');
 fs.mkdirSync(badRoot);
@@ -45,6 +47,8 @@ fs.mkdirSync(viewerRoot);
 fs.mkdirSync(goodRoot);
 fs.mkdirSync(goodHostRoot);
 fs.mkdirSync(weakPermissionRoot);
+fs.mkdirSync(missingAnalyticsPermissionRoot);
+fs.mkdirSync(goodAnalyticsPermissionRoot);
 fs.mkdirSync(autoRoot);
 fs.mkdirSync(hybridRoot);
 
@@ -198,9 +202,15 @@ export default function BrokenHostApi() {
         requiredCapability: 'Load verified published page records',
         selectedApi: 'Verified dashboard-compatible service',
         hostEvidence: 'Installed service schema',
-        requiredScopes: ['SCOPE.EXAMPLE.READ'],
+        requiredScopes: [],
         permissionStatus: 'verified',
-        permissionEvidence: 'App permission configuration confirms SCOPE.EXAMPLE.READ is granted and the development installation update completed.',
+        permissionEvidence: {
+          requestStatus: 'not-required',
+          installationStatus: 'not-required',
+          verificationMethod: 'not-required',
+          verificationResult: 'not-required',
+          details: 'The selected service documents no required app scopes.',
+        },
         capabilityStatus: 'verified',
         canonicalUrlSource: 'Verified service response',
       },
@@ -222,13 +232,135 @@ export default function BrokenHostApi() {
         hostEvidence: 'Exact method documentation lists Dashboard Page support.',
         requiredScopes: ['SCOPE.EXAMPLE.READ'],
         permissionStatus: 'verified',
-        permissionEvidence: 'The scope is listed in the package documentation and auth.elevate() is used.',
+        permissionEvidence: {
+          requestStatus: 'recorded',
+          installationStatus: 'unknown',
+          verificationMethod: 'runtime-request',
+          verificationResult: 'blocked',
+          details: 'The permission tool recorded the scope and auth.elevate() is used.',
+        },
         capabilityStatus: 'verified',
         canonicalUrlSource: 'not applicable',
       },
     }),
   );
   write(weakPermissionRoot, 'Dashboard.tsx', 'export default function Dashboard() { return null; }');
+
+  const analyticsRoute = {
+    route: 'analytics',
+    sourceCount: 1,
+    sources: ['Wix Analytics Semantic Model API'],
+    regionOwners: {
+      collection: 'custom-wds-table',
+      metrics: null,
+      chart: null,
+      detail: null,
+    },
+    tableUnsupportedCapability: 'Session rows require grouped semantic-model results with no CMS collection.',
+    tableCheckedReference: 'AUTO_PATTERNS_DASHBOARD.md collection source requirement.',
+    whyAutoPatternsTableCannotBeUsed: 'The source is a backend API response rather than a CMS collection.',
+    fallbackCategory: 'external-data',
+    firstUnsupportedCapability: 'The source has no CMS collection.',
+    checkedReference: 'AUTO_PATTERNS_DASHBOARD.md',
+    whyDataAdaptationCannotSolve: 'Adapting the response does not create a supported collection source.',
+    hostApiCheck: {
+      executionHost: 'backend Astro API route',
+      requiredCapability: 'List traffic semantic models and query grouped session data',
+      selectedApi: '@wix/analytics-semantic-model listSemanticModels + querySemanticModelData',
+      hostEvidence: 'Exact SDK methods documented for backend use.',
+      requiredScopes: ['SCOPE.DC-ANALYTICS-AND-REPORTS.READ-SITE-ANALYTICS'],
+      permissionStatus: 'verified',
+      capabilityStatus: 'verified',
+      canonicalUrlSource: 'not applicable',
+    },
+  };
+
+  write(
+    missingAnalyticsPermissionRoot,
+    '.dashboard-route.json',
+    JSON.stringify({
+      ...analyticsRoute,
+      hostApiCheck: {
+        ...analyticsRoute.hostApiCheck,
+        permissionEvidence: {
+          requestStatus: 'recorded',
+          installationStatus: 'unknown',
+          verificationMethod: 'runtime-request',
+          verificationResult: 'blocked',
+          details: 'required-permissions recorded the analytics scope; SDK documentation lists it.',
+        },
+      },
+    }),
+  );
+  write(
+    missingAnalyticsPermissionRoot,
+    'visitor-activity.ts',
+    `import type { APIRoute } from 'astro';
+import { analyticsSemanticModel } from '@wix/analytics-semantic-model';
+import { auth } from '@wix/essentials';
+export const GET: APIRoute = async () => {
+  try {
+    const models = await auth.elevate(analyticsSemanticModel.listSemanticModels)();
+    return new Response(JSON.stringify(models), { status: 200 });
+  } catch (error) {
+    console.error('[visitor-activity API] Error:', error);
+    return new Response(
+      JSON.stringify({ code: 'FETCH_ERROR', message: 'Failed to load visitor activity data.' }),
+      { status: 500 },
+    );
+  }
+};`,
+  );
+
+  write(
+    goodAnalyticsPermissionRoot,
+    '.dashboard-route.json',
+    JSON.stringify({
+      ...analyticsRoute,
+      hostApiCheck: {
+        ...analyticsRoute.hostApiCheck,
+        permissionEvidence: {
+          requestStatus: 'applied',
+          installationStatus: 'current',
+          verificationMethod: 'runtime-request',
+          verificationResult: 'succeeded',
+          details: 'Authenticated listSemanticModels request returned 200 with request ID analytics-test-42.',
+        },
+      },
+    }),
+  );
+  write(
+    goodAnalyticsPermissionRoot,
+    'visitor-activity.ts',
+    `import type { APIRoute } from 'astro';
+import { analyticsSemanticModel } from '@wix/analytics-semantic-model';
+import { auth } from '@wix/essentials';
+const requiredScopes = ['SCOPE.DC-ANALYTICS-AND-REPORTS.READ-SITE-ANALYTICS'];
+export const GET: APIRoute = async () => {
+  try {
+    const models = await auth.elevate(analyticsSemanticModel.listSemanticModels)();
+    return new Response(JSON.stringify(models), { status: 200 });
+  } catch (error) {
+    console.error('[visitor-activity API] Error:', error);
+    const status = error?.status ?? error?.response?.status;
+    if (status === 401 || status === 403) {
+      return new Response(
+        JSON.stringify({
+          code: 'MISSING_PERMISSION',
+          message: 'Analytics access must be granted to this app.',
+          requiredScopes,
+        }),
+        { status: 403 },
+      );
+    }
+    return new Response(
+      JSON.stringify({ code: 'TRANSIENT_FAILURE', message: 'Analytics is temporarily unavailable.' }),
+      { status: 503 },
+    );
+  }
+};`,
+  );
+
   write(
     goodHostRoot,
     'VerifiedHostApi.tsx',
@@ -1021,6 +1153,38 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const missingAnalyticsPermission = spawnSync(
+    process.execPath,
+    [auditPath, missingAnalyticsPermissionRoot],
+    { encoding: 'utf8' },
+  );
+  const missingAnalyticsPermissionOutput =
+    `${missingAnalyticsPermission.stdout}\n${missingAnalyticsPermission.stderr}`;
+  const missedAnalyticsPermissionRules = ['HC-06', 'HC-07'].filter(
+    (rule) => !missingAnalyticsPermissionOutput.includes(rule),
+  );
+  if (missingAnalyticsPermission.status === 0 || missedAnalyticsPermissionRules.length) {
+    console.error('Dashboard audit self-test accepted the Visitor Activity missing-permission failure.');
+    if (missedAnalyticsPermissionRules.length) {
+      console.error(`Missing rules: ${missedAnalyticsPermissionRules.join(', ')}`);
+    }
+    console.error(missingAnalyticsPermissionOutput.trim());
+    process.exit(1);
+  }
+
+  const goodAnalyticsPermission = spawnSync(
+    process.execPath,
+    [auditPath, goodAnalyticsPermissionRoot],
+    { encoding: 'utf8' },
+  );
+  if (goodAnalyticsPermission.status !== 0) {
+    console.error('Dashboard audit self-test rejected valid Analytics permission evidence and error mapping.');
+    console.error(
+      `${goodAnalyticsPermission.stdout}\n${goodAnalyticsPermission.stderr}`.trim(),
+    );
+    process.exit(1);
+  }
+
   const bad = spawnSync(process.execPath, [auditPath, badRoot], { encoding: 'utf8' });
   const badOutput = `${bad.stdout}\n${bad.stderr}`;
   const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
@@ -1228,7 +1392,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, unverified permissions, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, unverified permissions, generic permission failures, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; verified scoped and no-scope, viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

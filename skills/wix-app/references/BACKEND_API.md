@@ -27,10 +27,11 @@ Before implementing an endpoint that calls a Wix API:
 
 1. Verify the exact method explicitly supports the backend execution host. Do not use a backend route to call a frontend-only method.
 2. Record every required scope ID and verify it is granted to the app, not merely listed in documentation or inferred from an installed package.
-3. Set permission verification only after the app configuration and completed update/reinstall are confirmed, or after a successful authenticated runtime request.
+3. Call an available permission-recording tool as soon as the scopes are known. Its `recorded` result means setup was requested, not that the app or active installation grants access.
 4. Add the scope and complete any required app update/reinstall when tooling supports it. Otherwise stop with the exact setup action.
-5. Use `auth.elevate()` only after access is verified. Elevation changes execution identity; it does not grant missing scopes.
-6. Treat `401` and `403` as permission/setup failures. Log the original server error, but return a stable public error shape such as `{ code: "MISSING_PERMISSION", message: "...", requiredScopes: [...] }`. Use `UNSUPPORTED_CAPABILITY`, `SITE_UNPUBLISHED`, or `TRANSIENT_FAILURE` for those cases; only the transient state may offer Retry.
+5. Set permission verification only after the app configuration and completed update/reinstall are confirmed, or after a successful authenticated runtime request. Record this with the structured `permissionEvidence` contract in [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md#host-and-api-compatibility).
+6. Use `auth.elevate()` only after access is verified. Elevation changes execution identity; it does not grant missing scopes.
+7. Treat `401` and `403` as permission/setup failures. Log the original server error, inspect `error.status` or `error.response?.status`, and return `{ code: "MISSING_PERMISSION", message: "...", requiredScopes: [...] }` with a `403` response. Use `UNSUPPORTED_CAPABILITY`, `SITE_UNPUBLISHED`, or `TRANSIENT_FAILURE` for those cases; only the transient state may offer Retry. Do not collapse permission failures into a generic `500`.
 
 Do not invent an undocumented Wix API or scrape a public representation to simulate a missing platform capability. In particular, a published site URL does not provide a supported inventory of regular Wix site pages. Sitemap parsing is an explicit external-data fallback, not a substitute for a verified page-list API.
 
