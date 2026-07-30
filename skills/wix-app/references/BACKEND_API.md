@@ -21,6 +21,18 @@ Use HTTP endpoints when you need to:
 - Serve dynamic content (images, RSS feeds, personalized data)
 - Access runtime data or server-side databases
 
+## API Compatibility And Permissions
+
+Before implementing an endpoint that calls a Wix API:
+
+1. Verify the exact method supports the backend execution host.
+2. Record every required scope ID and verify it is granted to the app, not merely listed in documentation.
+3. Add the scope and complete any required app update/reinstall when tooling supports it. Otherwise stop with the exact setup action.
+4. Use `auth.elevate()` only after access is verified. Elevation changes execution identity; it does not grant missing scopes.
+5. Treat `401` and `403` as permission/setup failures. Log the original server error, but return a stable public error shape such as `{ code: "MISSING_PERMISSION", message: "...", requiredScopes: [...] }`.
+
+Do not invent an undocumented Wix API or scrape a public representation to simulate a missing platform capability. In particular, a published site URL does not provide a supported inventory of regular Wix site pages. Sitemap parsing is an explicit external-data fallback, not a substitute for a verified page-list API.
+
 ## File Structure and Naming
 
 ### Basic Endpoint
@@ -201,6 +213,8 @@ const res = await httpClient.fetchWithAuth(
 const data = await res.json();
 ```
 
+Handle non-success responses before reading feature data. Show a concise recovery state; do not place `error.message`, an SDK response object, or serialized diagnostic JSON directly in the interface. A permission response should identify the missing access and next action, while the full exception remains in server or console diagnostics.
+
 ## Build, Deploy, and Delete
 
 To take HTTP endpoints to production, build and release your project:
@@ -231,3 +245,6 @@ src/pages/api/
 - Include `Content-Type: application/json` header on JSON responses.
 - Include `statusText` in error responses.
 - Validate input parameters and request bodies.
+- Verify required Wix app scopes are granted before calling elevated SDK methods.
+- Return stable, user-safe error codes for permission, unavailable capability, unpublished site, and upstream failures.
+- Audit the dashboard source and every backend endpoint it calls in the same blocking audit command.

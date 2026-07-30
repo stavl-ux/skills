@@ -581,6 +581,70 @@ for (const recordPath of routeRecordPaths) {
     });
   }
 
+  const hostApiCheck = record.hostApiCheck;
+  const requiresHostApiCheck = record.fallbackCategory === 'external-data' || hostApiCheck != null;
+  if (requiresHostApiCheck) {
+    const requiredHostFields = [
+      'executionHost',
+      'requiredCapability',
+      'selectedApi',
+      'hostEvidence',
+      'requiredScopes',
+      'permissionStatus',
+      'permissionEvidence',
+      'capabilityStatus',
+      'canonicalUrlSource',
+    ];
+    const missingHostFields = !hostApiCheck || requiredHostFields.filter((key) => {
+      const value = hostApiCheck[key];
+      if (key === 'requiredScopes') return !Array.isArray(value);
+      return typeof value !== 'string' || !value.trim();
+    });
+    const permissionVerified = hostApiCheck?.permissionStatus === 'verified';
+    const capabilityVerified = hostApiCheck?.capabilityStatus === 'verified';
+
+    if (
+      !hostApiCheck
+      || missingHostFields.length
+      || !permissionVerified
+      || !capabilityVerified
+    ) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'HC-04',
+        message: !hostApiCheck
+          ? 'External-data dashboard is missing hostApiCheck. Record host support, exact scopes, granted-permission evidence, and capability status before implementation.'
+          : `Host/API contract is not verified. Missing fields: ${missingHostFields.join(', ') || 'none'}; permissionStatus and capabilityStatus must both be "verified" before implementation.`,
+      });
+    }
+
+    const hostText = JSON.stringify(hostApiCheck);
+    if (
+      /listPublishedSiteUrls/i.test(hostText)
+      && !hostApiCheck?.requiredScopes?.includes('SCOPE.DC-SITES.READ-URLS')
+    ) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'HC-04',
+        message: 'listPublishedSiteUrls requires SCOPE.DC-SITES.READ-URLS in hostApiCheck.requiredScopes and verified grant evidence. auth.elevate() does not supply it.',
+      });
+    }
+
+    if (
+      /site[- ]?page|page inventory|list (?:all )?pages/i.test(String(hostApiCheck?.requiredCapability ?? ''))
+      && /sitemap(?:\.xml)?|slug inference|scrap/i.test(String(hostApiCheck?.selectedApi ?? ''))
+    ) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'HC-05',
+        message: 'Regular Wix site-page inventory is routed through an unverified sitemap/scraping fallback. Use a documented page-list API or mark the capability blocked; do not declare the dashboard ready.',
+      });
+    }
+  }
+
   if (record.route === 'analytics' && record.sourceCount === 1) {
     const collectionOwner = record.regionOwners?.collection;
     const requiredTableEvidence = [

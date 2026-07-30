@@ -68,6 +68,17 @@ try {
       firstUnsupportedCapability: 'OR filters with an elapsed-time predicate',
       checkedReference: 'auto-patterns-dashboard/collection-workflows.md',
       whyDataAdaptationCannotSolve: 'The date comparison is complex',
+      hostApiCheck: {
+        executionHost: 'Dashboard Page',
+        requiredCapability: 'List all regular site pages',
+        selectedApi: '@wix/urls listPublishedSiteUrls + sitemap.xml parsing',
+        hostEvidence: 'Published URL documentation only',
+        requiredScopes: [],
+        permissionStatus: 'assumed',
+        permissionEvidence: 'Scope named in documentation but not verified on the app',
+        capabilityStatus: 'assumed',
+        canonicalUrlSource: '@wix/urls',
+      },
     }),
   );
   write(
@@ -180,6 +191,17 @@ export default function BrokenHostApi() {
         'Verified canonical published URL service',
       ],
       fallbackCategory: 'external-data',
+      hostApiCheck: {
+        executionHost: 'Dashboard Page via backend',
+        requiredCapability: 'Load verified published page records',
+        selectedApi: 'Verified dashboard-compatible service',
+        hostEvidence: 'Installed service schema',
+        requiredScopes: ['SCOPE.EXAMPLE.READ'],
+        permissionStatus: 'verified',
+        permissionEvidence: 'Granted app permissions inspected before implementation',
+        capabilityStatus: 'verified',
+        canonicalUrlSource: 'Verified service response',
+      },
     }),
   );
   write(
@@ -964,7 +986,7 @@ export default function SubscriptionHealth() {
 
   const bad = spawnSync(process.execPath, [auditPath, badRoot], { encoding: 'utf8' });
   const badOutput = `${bad.stdout}\n${bad.stderr}`;
-  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03'];
+  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
   const missedRules = expectedRules.filter((rule) => !badOutput.includes(rule));
   if (bad.status === 0 || missedRules.length) {
     console.error('Dashboard audit self-test failed to reject the bad fixture.');
@@ -1169,7 +1191,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, unverified permissions, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

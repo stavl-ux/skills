@@ -38,7 +38,7 @@ See [Wix Data Reference](data-collection/WIX_DATA.md) in the Data Collection ref
 
 See [Dashboard API Reference](dashboard-page/DASHBOARD_API.md) for complete documentation including all methods, page IDs, and examples.
 
-A Dashboard Page is a different execution host from a Wix Site. When the page needs site structure, published URLs, business data, or another Wix API beyond the documented Dashboard API, apply the [Host And API Compatibility](DASHBOARD_ROUTING.md#host-and-api-compatibility) gate before importing the module. An API name or successful build does not prove that its host channel exists in Dashboard.
+A Dashboard Page is a different execution host from a Wix Site. When the page needs site structure, published URLs, business data, or another Wix API beyond the documented Dashboard API, apply the [Host And API Compatibility](DASHBOARD_ROUTING.md#host-and-api-compatibility) gate before importing the module. Verify the exact host, granted app scopes, and complete capability; `auth.elevate()` does not grant missing permissions. An API name or successful build does not prove that its host channel exists in Dashboard.
 
 **Key methods:**
 

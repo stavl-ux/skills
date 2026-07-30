@@ -351,19 +351,25 @@ Apply this gate when a Dashboard Page uses site structure, published-site metada
 Before implementation, record:
 
 ```text
-execution host: <Dashboard Page, Dashboard Modal, Site, Editor, or backend>
-required capability: <data or operation>
-selected API and method: <package + method>
-supported-host evidence: <exact installed schema/docs/example>
-identity and permissions: <current user/app/backend identity + required permission>
-canonical URL source: <official metadata field or not applicable>
+executionHost: <Dashboard Page, Dashboard Modal, Site, Editor, or backend>
+requiredCapability: <data or operation>
+selectedApi: <package + method>
+hostEvidence: <exact installed schema/docs/example>
+requiredScopes: <exact scope IDs, or [] when none>
+permissionStatus: <verified or blocked>
+permissionEvidence: <where granted access was verified>
+capabilityStatus: <verified or blocked>
+canonicalUrlSource: <official metadata field or not applicable>
 ```
 
 - Match the method to the execution host, identity, and permissions. A matching name, available TypeScript type, package installation, or successful build is not evidence that a host channel exists at runtime.
+- Verify required scopes against the app's actual granted permissions before implementation. Documentation that names a scope is not proof it is granted. `auth.elevate()` changes the identity used for an authorized call; it does not add scopes or bypass app installation consent.
+- If tooling can add a missing scope, add it and complete any required app update/reinstall before setting `permissionStatus: verified`. Otherwise set both permission or capability status to `blocked`, report the exact scope and user action, and stop. Do not generate a page that can only fail with `401` or `403`.
 - Do not call Site-only frontend host methods from Dashboard code unless the exact method documentation or installed schema explicitly lists Dashboard support. If support is unclear, use a documented Dashboard-compatible service or an authenticated backend route; do not guess a replacement API.
-- For site-page inventory, verify both the page-list method and the source of the canonical published base URL. Never derive a public site URL by rewriting `window.location.origin`, a dashboard URL, or an editor URL.
+- For site-page inventory, verify both the page-list method and the source of the canonical published base URL. A published-URL API proves only the base URL; it does not prove page-list access. Never derive a public site URL by rewriting `window.location.origin`, a dashboard URL, or an editor URL.
+- Do not replace an unavailable Wix page-list capability with guessed REST paths, slug inference, HTML scraping, or `sitemap.xml` parsing unless the user explicitly chose that external-data behavior and its limitations are part of the product contract. If no documented API provides the requested regular-site page inventory, set `capabilityStatus: blocked` instead of declaring the dashboard ready.
 - Validate response shape and API-reported errors before mapping data. Distinguish permission failure, unavailable host method, no published site, and an empty page list.
-- Preserve the original exception in diagnostic output before showing a concise user-facing error. Include retry only when repeating the request can recover.
+- Preserve the original exception in diagnostic output before showing a concise user-facing error. Map `401`/`403` to a permission-specific state with the required access or setup action; never render serialized SDK error JSON in the page. Include retry only when repeating the request can recover.
 - When runtime access is unavailable, report the host/API check as `blocked` with the exact Dashboard route and console/network verification required. Do not report the capability as ready after typecheck or build alone.
 
 ### 0. Choose the Data Source
@@ -473,6 +479,6 @@ The selected dashboard route owns its acceptance criteria. Apply this common gat
 4. Verify every filter against a known stored value and confirm its recovery path.
 5. Complete every primary row, bulk, panel, or modal mutation and refresh to confirm persistence.
 6. Test the densest record and narrowest supported viewport for overlap, clipping, hidden actions, or page-level overflow.
-7. Run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>` for custom WDS dashboards before delegating build validation. This audit is blocking; a successful build does not replace it.
+7. Run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory> [each referenced backend endpoint]` for custom WDS dashboards before delegating build validation. This audit is blocking; do not continue after a non-zero result, and a successful build does not replace it.
 
 Classify failures as routing, schema/data, implementation, or runtime validation. Report `passed`, `failed`, or `blocked`; a successful build alone is not runtime evidence.
