@@ -621,16 +621,32 @@ for (const recordPath of routeRecordPaths) {
     const scopesRequired =
       Array.isArray(hostApiCheck?.requiredScopes)
       && hostApiCheck.requiredScopes.length > 0;
+    const permissionDetails = String(permissionEvidence?.details ?? '');
+    const runtimeRequestVerified =
+      permissionEvidence?.verificationMethod === 'runtime-request'
+      && /\b2\d\d\b/.test(permissionDetails)
+      && /\brequest(?:\s+id)?\b/i.test(permissionDetails);
+    const configurationAndInstallationVerified =
+      permissionEvidence?.verificationMethod === 'app-configuration-and-installation'
+      && /\b(?:app\s+)?configuration\b[\s\S]{0,160}\b(?:granted|contains|enabled|approved)\b/i.test(
+        permissionDetails,
+      )
+      && /\b(?:update|reinstall|re-install)\b[\s\S]{0,120}\b(?:completed|succeeded|successful)\b/i.test(
+        permissionDetails,
+      );
+    const claimsPermissionReceiptAsGrant =
+      /\brequired-permissions\b|\bpermission(?:s)?\s+tool\b|\b(?:recorded|declared)\b/i.test(
+        permissionDetails,
+      );
     const scopedGrantVerified =
       permissionEvidenceIsObject
       && permissionEvidence.requestStatus === 'applied'
       && permissionEvidence.installationStatus === 'current'
-      && ['runtime-request', 'app-configuration-and-installation'].includes(
-        permissionEvidence.verificationMethod,
-      )
       && permissionEvidence.verificationResult === 'succeeded'
       && typeof permissionEvidence.details === 'string'
-      && permissionEvidence.details.trim();
+      && permissionEvidence.details.trim()
+      && (runtimeRequestVerified || configurationAndInstallationVerified)
+      && !claimsPermissionReceiptAsGrant;
     const noScopeVerified =
       permissionEvidenceIsObject
       && permissionEvidence.requestStatus === 'not-required'
@@ -668,7 +684,7 @@ for (const recordPath of routeRecordPaths) {
         filePath: recordPath,
         line: 1,
         rule: 'HC-06',
-        message: 'permissionStatus is "verified" without structured evidence that every scope was applied, the active installation is current, and verification succeeded through app configuration plus installation or an authenticated runtime request. A recorded permission request, documentation, installed packages, and auth.elevate() are not grant evidence.',
+        message: 'permissionStatus is "verified" without structured evidence that every scope was applied, the active installation is current, and verification succeeded through a 2xx request with request ID or inspected granted configuration plus a completed update/reinstall. A required-permissions receipt, recorded/declared request, documentation, installed packages, and auth.elevate() are not grant evidence.',
       });
     }
 
@@ -1092,6 +1108,12 @@ function selectionCallbackUsesSelectedRows(content) {
   }) || /\bonSelectionChanged\s*=\s*\{\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>[\s\S]{0,1200}?selectedRows/.test(content);
 }
 
+const projectRequiresScopedHostApi = routeRecords.some(
+  ({ record }) =>
+    Array.isArray(record.hostApiCheck?.requiredScopes)
+    && record.hostApiCheck.requiredScopes.length > 0,
+);
+
 for (const filePath of files) {
   const content = contents.get(filePath);
   const hasSidePanel = /<SidePanel\b/.test(content);
@@ -1112,6 +1134,12 @@ for (const filePath of files) {
   const isBackendApiRoute =
     /\bAPIRoute\b/.test(content)
     && /\bexport\s+const\s+(?:GET|POST|PUT|PATCH|DELETE)\b/.test(content);
+  const isBackendWebModule =
+    /(?:^|[/\\])src[/\\]modules[/\\]/.test(filePath)
+    && /\bexport\s+(?:async\s+function|const\s+\w+\s*=\s*async\b)/.test(content);
+  const isDashboardConsumer =
+    /(?:^|[/\\])extensions[/\\]dashboard[/\\]/.test(filePath)
+    && /(?:^|[/\\])modules[/\\]/.test(content);
   const callsWixSdk = /from\s+['"]@wix\//.test(content);
   const catchesAsGenericServerFailure =
     /catch\s*\([^)]*\)\s*\{[\s\S]{0,2400}?(?:\bFETCH_ERROR\b|status\s*:\s*500)/.test(content);
@@ -1120,9 +1148,9 @@ for (const filePath of files) {
     && /\b(?:401|403)\b/.test(content)
     && /\brequiredScopes\b/.test(content);
   if (
-    isBackendApiRoute
+    (isBackendApiRoute || isBackendWebModule)
     && callsWixSdk
-    && catchesAsGenericServerFailure
+    && projectRequiresScopedHostApi
     && !mapsPermissionFailure
   ) {
     addFinding(
@@ -1130,7 +1158,42 @@ for (const filePath of files) {
       content,
       content.search(/catch\s*\(/),
       'HC-07',
-      'Backend route collapses a Wix SDK failure into a generic 500 without mapping 401/403 to MISSING_PERMISSION and listing requiredScopes. Preserve the original error in logs, return the stable permission state, and reserve retryable 5xx responses for transient failures.',
+      catchesAsGenericServerFailure
+        ? 'Backend boundary collapses a Wix SDK failure into a generic error without mapping 401/403 to MISSING_PERMISSION and listing requiredScopes. Preserve the original error in logs and reserve retryable failures for transient states.'
+        : 'Backend boundary calls a scoped Wix SDK without mapping 401/403 to MISSING_PERMISSION and listing requiredScopes. Preserve the original error in logs and return or throw the stable permission state.',
+    );
+  }
+
+  if (
+    isDashboardConsumer
+    && projectRequiresScopedHostApi
+    && /catch\s*(?:\([^)]*\))?\s*\{/.test(content)
+    && /\bRetry\b/.test(content)
+    && !/\bMISSING_PERMISSION\b/.test(content)
+  ) {
+    addFinding(
+      filePath,
+      content,
+      content.search(/catch\s*(?:\([^)]*\))?\s*\{/),
+      'HC-09',
+      'Dashboard consumer reduces scoped API failures to one retryable error state. Handle MISSING_PERMISSION separately with the required setup action; Retry is only for transient failures.',
+    );
+  }
+
+  if (
+    /from\s+['"]@wix\/analytics-semantic-model['"]/.test(content)
+    && /\bquerySemanticModelData\s*\(/.test(content)
+    && (
+      !/\blistSemanticModels\s*\(/.test(content)
+      || !/\bgetSemanticModel\s*\(/.test(content)
+    )
+  ) {
+    addFinding(
+      filePath,
+      content,
+      content.search(/\bquerySemanticModelData\s*\(/),
+      'HC-08',
+      'Analytics Semantic Model query skips runtime model/schema discovery. Call listSemanticModels, select the intended model, call getSemanticModel, and query only IDs and field names returned for the current site; do not hard-code model UUIDs or traffic.* fields.',
     );
   }
 

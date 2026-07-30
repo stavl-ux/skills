@@ -283,33 +283,40 @@ export default function BrokenHostApi() {
       hostApiCheck: {
         ...analyticsRoute.hostApiCheck,
         permissionEvidence: {
-          requestStatus: 'recorded',
-          installationStatus: 'unknown',
-          verificationMethod: 'runtime-request',
-          verificationResult: 'blocked',
-          details: 'required-permissions recorded the analytics scope; SDK documentation lists it.',
+          requestStatus: 'applied',
+          installationStatus: 'current',
+          verificationMethod: 'app-configuration-and-installation',
+          verificationResult: 'succeeded',
+          details: 'Scope declared via required-permissions tool and applied to app configuration.',
         },
       },
     }),
   );
-  write(
+  writeNested(
     missingAnalyticsPermissionRoot,
-    'visitor-activity.ts',
-    `import type { APIRoute } from 'astro';
-import { analyticsSemanticModel } from '@wix/analytics-semantic-model';
-import { auth } from '@wix/essentials';
-export const GET: APIRoute = async () => {
-  try {
-    const models = await auth.elevate(analyticsSemanticModel.listSemanticModels)();
-    return new Response(JSON.stringify(models), { status: 200 });
-  } catch (error) {
-    console.error('[visitor-activity API] Error:', error);
-    return new Response(
-      JSON.stringify({ code: 'FETCH_ERROR', message: 'Failed to load visitor activity data.' }),
-      { status: 500 },
-    );
+    'src/modules/visitor-analytics.ts',
+    `import { analyticsSemanticModel } from '@wix/analytics-semantic-model';
+const TRAFFIC_MODEL_ID = 'cad7fd34-2c8b-4dda-8296-3f9d47fb484d';
+export async function getVisitorAnalytics() {
+  return analyticsSemanticModel.querySemanticModelData(TRAFFIC_MODEL_ID, {
+    fields: ['traffic.sessions_count', 'traffic.views_count'],
+  });
+}`,
+  );
+  writeNested(
+    missingAnalyticsPermissionRoot,
+    'src/extensions/dashboard/pages/site-visitors.tsx',
+    `import { getVisitorAnalytics } from '../../../modules/visitor-analytics';
+export default function SiteVisitors() {
+  async function loadData() {
+    try {
+      return await getVisitorAnalytics();
+    } catch {
+      setState('error');
+    }
   }
-};`,
+  return state === 'error' ? <EmptyState title="Failed to load analytics"><Button>Retry</Button></EmptyState> : null;
+}`,
   );
 
   write(
@@ -339,7 +346,14 @@ const requiredScopes = ['SCOPE.DC-ANALYTICS-AND-REPORTS.READ-SITE-ANALYTICS'];
 export const GET: APIRoute = async () => {
   try {
     const models = await auth.elevate(analyticsSemanticModel.listSemanticModels)();
-    return new Response(JSON.stringify(models), { status: 200 });
+    const modelId = models.semanticModels?.[0]?._id ?? '';
+    const model = await auth.elevate(analyticsSemanticModel.getSemanticModel)(modelId);
+    const fieldName = model.measures?.[0]?.name ?? '';
+    const data = await auth.elevate(analyticsSemanticModel.querySemanticModelData)(
+      modelId,
+      { fields: [fieldName] },
+    );
+    return new Response(JSON.stringify(data), { status: 200 });
   } catch (error) {
     console.error('[visitor-activity API] Error:', error);
     const status = error?.status ?? error?.response?.status;
@@ -1160,7 +1174,7 @@ export default function SubscriptionHealth() {
   );
   const missingAnalyticsPermissionOutput =
     `${missingAnalyticsPermission.stdout}\n${missingAnalyticsPermission.stderr}`;
-  const missedAnalyticsPermissionRules = ['HC-06', 'HC-07'].filter(
+  const missedAnalyticsPermissionRules = ['HC-06', 'HC-07', 'HC-08', 'HC-09'].filter(
     (rule) => !missingAnalyticsPermissionOutput.includes(rule),
   );
   if (missingAnalyticsPermission.status === 0 || missedAnalyticsPermissionRules.length) {
