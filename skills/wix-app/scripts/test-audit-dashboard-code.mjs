@@ -24,6 +24,7 @@ const badRemoveRoot = path.join(root, 'bad-remove');
 const badModalRoot = path.join(root, 'bad-modal');
 const viewerRoot = path.join(root, 'viewer');
 const goodRoot = path.join(root, 'good');
+const goodHostRoot = path.join(root, 'good-host');
 const autoRoot = path.join(root, 'auto');
 const hybridRoot = path.join(root, 'hybrid');
 fs.mkdirSync(badRoot);
@@ -41,6 +42,7 @@ fs.mkdirSync(badRemoveRoot);
 fs.mkdirSync(badModalRoot);
 fs.mkdirSync(viewerRoot);
 fs.mkdirSync(goodRoot);
+fs.mkdirSync(goodHostRoot);
 fs.mkdirSync(autoRoot);
 fs.mkdirSync(hybridRoot);
 
@@ -148,6 +150,51 @@ export default function CapacityPlanner() {
     setSelectedIds((selection.selectedRows ?? []).map((row) => row._id));
   };
   return <Table showSelection selectedIds={selectedIds} onSelectionChanged={handleSelectionChanged} />;
+}`,
+  );
+  write(
+    badRoot,
+    'BrokenHostApi.tsx',
+    `import { site } from '@wix/site-site';
+export default function BrokenHostApi() {
+  async function loadPages() {
+    try {
+      const structure = await site.getSiteStructure();
+      const publicUrl = window.location.origin.replace('www.wix.com', 'www.wixsite.com');
+      return { structure, publicUrl };
+    } catch (error) {
+      setError('Failed to load site pages. Please try again.');
+    }
+  }
+  return null;
+}`,
+  );
+  write(
+    goodHostRoot,
+    '.dashboard-route.json',
+    JSON.stringify({
+      route: 'custom-table',
+      sourceCount: 2,
+      sources: [
+        'Verified dashboard-compatible site page service',
+        'Verified canonical published URL service',
+      ],
+      fallbackCategory: 'external-data',
+    }),
+  );
+  write(
+    goodHostRoot,
+    'VerifiedHostApi.tsx',
+    `export default function VerifiedHostApi() {
+  async function loadPages() {
+    try {
+      return await loadPublishedPagesFromVerifiedDashboardService();
+    } catch (error) {
+      console.error('Failed to load published pages', error);
+      setError('Failed to load site pages. Please try again.');
+    }
+  }
+  return null;
 }`,
   );
 
@@ -904,9 +951,20 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const goodHost = spawnSync(
+    process.execPath,
+    [auditPath, goodHostRoot],
+    { encoding: 'utf8' },
+  );
+  if (goodHost.status !== 0) {
+    console.error('Dashboard audit self-test rejected a verified host service that preserves its runtime error.');
+    console.error(`${goodHost.stdout}\n${goodHost.stderr}`.trim());
+    process.exit(1);
+  }
+
   const bad = spawnSync(process.execPath, [auditPath, badRoot], { encoding: 'utf8' });
   const badOutput = `${bad.stdout}\n${bad.stderr}`;
-  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13'];
+  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03'];
   const missedRules = expectedRules.filter((rule) => !badOutput.includes(rule));
   if (bad.status === 0 || missedRules.length) {
     console.error('Dashboard audit self-test failed to reject the bad fixture.');
@@ -1111,7 +1169,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, chart-only table fallbacks, unsafe modal state, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

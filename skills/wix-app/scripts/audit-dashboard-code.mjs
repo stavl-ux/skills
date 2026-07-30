@@ -967,6 +967,48 @@ for (const filePath of files) {
   const content = contents.get(filePath);
   const hasSidePanel = /<SidePanel\b/.test(content);
 
+  if (
+    /from\s+['"]@wix\/site-site['"]/.test(content)
+    && /\b(?:site\s*\.\s*)?getSiteStructure\s*\(/.test(content)
+  ) {
+    report(
+      filePath,
+      content,
+      'HC-01',
+      /\b(?:site\s*\.\s*)?getSiteStructure\s*\(/,
+      'Dashboard code calls @wix/site-site getSiteStructure without verified Dashboard-host support. Apply the Host And API Compatibility gate and use only an API whose exact method documentation supports the selected execution host.',
+    );
+  }
+
+  report(
+    filePath,
+    content,
+    'HC-02',
+    /window\.location\.origin[\s\S]{0,240}?replace\s*\([\s\S]{0,160}?wixsite/i,
+    'Published site URL is fabricated from the Dashboard origin. Resolve the canonical published URL from an official metadata API verified for the selected execution host.',
+  );
+
+  for (const match of content.matchAll(
+    /catch\s*\(\s*([A-Za-z_$][\w$]*)\s*\)\s*\{([\s\S]{0,1200}?)\}/g,
+  )) {
+    const errorName = match[1];
+    const block = match[2];
+    const genericLoadError = /\bsetError\s*\(\s*['"`](?:Failed|Unable|Could not|Couldn['’]t|We could not|We couldn['’]t)/i.test(block);
+    const preservesOriginal =
+      new RegExp(`console\\s*\\.\\s*error\\s*\\([^)]*\\b${escapeRegExp(errorName)}\\b`).test(block)
+      || new RegExp(`\\bthrow\\s+${escapeRegExp(errorName)}\\b`).test(block);
+
+    if (genericLoadError && !preservesOriginal) {
+      addFinding(
+        filePath,
+        content,
+        match.index,
+        'HC-03',
+        'Dashboard load failure is replaced with a generic message without preserving the original exception. Log or rethrow the original error before rendering the user-facing state.',
+      );
+    }
+  }
+
   if (hasSidePanel) {
     report(filePath, content, 'TP-09', /(?:100vh|100dvh)/, 'SidePanel code uses browser viewport height inside a Dashboard Page.');
     report(filePath, content, 'TP-09', /<SidePanel\b[^>]*(?:width|height)=\{?['"]?\d+/, 'SidePanel has hard-coded geometry instead of documented defaults/host sizing.');

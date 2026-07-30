@@ -11,6 +11,7 @@ Use this guide to select and execute one dashboard route. Read only the exact in
 - [Focused modal route](#focused-modal-route)
 - [WDS component documentation gate](#wds-component-documentation-gate)
 - [Data model and operations](#data-model-and-operations)
+- [Host and API compatibility](#host-and-api-compatibility)
 - [Visualizations](#visualizations)
 - [Runtime validation](#runtime-validation)
 
@@ -342,6 +343,28 @@ Treat source selection, schema, relationship values, and manager workflows as se
 ### Canonical Implementation References
 
 Read [DATA_COLLECTION.md](DATA_COLLECTION.md) before creating or changing app-owned collection schema. Use its [Relationships](DATA_COLLECTION.md#relationships), [Initial Data Rules](DATA_COLLECTION.md#initial-data-rules), and [Permissions](DATA_COLLECTION.md#permissions) sections when applicable. Read [data-collection/WIX_DATA.md](data-collection/WIX_DATA.md) before implementing data reads, writes, reference assignment, or permissions-sensitive operations; use its [SDK Methods & Interfaces](data-collection/WIX_DATA.md#sdk-methods--interfaces) and [Permissions](data-collection/WIX_DATA.md#permissions) sections. This file is a routing and product-workflow checklist, not an SDK reference.
+
+### Host And API Compatibility
+
+Apply this gate when a Dashboard Page uses site structure, published-site metadata or URLs, Wix business data, an external service, or any SDK/host module not explicitly approved by the selected dashboard guide. Ordinary Auto Patterns collection reads do not load this gate unless they add one of those capabilities.
+
+Before implementation, record:
+
+```text
+execution host: <Dashboard Page, Dashboard Modal, Site, Editor, or backend>
+required capability: <data or operation>
+selected API and method: <package + method>
+supported-host evidence: <exact installed schema/docs/example>
+identity and permissions: <current user/app/backend identity + required permission>
+canonical URL source: <official metadata field or not applicable>
+```
+
+- Match the method to the execution host, identity, and permissions. A matching name, available TypeScript type, package installation, or successful build is not evidence that a host channel exists at runtime.
+- Do not call Site-only frontend host methods from Dashboard code unless the exact method documentation or installed schema explicitly lists Dashboard support. If support is unclear, use a documented Dashboard-compatible service or an authenticated backend route; do not guess a replacement API.
+- For site-page inventory, verify both the page-list method and the source of the canonical published base URL. Never derive a public site URL by rewriting `window.location.origin`, a dashboard URL, or an editor URL.
+- Validate response shape and API-reported errors before mapping data. Distinguish permission failure, unavailable host method, no published site, and an empty page list.
+- Preserve the original exception in diagnostic output before showing a concise user-facing error. Include retry only when repeating the request can recover.
+- When runtime access is unavailable, report the host/API check as `blocked` with the exact Dashboard route and console/network verification required. Do not report the capability as ready after typecheck or build alone.
 
 ### 0. Choose the Data Source
 
