@@ -602,6 +602,9 @@ for (const recordPath of routeRecordPaths) {
     });
     const permissionVerified = hostApiCheck?.permissionStatus === 'verified';
     const capabilityVerified = hostApiCheck?.capabilityStatus === 'verified';
+    const permissionEvidence = String(hostApiCheck?.permissionEvidence ?? '');
+    const hasGrantedPermissionEvidence = /(?:app|installation|configuration)[\s\S]{0,100}?(?:scope|permission)[\s\S]{0,100}?(?:granted|enabled|approved)|(?:scope|permission)[\s\S]{0,100}?(?:granted|enabled|approved)[\s\S]{0,100}?(?:app|installation|configuration)|(?:app update|reinstall|re-install)[\s\S]{0,100}?(?:completed|complete|succeeded|successful)|(?:authenticated|runtime|endpoint|request)[\s\S]{0,100}?(?:2\d\d|succeeded|successful)/i.test(permissionEvidence);
+    const claimsElevationAsGrant = /auth\s*\.\s*elevate|\belevate\b/i.test(permissionEvidence);
 
     if (
       !hostApiCheck
@@ -616,6 +619,15 @@ for (const recordPath of routeRecordPaths) {
         message: !hostApiCheck
           ? 'External-data dashboard is missing hostApiCheck. Record host support, exact scopes, granted-permission evidence, and capability status before implementation.'
           : `Host/API contract is not verified. Missing fields: ${missingHostFields.join(', ') || 'none'}; permissionStatus and capabilityStatus must both be "verified" before implementation.`,
+      });
+    }
+
+    if (permissionVerified && (!hasGrantedPermissionEvidence || claimsElevationAsGrant)) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'HC-06',
+        message: 'permissionStatus is "verified" without evidence of an actual app grant plus completed installation/update, or a successful authenticated runtime request. Documentation, installed packages, and auth.elevate() are not grant evidence.',
       });
     }
 
@@ -641,6 +653,18 @@ for (const recordPath of routeRecordPaths) {
         line: 1,
         rule: 'HC-05',
         message: 'Regular Wix site-page inventory is routed through an unverified sitemap/scraping fallback. Use a documented page-list API or mark the capability blocked; do not declare the dashboard ready.',
+      });
+    }
+
+    if (
+      /site[- ]?page|page inventory|list (?:all )?pages/i.test(String(hostApiCheck?.requiredCapability ?? ''))
+      && /@wix\/site-site[\s\S]*getSiteStructure|getSiteStructure[\s\S]*@wix\/site-site/i.test(hostText)
+    ) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'HC-05',
+        message: 'Regular Wix site-page inventory is routed through @wix/site-site getSiteStructure. Do not treat a Dashboard or backend route as support for a Site-only method; mark the capability blocked unless exact host support is verified.',
       });
     }
   }
@@ -1033,14 +1057,14 @@ for (const filePath of files) {
 
   if (
     /from\s+['"]@wix\/site-site['"]/.test(content)
-    && /\b(?:site\s*\.\s*)?getSiteStructure\s*\(/.test(content)
+    && /\bgetSiteStructure\s*\(/.test(content)
   ) {
     report(
       filePath,
       content,
       'HC-01',
-      /\b(?:site\s*\.\s*)?getSiteStructure\s*\(/,
-      'Dashboard code calls @wix/site-site getSiteStructure without verified Dashboard-host support. Apply the Host And API Compatibility gate and use only an API whose exact method documentation supports the selected execution host.',
+      /\bgetSiteStructure\s*\(/,
+      'Dashboard or backend code calls @wix/site-site getSiteStructure without verified host support. A backend route does not make a Site-only method supported; apply the Host And API Compatibility gate and use only an API whose exact method documentation supports the selected execution host.',
     );
   }
 

@@ -25,6 +25,7 @@ const badModalRoot = path.join(root, 'bad-modal');
 const viewerRoot = path.join(root, 'viewer');
 const goodRoot = path.join(root, 'good');
 const goodHostRoot = path.join(root, 'good-host');
+const weakPermissionRoot = path.join(root, 'weak-permission');
 const autoRoot = path.join(root, 'auto');
 const hybridRoot = path.join(root, 'hybrid');
 fs.mkdirSync(badRoot);
@@ -43,6 +44,7 @@ fs.mkdirSync(badModalRoot);
 fs.mkdirSync(viewerRoot);
 fs.mkdirSync(goodRoot);
 fs.mkdirSync(goodHostRoot);
+fs.mkdirSync(weakPermissionRoot);
 fs.mkdirSync(autoRoot);
 fs.mkdirSync(hybridRoot);
 
@@ -166,11 +168,11 @@ export default function CapacityPlanner() {
   write(
     badRoot,
     'BrokenHostApi.tsx',
-    `import { site } from '@wix/site-site';
+    `import { site as siteSite } from '@wix/site-site';
 export default function BrokenHostApi() {
   async function loadPages() {
     try {
-      const structure = await site.getSiteStructure();
+      const structure = await siteSite.getSiteStructure();
       const publicUrl = window.location.origin.replace('www.wix.com', 'www.wixsite.com');
       return { structure, publicUrl };
     } catch (error) {
@@ -198,12 +200,35 @@ export default function BrokenHostApi() {
         hostEvidence: 'Installed service schema',
         requiredScopes: ['SCOPE.EXAMPLE.READ'],
         permissionStatus: 'verified',
-        permissionEvidence: 'Granted app permissions inspected before implementation',
+        permissionEvidence: 'App permission configuration confirms SCOPE.EXAMPLE.READ is granted and the development installation update completed.',
         capabilityStatus: 'verified',
         canonicalUrlSource: 'Verified service response',
       },
     }),
   );
+
+  write(
+    weakPermissionRoot,
+    '.dashboard-route.json',
+    JSON.stringify({
+      route: 'custom-table',
+      sourceCount: 2,
+      sources: ['External source A', 'External source B'],
+      fallbackCategory: 'external-data',
+      hostApiCheck: {
+        executionHost: 'Dashboard Page',
+        requiredCapability: 'Read approved business records',
+        selectedApi: '@wix/example approvedMethod',
+        hostEvidence: 'Exact method documentation lists Dashboard Page support.',
+        requiredScopes: ['SCOPE.EXAMPLE.READ'],
+        permissionStatus: 'verified',
+        permissionEvidence: 'The scope is listed in the package documentation and auth.elevate() is used.',
+        capabilityStatus: 'verified',
+        canonicalUrlSource: 'not applicable',
+      },
+    }),
+  );
+  write(weakPermissionRoot, 'Dashboard.tsx', 'export default function Dashboard() { return null; }');
   write(
     goodHostRoot,
     'VerifiedHostApi.tsx',
@@ -981,6 +1006,18 @@ export default function SubscriptionHealth() {
   if (goodHost.status !== 0) {
     console.error('Dashboard audit self-test rejected a verified host service that preserves its runtime error.');
     console.error(`${goodHost.stdout}\n${goodHost.stderr}`.trim());
+    process.exit(1);
+  }
+
+  const weakPermission = spawnSync(
+    process.execPath,
+    [auditPath, weakPermissionRoot],
+    { encoding: 'utf8' },
+  );
+  const weakPermissionOutput = `${weakPermission.stdout}\n${weakPermission.stderr}`;
+  if (weakPermission.status === 0 || !weakPermissionOutput.includes('HC-06')) {
+    console.error('Dashboard audit self-test accepted weak permission evidence as a verified grant.');
+    console.error(weakPermissionOutput.trim());
     process.exit(1);
   }
 
