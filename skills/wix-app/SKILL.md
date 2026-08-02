@@ -11,27 +11,27 @@ The Wix CLI owns scaffolding. This skill classifies the request, selects one exe
 
 ## Core Workflow
 
-1. Classify the extension and count physical data sources before interpreting workflow complexity.
+1. Classify the extension, then resolve each requested data system through [DATA_FOUNDATION.md](references/DATA_FOUNDATION.md) before interpreting workflow complexity. Count the CMS collection interfaces that the dashboard will actually manage, not API calls or query branches.
 2. Read one selected extension guide. Do not open a general dashboard guide before checking the dashboard fast path below.
 3. Scaffold with the CLI. Custom and hybrid dashboards then save `.dashboard-route.json` and pass the route-only audit before loading WDS documentation or implementing UI. Standard Auto Patterns pages use `patterns.json`; they do not create a route record or run route-only audit.
 4. Read only the exact API/component documentation named by the accepted route. Before importing an SDK or host module, identify its execution host, confirm the method supports that host, and verify every required app scope is granted. Call an available permission tool as soon as scopes are known and before writing permission evidence; `recorded` requests setup but does not prove the app or installation grants access. `auth.elevate()` changes identity; it never grants a missing scope. TypeScript compatibility is not runtime evidence. Then implement only in generated files.
 5. Validate with the checks available in the current environment before reporting completion.
 
-For non-dashboard extensions, read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. Dashboard quality and runtime gates live in the dashboard workflow guide. Do not claim completion after a build alone.
+For non-dashboard extensions, read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. Every record-oriented dashboard also follows [DASHBOARD_WORKFLOW.md](references/DASHBOARD_WORKFLOW.md): Understand establishes context, then the operational experience must support Focus, Investigate, Act, and Verify. Do not claim completion after a build alone.
 
 ## Dashboard Route
 
 Use this fast path before opening any dashboard reference:
 
-- Existing page with `patterns.json`, or a new manager backed by one physical CMS collection: read [AUTO_PATTERNS_DASHBOARD.md](references/AUTO_PATTERNS_DASHBOARD.md) directly. A filtered queue, exception list, review workset, saved subset, bulk transition, or contextual record surface over that collection is still a one-collection manager. Do not read the general dashboard router unless the Auto Patterns guide identifies a custom or analytical region that needs it.
-- Multi-source, external-data, primarily analytical, or genuinely unsupported custom dashboard: read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md).
+- Existing page with `patterns.json`, or a new manager backed by exactly one resolved CMS collection interface: read [AUTO_PATTERNS_DASHBOARD.md](references/AUTO_PATTERNS_DASHBOARD.md) directly. The collection may be native CMS, a Wix App Collection, an external database collection exposed by an adaptor, or an app-owned collection. A filtered queue, exception list, review workset, saved subset, bulk transition, or contextual record surface over that collection is still a one-collection manager.
+- Multiple resolved collections, a true join, a primarily analytical page without a record collection, or a genuinely unsupported non-table region: read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). An API response is not permission to bypass collection resolution or rebuild a one-source table.
 - Ambiguous source count or page ownership: inspect the project and data model first, then choose one of the two routes above.
 
 The Auto Patterns guide routes to its focused capability references. Read only the capability reference needed by the requested workflow. The selected route owns behavior and acceptance criteria; exact extension, SDK, Auto Patterns, and WDS references own APIs.
 
 ## Auto Patterns Extension And Fallback Gate
 
-Auto Patterns is the mandatory first route for a new one-collection manager. Search, filters, derived worksets, bulk selection or transitions, row actions, contextual SidePanel, Dashboard Modal, and structured input flows do not make the table custom by themselves. Only when a table capability is absent from its documented configuration or override path may the agent record it as unsupported and replace the collection table.
+Auto Patterns is mandatory for every new manager backed by exactly one resolved CMS collection interface. Search, filters, derived worksets, bulk selection or transitions, row actions, contextual SidePanel, Dashboard Modal, and structured input flows do not make the table custom. Do not replace that table with custom WDS by asserting that the original source was an API or that a derived field is required.
 
 ## Extension Directory
 
@@ -56,12 +56,13 @@ For every CLI-supported extension except Backend API, use `npx wix generate --pa
 
 | Source | Action |
 | --- | --- |
-| Existing site CMS collection | Resolve and use it; do not create app-owned storage. |
-| New app-owned data | Create a Data Collection extension and obtain the namespace. |
-| Wix business data or external API | Read its exact API; create CMS storage only for explicit app-owned persistence. |
-| Unknown | Inspect context or ask one targeted question. |
+| Existing site CMS collection | Resolve its ID, schema, permissions, and capabilities; use it directly. |
+| Wix business application data | Resolve the corresponding Wix App Collection and inspect it through Wix Data. Do not copy it merely to populate a dashboard table. |
+| Connected external database | Resolve the collection exposed by the installed adaptor and inspect its supported operations. Do not call the external API directly for a one-source table. |
+| New app-owned operational data | Create a Data Collection extension and obtain the namespace. Derived copies require an explicit synchronization and ownership contract. |
+| No supported collection interface | Mark the data foundation blocked. Do not fabricate a driver, insert sample data, or silently fall back to a custom table. |
 
-For a one-collection Auto Patterns page, use [DATA_COLLECTION.md](references/DATA_COLLECTION.md) for app-owned schema and the selected Auto Patterns guide for the page. For custom joins or multi-source dashboard operations, use the Data Model and Operations section of [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). A reference field defines schema only; separately plan population and missing-reference behavior.
+Use [DATA_FOUNDATION.md](references/DATA_FOUNDATION.md) for source resolution. Use [DATA_COLLECTION.md](references/DATA_COLLECTION.md) only when the app truly owns the collection schema. For custom joins or multi-source operations, use the Data Model and Operations section of [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). A reference field defines schema only; separately plan population and missing-reference behavior.
 For namespace and code-identifier retrieval, use [APP_IDENTIFIERS.md](references/APP_IDENTIFIERS.md).
 
 ## Documentation Discipline

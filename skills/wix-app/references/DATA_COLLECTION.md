@@ -1,6 +1,8 @@
 
 # Wix Data Collection Builder
 
+Use this guide only when the app owns the records or an explicitly maintained operational projection. First resolve existing native CMS, Wix App Collection, and external database collection options through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). A Data Collections Extension is app-owned storage, not a generic database driver or a shortcut for copying Wix business data.
+
 Creates CMS data collections for Wix CLI apps. The data collections extension allows your app to automatically create CMS collections when it's installed on a site. Collections store structured data that can be accessed from dashboard pages, site pages, backend code, and external applications.
 
 **Important:** This extension automatically enables the site's code editor, which is required for the Wix Data APIs to work. Without this extension, apps using Data APIs would need the Wix user to manually enable the code editor on their site, which isn't guaranteed. With the data collections extension, your app can reliably use Data APIs to read and write data in the collections.

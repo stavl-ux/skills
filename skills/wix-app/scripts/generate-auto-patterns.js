@@ -31,12 +31,20 @@
  *     "gridItem": null | { "titleFieldId": "...", ... }
  *   },
  *   "relevantCollectionId": "my-namespace/additional-fees",
- *   "extensionName": "Additional Fees Manager"
+ *   "extensionName": "Additional Fees Manager",
+ *   "dataFoundation": {
+ *     "system": "app-owned",
+ *     "mechanism": "data-collection-extension",
+ *     "collectionId": "my-namespace/additional-fees",
+ *     "schemaStatus": "verified",
+ *     "freshness": "source-managed",
+ *     "capabilities": { "read": true, "insert": true, "update": true, "remove": true }
+ *   },
+ *   "workflow": { "focus": {...}, "investigate": {...}, "actions": [...], "verify": {...} }
  * }
  *
  * Output:
- *   Writes patterns.json and <folder>.tsx to the specified output directory.
- *   Prints JSON result to stdout: { "files": ["patterns.json", "<folder>.tsx"] }
+ *   Writes patterns.json, dashboard-contract.json, and <folder>.tsx to the specified output directory.
  *
  * Exit codes:
  *   0 - Success
@@ -85,12 +93,25 @@ Input JSON shape:
       "gridItem": null | { "titleFieldId": "string", ... }
     },
     "relevantCollectionId": "string",
-    "extensionName": "string"
+    "extensionName": "string",
+    "dataFoundation": {
+      "system": "string",
+      "mechanism": "native-cms | wix-app-collection | external-database-adaptor | data-collection-extension",
+      "collectionId": "string",
+      "schemaStatus": "verified",
+      "freshness": "string",
+      "capabilities": { "read": true, "insert": false, "update": false, "remove": false }
+    },
+    "workflow": {
+      "focus": { "defaultWorkset": "string", "controls": [] },
+      "investigate": { "required": true, "surface": "entity-page", "identityField": "string" },
+      "actions": [{ "id": "string", "kind": "mutation | owning-app-navigation", "target": "string" }],
+      "verify": { "postcondition": "string", "refresh": ["collection"] }
+    }
   }
 
 Output:
-  Writes patterns.json and <folder>.tsx to the output directory.
-  Prints JSON to stdout: { "files": ["patterns.json", "<folder>.tsx"] }`);
+  Writes patterns.json, dashboard-contract.json, and <folder>.tsx to the output directory.`);
   process.exit(0);
 }
 
@@ -220,7 +241,7 @@ if (validateConfigPath) {
 let input;
 input = readJsonFile(inputPath, 'input file');
 
-const { collection, schema, relevantCollectionId } = input;
+const { collection, schema, relevantCollectionId, dataFoundation, workflow } = input;
 
 if (!collection || !collection.idSuffix || !Array.isArray(collection.fields)) {
   console.error(
@@ -240,11 +261,64 @@ if (
   process.exit(1);
 }
 
+const allowedMechanisms = new Set([
+  'native-cms',
+  'wix-app-collection',
+  'external-database-adaptor',
+  'data-collection-extension',
+]);
+const capabilities = dataFoundation?.capabilities;
+const invalidFoundation =
+  !dataFoundation
+  || typeof dataFoundation.system !== 'string'
+  || !allowedMechanisms.has(dataFoundation.mechanism)
+  || dataFoundation.collectionId !== relevantCollectionId
+  || dataFoundation.schemaStatus !== 'verified'
+  || typeof dataFoundation.freshness !== 'string'
+  || !dataFoundation.freshness.trim()
+  || !capabilities
+  || capabilities.read !== true
+  || ['insert', 'update', 'remove'].some((key) => typeof capabilities[key] !== 'boolean');
+if (invalidFoundation) {
+  console.error(
+    'Error: Input must include a verified dataFoundation whose collectionId matches relevantCollectionId and whose read/insert/update/remove capabilities are explicit.',
+  );
+  process.exit(1);
+}
+
+const invalidWorkflow =
+  !workflow
+  || typeof workflow.focus?.defaultWorkset !== 'string'
+  || workflow.investigate?.required !== true
+  || typeof workflow.investigate?.surface !== 'string'
+  || typeof workflow.investigate?.identityField !== 'string'
+  || !Array.isArray(workflow.actions)
+  || workflow.actions.length === 0
+  || workflow.actions.some(
+    (action) =>
+      typeof action?.id !== 'string'
+      || !['mutation', 'owning-app-navigation'].includes(action?.kind)
+      || typeof action?.target !== 'string'
+      || !action.target.trim(),
+  )
+  || typeof workflow.verify?.postcondition !== 'string'
+  || !Array.isArray(workflow.verify?.refresh)
+  || !workflow.verify.refresh.includes('collection');
+if (invalidWorkflow) {
+  console.error(
+    'Error: Input must include Focus, required Investigation, at least one real mutation or owning-app navigation action, and Verify with a collection refresh.',
+  );
+  process.exit(1);
+}
+
 // --- Generator logic (mirrors AutoPatternsGenerator.ts) ---
 
 function generatePatternsConfig(collection, schema) {
   const collectionRouteId = schema.content.collectionRouteId;
   const singularEntityName = schema.content.singularEntityName;
+  const canInsert = capabilities.insert;
+  const canUpdate = capabilities.update;
+  const canRemove = capabilities.remove;
 
   // Build field map
   const fieldMap = new Map();
@@ -404,7 +478,7 @@ function generatePatternsConfig(collection, schema) {
           subtitle: {
             text: schema.content.pageSubtitle || '',
           },
-          actions: {
+          ...(canInsert ? { actions: {
             primaryActions: {
               type: 'action',
               action: {
@@ -423,7 +497,7 @@ function generatePatternsConfig(collection, schema) {
                 },
               },
             },
-          },
+          } } : {}),
           components: [
             {
               type: 'collection',
@@ -444,12 +518,13 @@ function generatePatternsConfig(collection, schema) {
               emptyState: {
                 title: schema.content.emptyStateTitle,
                 subtitle: schema.content.emptyStateSubtitle,
-                addNewCta: {
+                ...(canInsert ? { addNewCta: {
                   id: `create-${collectionRouteId}`,
                   text: schema.content.emptyStateButtonText,
-                },
+                } } : {}),
               },
-              actionCell: {
+              ...((canUpdate || canRemove) ? { actionCell: {
+                ...(canUpdate ? {
                 primaryAction: {
                   item: {
                     id: `edit-${collectionRouteId}`,
@@ -459,7 +534,8 @@ function generatePatternsConfig(collection, schema) {
                       page: { id: `${collectionRouteId}-entity` },
                     },
                   },
-                },
+                } } : {}),
+                ...(canRemove ? {
                 secondaryActions: {
                   items: [
                     {
@@ -487,9 +563,9 @@ function generatePatternsConfig(collection, schema) {
                       },
                     },
                   ],
-                },
-              },
-              bulkActionToolbar: {
+                } } : {}),
+              } } : {}),
+              ...(canRemove ? { bulkActionToolbar: {
                 primaryActions: [
                   {
                     type: 'action',
@@ -522,7 +598,7 @@ function generatePatternsConfig(collection, schema) {
                     },
                   },
                 ],
-              },
+              } } : {}),
             },
           ],
         },
@@ -538,6 +614,7 @@ function generatePatternsConfig(collection, schema) {
           title: { text: schema.content.entityPageTitle || '' },
           subtitle: { text: schema.content.entityPageSubtitle },
           parentPageId: `${collectionRouteId}-collection`,
+          mode: canUpdate ? 'edit' : 'view',
           layout: generateEntityPageLayout(schema.layout),
           collectionId,
           entityTypeSource: 'cms',
@@ -588,6 +665,7 @@ try {
 const patternsConfig = generatePatternsConfig(collection, schema);
 exitOnConfigErrors(patternsConfig, collection.fields);
 const pageTsx = generatePageTsx();
+const dashboardContract = { dataFoundation, workflow };
 
 // The Wix CLI scaffolds the page component as `<folder>.tsx` and registers THAT
 // file in the generated `<folder>.extension.ts`. Write the auto-patterns wrapper
@@ -601,6 +679,10 @@ try {
     join(resolvedOutput, 'patterns.json'),
     JSON.stringify(patternsConfig, null, 2),
   );
+  writeFileSync(
+    join(resolvedOutput, 'dashboard-contract.json'),
+    JSON.stringify(dashboardContract, null, 2),
+  );
   writeFileSync(join(resolvedOutput, componentFileName), pageTsx);
 } catch (err) {
   console.error(`Error: Failed to write output files: ${err.message}`);
@@ -611,7 +693,7 @@ try {
 console.log(
   JSON.stringify({
     success: true,
-    files: ['patterns.json', componentFileName],
+    files: ['patterns.json', 'dashboard-contract.json', componentFileName],
     outputDir: resolvedOutput,
   }),
 );

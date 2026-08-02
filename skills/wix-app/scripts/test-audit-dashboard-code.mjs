@@ -30,6 +30,7 @@ const missingAnalyticsPermissionRoot = path.join(root, 'missing-analytics-permis
 const goodAnalyticsPermissionRoot = path.join(root, 'good-analytics-permission');
 const autoRoot = path.join(root, 'auto');
 const hybridRoot = path.join(root, 'hybrid');
+const codegen50Root = path.join(root, 'codegen-50-regression');
 fs.mkdirSync(badRoot);
 fs.mkdirSync(badAutoRoot);
 fs.mkdirSync(badAnalyticsRoot);
@@ -51,6 +52,7 @@ fs.mkdirSync(missingAnalyticsPermissionRoot);
 fs.mkdirSync(goodAnalyticsPermissionRoot);
 fs.mkdirSync(autoRoot);
 fs.mkdirSync(hybridRoot);
+fs.mkdirSync(codegen50Root);
 
 function write(directory, fileName, content) {
   fs.writeFileSync(path.join(directory, fileName), content);
@@ -251,7 +253,7 @@ export default function BrokenHostApi() {
     sourceCount: 1,
     sources: ['Wix Analytics Semantic Model API'],
     regionOwners: {
-      collection: 'custom-wds-table',
+      collection: null,
       metrics: null,
       chart: null,
       detail: null,
@@ -427,6 +429,65 @@ export const GET: APIRoute = async () => {
       metricContainmentOwner: 'component',
       metricLayoutOwner: 'Layout/Cell',
     }),
+  );
+
+  write(
+    codegen50Root,
+    '.dashboard-route.json',
+    JSON.stringify({
+      route: 'analytics',
+      sourceCount: 1,
+      sources: ['Wix Stores Products'],
+      regionOwners: {
+        collection: 'custom-wds-table',
+        metrics: null,
+        chart: null,
+        detail: null,
+      },
+      tableUnsupportedCapability: 'Product health flags are computed from a Stores API response.',
+      tableCheckedReference: 'AUTO_PATTERNS_DASHBOARD.md',
+      whyAutoPatternsTableCannotBeUsed: 'The source is a Stores API response rather than a CMS collection.',
+    }),
+  );
+  write(
+    codegen50Root,
+    'CatalogHealth.tsx',
+    `async function getCatalogVersion() {
+  try {
+    return await stores.getCatalogVersion();
+  } catch (error) {
+    return 'STORES_NOT_INSTALLED';
+  }
+}
+
+const products = apiProducts.map((product) => ({
+  id: product._id,
+  name: product.name,
+  productUrl: '',
+}));
+
+export default function CatalogHealth() {
+  const [selectedIds, setSelectedIds] = useState([]);
+  const handleViewProduct = useCallback((product) => {
+    if (product.productUrl) window.open(product.productUrl, '_blank');
+    else dashboard.showToast({ message: \`Product: \${product.name}\`, type: 'standard' });
+  }, []);
+  const loadSampleData = async () => {
+    await items.bulkInsert('catalog-health-issues', sampleProducts);
+  };
+
+  return <Table
+    data={products}
+    showSelection
+    selectedIds={selectedIds}
+    onSelectionChanged={setSelectedIds}
+    columns={[{ width: '82%' }, { width: '18%' }]}
+  >
+    <TableActionCell primaryAction={{ text: 'View Product', onClick: handleViewProduct }} />
+    <Table.Content />
+    <Table.EmptyState title="No product issues"><Button onClick={loadSampleData}>Load sample data</Button></Table.EmptyState>
+  </Table>;
+}`,
   );
 
   write(
@@ -1007,10 +1068,39 @@ export default function SubscriptionHealth() {
       route: 'custom-table-panel',
       sourceCount: 2,
       sources: ['Orders', 'Customers'],
+      resolvedCollections: [
+        {
+          system: 'orders',
+          mechanism: 'native-cms',
+          collectionId: 'orders',
+          schemaStatus: 'verified',
+          read: true,
+          write: true,
+          freshness: 'source-managed',
+        },
+        {
+          system: 'customers',
+          mechanism: 'wix-app-collection',
+          collectionId: 'customers',
+          schemaStatus: 'verified',
+          read: true,
+          write: false,
+          freshness: 'source-managed',
+        },
+      ],
       fallbackCategory: 'multi-source',
       secondary: 'SidePanel detail via row action',
       detailSurface: 'side-panel',
       detailSurfaceReason: 'Moderate detail while preserving table context',
+      workflow: {
+        focus: { defaultWorkset: 'Orders requiring assignment', controls: ['search', 'status'] },
+        investigate: { required: true, surface: 'side-panel', identityField: 'id' },
+        actions: [{ id: 'assign-orders', kind: 'mutation', target: 'bulkAssign' }],
+        verify: {
+          postcondition: 'Assigned orders are reloaded from the collection',
+          refresh: ['table', 'detail', 'selection'],
+        },
+      },
     }),
   );
   write(
@@ -1022,9 +1112,16 @@ export default function SubscriptionHealth() {
 export default function Dashboard() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
+  const openItem = (row) => setSelectedItem(row);
+  const bulkAssign = async (ids) => {
+    await updateAssignments(ids);
+    await reloadRows();
+    setSelectedIds([]);
+  };
   return <>
-    <Table showSelection selectedIds={selectedIds} onSelectionChanged={setSelectedIds} onRowClick={(row) => setSelectedItem(row)} isRowActive={(row) => row.id === selectedItem?.id} columns={[{ width: '82%' }, { width: '18%' }]}>
-      <TableActionCell primaryAction={{ text: 'View', onClick: () => {} }} />
+    <Button onClick={() => bulkAssign(selectedIds)}>Assign selected</Button>
+    <Table showSelection selectedIds={selectedIds} onSelectionChanged={setSelectedIds} onRowClick={openItem} isRowActive={(row) => row.id === selectedItem?.id} columns={[{ width: '82%' }, { width: '18%' }]}>
+      <TableActionCell primaryAction={{ text: 'View', onClick: openItem }} />
     </Table>
     <DashboardSidePanelHost>
       <SidePanel skin="floating">
@@ -1340,6 +1437,20 @@ export default function SubscriptionHealth() {
   if (badAnalytics.status === 0 || !badAnalyticsOutput.includes('RT-06')) {
     console.error('Dashboard audit self-test failed to reject analytics fallback that unnecessarily replaces an Auto Patterns table.');
     console.error(badAnalyticsOutput.trim());
+    process.exit(1);
+  }
+
+  const codegen50 = spawnSync(process.execPath, [auditPath, codegen50Root], { encoding: 'utf8' });
+  const codegen50Output = `${codegen50.stdout}\n${codegen50.stderr}`;
+  const missedCodegen50Rules = ['DF-01', 'DF-03', 'DF-04', 'WF-01', 'WF-02', 'WF-03', 'WF-04'].filter(
+    (rule) => !codegen50Output.includes(rule),
+  );
+  if (codegen50.status === 0 || missedCodegen50Rules.length) {
+    console.error('Dashboard audit self-test accepted the Codegen 50 catalog-health regression.');
+    if (missedCodegen50Rules.length) {
+      console.error(`Missing rules: ${missedCodegen50Rules.join(', ')}`);
+    }
+    console.error(codegen50Output.trim());
     process.exit(1);
   }
 

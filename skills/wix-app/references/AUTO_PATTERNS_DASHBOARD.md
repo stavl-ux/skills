@@ -10,7 +10,7 @@ Use this guide for new and existing one-collection management surfaces. It owns 
 
 ## Route And Workflow Contract
 
-Use this route for a new management surface backed by one CMS collection when Auto Patterns supports the complete physical page.
+Use this route for every new management surface backed by exactly one resolved CMS collection interface. The collection may be native CMS, a Wix App Collection, an external database collection exposed by an adaptor, or app-owned storage. Resolve it through [DATA_FOUNDATION.md](DATA_FOUNDATION.md), then apply [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md).
 
 ### Capability References
 
@@ -32,11 +32,11 @@ This file owns route evaluation, standard generation, permissions, and validatio
 ### Route Contract
 
 - **AP-01:** Mark each requested capability `supported`, `supported-via-override`, or `unsupported`, with the checked documentation target.
-- **AP-02:** Use Auto Patterns when the collection manager and every extension of its physical workflow have a documented configuration or override path. A contextual WDS `SidePanel` is supported-via-override when a documented row action sets the selected record and the panel is an `AutoPatternsApp` child with AppContext/refresh access. A Dashboard Modal is supported as a bounded action launched through the dashboard API. A KPI or chart may be supported-via-override when a documented header, section, slot, or child-component path owns its placement. Unsupported analytics behavior changes only that region's implementation; it does not transfer collection-table ownership.
+- **AP-02:** Use Auto Patterns for the resolved one-collection manager and every extension of its physical workflow. A contextual WDS `SidePanel` is supported-via-override when a documented row action sets the selected record and the panel is an `AutoPatternsApp` child with AppContext/refresh access. A Dashboard Modal is supported as a bounded action launched through the dashboard API. A KPI or chart may be supported-via-override when a documented header, section, slot, or child-component path owns its placement. Unsupported analytics behavior changes only that region's implementation; it does not transfer collection-table ownership. API origin and computed fields never transfer table ownership.
 - **AP-03:** A Table/Grid switch, row action, derived display, or named workset is not automatically unsupported. Check its focused reference before falling back; record that exact file in the capability decision.
 - **AP-04:** Auto Patterns documents Table and Grid. Do not promise the native CMS layout menu, List layout, custom layout labels, or a configurable initial layout unless the installed docs explicitly support them.
 - **AP-05:** Do not use a custom WDS dashboard route until this evaluation records the first `unsupported` capability. A new one-collection manager stays on this route when every requested capability is `supported` or `supported-via-override`.
-- **AP-06:** Keep one physical collection classified as one source even when the workflow is described as an exception queue, review workset, alert list, or saved subset, or uses OR conditions, elapsed-time rules, comparisons, bulk transitions, or contextual record detail. Materialize operational state as maintained fields such as `needsAttention`, `exceptionType`, `exceptionSince`, and `isReviewed`, then configure filters/Views and documented actions against those fields. Do not rebuild the table to express query logic or attach a supplemental surface.
+- **AP-06:** Keep one resolved collection classified as one collection even when the workflow is described as an exception queue, review workset, alert list, or saved subset, or uses OR conditions, elapsed-time rules, comparisons, bulk transitions, or contextual record detail. Materialize operational state as maintained fields such as `needsAttention`, `exceptionType`, `exceptionSince`, and `isReviewed`, then configure filters/Views and documented actions against those fields. Do not rebuild the table to express query logic or attach a supplemental surface.
 - **AP-12:** When an app-owned collection grants the intended collaborator `itemUpdate: CMS_EDITOR`, its management workflow must include an edit entity page or paired view/edit pages. A custom transition action does not satisfy general editing.
 - **AP-13:** Preserve operational field semantics across collection and detail surfaces. When a field communicates status, risk, priority, or required attention and appears as a badge in entity detail, render that same field with a documented custom-column badge in the collection Table/Grid when it is shown there. Reuse one label-to-skin mapping. Do not badge descriptive text or ordinary categories merely for decoration.
 - **AP-14:** Model bounded values before generating the collection. Use `TEXT` for one controlled value, `ARRAY_STRING` for zero-to-many controlled values, and `BOOLEAN` for binary state; use references instead when the options are managed records. Reuse one canonical value contract across schema, sample data, filters, forms, validation, and badges.
@@ -70,7 +70,7 @@ Before generation, make one compact workflow decision table:
 
 | Decision | Required answer |
 | --- | --- |
-| Data ownership | App-owned, site-owned, Wix business data, or external |
+| Data foundation | Original system, access mechanism, exact resolved collection ID, schema status, identity, capabilities, permissions, freshness, and write owner |
 | Audience capabilities | `itemRead`, `itemInsert`, `itemUpdate`, and `itemRemove` available to the intended user |
 | Primary job | The one action that resolves or advances the user's main operational task |
 | Mutability | Which fields and transitions this user may change |
@@ -95,11 +95,11 @@ Configure the documented Auto Patterns Table/Grid layouts and action override. D
 
 ### Build Contract
 
-1. Reuse a verified collection or create the required app-owned Data Collection and obtain its namespace.
-2. Define schema, permissions, references, operational derived fields, indexes, initial data, and missing-reference behavior before page generation.
+1. Resolve a verified native, Wix App, external-adaptor, or app-owned collection through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
+2. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
 3. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
 4. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
-5. When the prompt asks for representative data, create 3-5 realistic records and verify the collection and dashboard show the same items.
+5. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
 6. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
 7. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
 
@@ -116,7 +116,7 @@ Configure the documented Auto Patterns Table/Grid layouts and action override. D
 - The collection, schema, permissions, and representative records exist as planned.
 - The generated page uses `patterns.json` and the documented page lifecycle.
 - Table/Grid, Saved Views, actions, create/edit/delete flows, and overrides behave as requested.
-- Individual, bulk, and detail-surface actions form one coherent workflow and follow the managed entity lifecycle.
+- Focus, Investigate, Act, and Verify form one coherent workflow and follow the managed entity lifecycle. Every record has real drill-in; every visible action has a real effect; every mutation refreshes canonical state before success feedback.
 - Loading, empty, no-results, error, and populated states are intentional.
 - Browser, console, network, and persistence checks pass.
 - The registered dashboard page opens, its loader settles, and a build-only success is not reported as runtime success.
@@ -222,14 +222,15 @@ The CLI generates the page folder, the component stub `<page-name>.tsx`, the bui
 src/extensions/dashboard/pages/<page-name>/
 ├── <page-name>.extension.ts   # Builder file (generated — registration + UUID, component → <page-name>.tsx)
 ├── <page-name>.tsx            # CLI component stub (overwritten in Step 3)
-└── patterns.json              # Declarative AppConfig — added in Step 3, edit this to iterate
+├── patterns.json              # Declarative AppConfig — added in Step 3, edit this to iterate
+└── dashboard-contract.json    # Verified data foundation and operational workflow
 ```
 
 > **Why this matters for Step 3:** the generator writes the auto-patterns wrapper to `<page-name>.tsx` — the SAME file the builder already registers — so it overwrites the stub and is wired up automatically. Do NOT let it produce a separate `page.tsx`; that would leave the wrapper unregistered next to the empty stub, and the dashboard would render blank.
 
 #### Step 2: Generate the Schema
 
-You must produce the input JSON for the generator script. Top-level keys: `collection`, `schema`, `relevantCollectionId`, `extensionName`.
+You must produce the input JSON for the generator script. Top-level keys: `collection`, `schema`, `relevantCollectionId`, `extensionName`, `dataFoundation`, and `workflow`.
 
 **`collection`** (from the data collection you scaffolded):
 
@@ -237,6 +238,10 @@ You must produce the input JSON for the generator script. Top-level keys: `colle
 - `fields` — array of `{ key, displayName, type }` (types: TEXT, NUMBER, BOOLEAN, DATE, IMAGE, URL, RICH_TEXT, etc.)
 
 **`relevantCollectionId`** (top-level, sibling to `collection` and `schema`) — full scoped collection ID (e.g., `@namespace/my-collection`)
+
+**`dataFoundation`** — the verified source-resolution contract from [DATA_FOUNDATION.md](DATA_FOUNDATION.md). `collectionId` must equal `relevantCollectionId`; `mechanism` is `native-cms`, `wix-app-collection`, `external-database-adaptor`, or `data-collection-extension`; `schemaStatus` is `verified`; and `capabilities` explicitly declares boolean `read`, `insert`, `update`, and `remove`. The generator suppresses create, edit, delete, and bulk-delete UI that the collection cannot perform.
+
+**`workflow`** — the [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) contract. It must define a Focus workset, required Investigation surface and identity field, at least one real `mutation` or `owning-app-navigation` action, and Verify with a canonical `collection` refresh. Add the documented action override for owning-app navigation; do not replace it with a toast.
 
 **`schema.content`** — 20 string fields you generate:
 
@@ -355,7 +360,21 @@ cat > /tmp/auto-patterns-input.json << 'EOF'
     "gridItem": null
   },
   "relevantCollectionId": "@<namespace>/<collection-id>",
-  "extensionName": "<Extension Name>"
+  "extensionName": "<Extension Name>",
+  "dataFoundation": {
+    "system": "<native CMS, Wix business app, external database, or app-owned>",
+    "mechanism": "<native-cms | wix-app-collection | external-database-adaptor | data-collection-extension>",
+    "collectionId": "@<namespace>/<collection-id>",
+    "schemaStatus": "verified",
+    "freshness": "<verified freshness>",
+    "capabilities": { "read": true, "insert": false, "update": false, "remove": false }
+  },
+  "workflow": {
+    "focus": { "defaultWorkset": "<default workset>", "controls": ["search", "filter"] },
+    "investigate": { "required": true, "surface": "entity-page", "identityField": "_id" },
+    "actions": [{ "id": "<action-id>", "kind": "owning-app-navigation", "target": "<verified record target>" }],
+    "verify": { "postcondition": "<observable result>", "refresh": ["collection", "views", "selection"] }
+  }
 }
 EOF
 
@@ -368,6 +387,7 @@ The `--output` directory MUST be the exact folder the CLI scaffolded in Step 1 �
 The script produces:
 
 - `patterns.json` — The declarative AppConfig
+- `dashboard-contract.json` — The data-foundation and Focus → Investigate → Act → Verify contract used by the audit
 - `<page-name>.tsx` — Thin React wrapper component, written to the SAME filename the CLI scaffolded and the builder already registers (overwrites the stub)
 
 The builder file (`<page-name>.extension.ts`) and `src/extensions.ts` registration from Step 1 stay as-is — no manual registration edit, and no stray `page.tsx`.

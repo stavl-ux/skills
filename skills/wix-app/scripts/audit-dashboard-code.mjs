@@ -507,7 +507,7 @@ for (const recordPath of routeRecordPaths) {
       filePath: recordPath,
       line: 1,
       rule: 'RT-02',
-      message: 'sourceCount must be a non-negative integer counting physical collections or systems.',
+      message: 'sourceCount must be a non-negative integer counting resolved collection interfaces or non-record analytical systems.',
     });
   }
   if (!Array.isArray(record.sources) || record.sources.length !== record.sourceCount) {
@@ -517,6 +517,95 @@ for (const recordPath of routeRecordPaths) {
       rule: 'RT-02',
       message: 'sources must list each physical source exactly once and match sourceCount.',
     });
+  }
+
+  const collectionOwner = record.regionOwners?.collection
+    ?? (['custom-table', 'custom-table-panel'].includes(record.route)
+      ? 'custom-wds-table'
+      : null);
+  const hasCustomRecordSurface =
+    collectionOwner === 'custom-wds-table'
+    && (routeOnly || /<Table\b/.test(projectSource));
+
+  if (hasCustomRecordSurface && record.sourceCount === 1) {
+    findings.push({
+      filePath: recordPath,
+      line: 1,
+      rule: 'DF-01',
+      message: 'A one-source record table must resolve the source to one CMS collection interface and use Auto Patterns. API origin, computed flags, filters, and neighboring analytics do not justify a custom WDS table.',
+    });
+  }
+
+  if (hasCustomRecordSurface) {
+    const resolvedCollections = record.resolvedCollections;
+    const invalidResolvedCollection = !Array.isArray(resolvedCollections)
+      || resolvedCollections.length !== record.sourceCount
+      || resolvedCollections.some((collection) =>
+        !collection
+        || typeof collection.system !== 'string'
+        || !['native-cms', 'wix-app-collection', 'external-database-adaptor', 'data-collection-extension'].includes(collection.mechanism)
+        || typeof collection.collectionId !== 'string'
+        || !collection.collectionId.trim()
+        || collection.schemaStatus !== 'verified'
+        || collection.read !== true
+        || typeof collection.write !== 'boolean'
+        || typeof collection.freshness !== 'string'
+        || !collection.freshness.trim(),
+      );
+    if (invalidResolvedCollection) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'DF-02',
+        message: 'Custom record tables must list every resolved CMS collection with verified mechanism, collection ID, schema, read/write capability, and freshness. If no supported collection interface exists, mark the data foundation blocked.',
+      });
+    }
+
+    const workflow = record.workflow;
+    const invalidInvestigation =
+      typeof workflow?.focus?.defaultWorkset !== 'string'
+      || workflow?.investigate?.required !== true
+      || typeof workflow?.investigate?.surface !== 'string'
+      || typeof workflow?.investigate?.identityField !== 'string';
+    if (invalidInvestigation) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'WF-01',
+        message: 'Custom record tables must declare a Focus workset and required Investigation surface with stable identity in workflow.',
+      });
+    }
+
+    const invalidActions =
+      !Array.isArray(workflow?.actions)
+      || workflow.actions.length === 0
+      || workflow.actions.some((action) =>
+        typeof action?.id !== 'string'
+        || !['mutation', 'owning-app-navigation'].includes(action?.kind)
+        || typeof action?.target !== 'string'
+        || !action.target.trim(),
+      );
+    if (invalidActions) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'WF-02',
+        message: 'Custom record tables must declare at least one real mutation or owning-app navigation action. Toasts and local-only callbacks are not actions.',
+      });
+    }
+
+    if (
+      typeof workflow?.verify?.postcondition !== 'string'
+      || !Array.isArray(workflow?.verify?.refresh)
+      || workflow.verify.refresh.length === 0
+    ) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'WF-04',
+        message: 'Custom record tables must declare an observable postcondition and every surface refreshed after action success.',
+      });
+    }
   }
 
   const isAutoPatterns = ['auto-patterns', 'auto-patterns-change'].includes(record.route);
@@ -541,22 +630,12 @@ for (const recordPath of routeRecordPaths) {
 
   const isCustomCollectionSurface = ['custom-table', 'custom-table-panel'].includes(record.route);
   if (isCustomCollectionSurface && record.sourceCount === 1) {
-    const requiredEvidence = [
-      'firstUnsupportedCapability',
-      'checkedReference',
-      'whyDataAdaptationCannotSolve',
-    ];
-    const missingEvidence = requiredEvidence.filter(
-      (key) => typeof record[key] !== 'string' || !record[key].trim(),
-    );
-    if (record.fallbackCategory !== 'unsupported-presentation' || missingEvidence.length) {
-      findings.push({
-        filePath: recordPath,
-        line: 1,
-        rule: 'RT-04',
-        message: `One-source custom table requires fallbackCategory "unsupported-presentation" and evidence fields: ${requiredEvidence.join(', ')}.`,
-      });
-    }
+    findings.push({
+      filePath: recordPath,
+      line: 1,
+      rule: 'RT-04',
+      message: 'A one-source custom table is no longer a supported fallback. Resolve the source to a CMS collection interface and use Auto Patterns, or mark the data foundation blocked.',
+    });
 
     const fallbackText = [
       record.firstUnsupportedCapability,
@@ -770,18 +849,12 @@ for (const recordPath of routeRecordPaths) {
       }
 
       if (usesCustomWdsTable) {
-        if (
-          collectionOwner !== 'custom-wds-table'
-          || missingTableEvidence.length
-          || regionalOnlyTableEvidence
-        ) {
-          findings.push({
-            filePath: recordPath,
-            line: 1,
-            rule: 'RT-06',
-            message: `A one-source analytics page may use a custom WDS table only when regionOwners.collection is "custom-wds-table" and table-specific evidence is recorded: ${requiredTableEvidence.join(', ')}. Chart or metric fallback evidence does not transfer table ownership.`,
-          });
-        }
+        findings.push({
+          filePath: recordPath,
+          line: 1,
+          rule: 'RT-06',
+          message: 'A one-source analytics page may not replace its collection region with a custom WDS table. Resolve one collection and use Auto Patterns; keep custom analytics in supplemental regions.',
+        });
       }
     }
   }
@@ -821,6 +894,51 @@ if (routeOnly) {
   }
   console.log(`Dashboard route preflight passed: ${routeRecordPaths.length} route record checked.`);
   process.exit(0);
+}
+
+const customRecordRoute = routeRecords.find(({ record }) => {
+  const owner = record.regionOwners?.collection
+    ?? (['custom-table', 'custom-table-panel'].includes(record.route) ? 'custom-wds-table' : null);
+  return owner === 'custom-wds-table';
+});
+if (customRecordRoute && /<Table\b/.test(projectSource)) {
+  const surface = customRecordRoute.record.detailSurface;
+  const validSurface = ['side-panel', 'modal', 'entity-page'].includes(surface);
+  const surfaceExists =
+    (surface === 'side-panel' && projectHasSidePanel)
+    || (surface === 'modal' && /\bopenModal\s*\(/.test(projectSource))
+    || (surface === 'entity-page' && (hasEntityPagePattern || /\b(?:navigate|window\.open)\s*\(/.test(projectSource)));
+  if (!validSurface || !surfaceExists) {
+    findings.push({
+      filePath: customRecordRoute.path,
+      line: 1,
+      rule: 'WF-01',
+      message: 'Every populated custom record table must declare and implement a SidePanel, Modal, entity page, or verified owning-record navigation for investigation.',
+    });
+  }
+}
+
+if (
+  /catch\s*(?:\([^)]*\))?\s*\{[\s\S]{0,1000}?(?:STORES_NOT_INSTALLED|APP_NOT_INSTALLED)[\s\S]{0,300}?\}/i.test(projectSource)
+) {
+  findings.push({
+    filePath: files[0],
+    line: 1,
+    rule: 'DF-03',
+    message: 'A catch-all maps every runtime failure to an app-not-installed state. Preserve and classify permission, schema, transport, and installation failures separately.',
+  });
+}
+
+if (
+  /load sample data|use sample data|seed sample/i.test(projectSource)
+  && /\b(?:bulkInsert|insert|save)\s*\(/.test(projectSource)
+) {
+  findings.push({
+    filePath: files[0],
+    line: 1,
+    rule: 'DF-04',
+    message: 'Live dashboard code offers to insert sample records into an operational collection. Keep fixtures in an explicit development-only path and preserve honest unavailable-data states.',
+  });
 }
 
 function escapeRegExp(value) {
@@ -1297,6 +1415,77 @@ for (const filePath of files) {
   );
 
   if (/<Table\b/.test(content)) {
+    const hasSelection = /\bshowSelection(?:=|\b)/.test(content);
+    const selectedIdsFeedBulkAction = /\b(?:bulk|assign|resolve|delete|remove|export|send|archive|update)[A-Za-z0-9_$]*\s*\(\s*(?:selected[A-Za-z0-9_$]*|[A-Za-z_$][\w$]*Ids)\b/.test(content);
+    if (hasSelection && !selectedIdsFeedBulkAction) {
+      addFinding(
+        filePath,
+        content,
+        content.search(/\bshowSelection/),
+        'WF-03',
+        'Table selection is enabled without a real bulk operation that consumes the selected stable IDs.',
+      );
+    }
+
+    if (/<TableActionCell\b[\s\S]{0,800}?\bonClick\s*:\s*\(?(?:[^)=]*)\)?\s*=>\s*\{\s*\}/.test(content)) {
+      addFinding(
+        filePath,
+        content,
+        content.indexOf('<TableActionCell'),
+        'WF-02',
+        'TableActionCell exposes an empty callback. Implement the labeled operation or remove the action.',
+      );
+    }
+
+    const hasToastAction = /\bshowToast\s*\(/.test(content) && /<TableActionCell\b/.test(content);
+    const hasRealActionEffect = /\b(?:window\.open|openModal|navigate|setSelected[A-Za-z0-9_$]*|await\s+(?:[A-Za-z_$][\w$]*\.)*(?:bulk)?(?:update|insert|remove|delete|assign|resolve)[A-Za-z0-9_$]*\s*\()/.test(content);
+    if (hasToastAction && !hasRealActionEffect) {
+      addFinding(
+        filePath,
+        content,
+        content.search(/\bshowToast\s*\(/),
+        'WF-02',
+        'Visible table action only displays a toast. Toasts may report a real outcome but cannot be the outcome.',
+      );
+    }
+
+    if (
+      hasToastAction
+      && /\b[A-Za-z_$][\w$]*(?:Url|URL|Href|Route)\s*:\s*['"]\s*['"]/.test(content)
+    ) {
+      addFinding(
+        filePath,
+        content,
+        content.search(/\b[A-Za-z_$][\w$]*(?:Url|URL|Href|Route)\s*:\s*['"]\s*['"]/),
+        'WF-02',
+        'Investigation or navigation target is explicitly blank and falls back to feedback. Resolve a stable record destination or remove the action.',
+      );
+    }
+
+    const hasAwaitedMutation = /\bawait\s+(?:[A-Za-z_$][\w$]*\.)*(?:bulk)?(?:update|insert|remove|delete|assign|resolve)[A-Za-z0-9_$]*\s*\(/.test(content);
+    const refreshesCanonicalState = /\b(?:refreshCollection|reload[A-Za-z0-9_$]*|refetch[A-Za-z0-9_$]*|load(?:Rows|Data|Items)|invalidate[A-Za-z0-9_$]*)\s*\(/.test(content);
+    if (hasAwaitedMutation && !refreshesCanonicalState) {
+      addFinding(
+        filePath,
+        content,
+        content.search(/\bawait\s+/),
+        'WF-04',
+        'Table mutation is awaited but canonical collection, workset, detail, counts, or selection state is not refreshed afterward.',
+      );
+    }
+
+    const successToastIndex = content.search(/\bshowToast\s*\(\s*\{[\s\S]{0,180}?type\s*:\s*['"]success['"]/);
+    const awaitedMutationIndex = content.search(/\bawait\s+(?:[A-Za-z_$][\w$]*\.)*(?:bulk)?(?:update|insert|remove|delete|assign|resolve)/);
+    if (successToastIndex >= 0 && awaitedMutationIndex >= 0 && successToastIndex < awaitedMutationIndex) {
+      addFinding(
+        filePath,
+        content,
+        successToastIndex,
+        'WF-04',
+        'Success feedback is emitted before the mutation completes. Await persistence, refresh canonical state, then show success.',
+      );
+    }
+
     if (
       /\bonRowClick\s*=\s*\{\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{\s*\}\s*\}/.test(
         content,

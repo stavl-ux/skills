@@ -1,6 +1,6 @@
 # Dashboard Workflows
 
-Use this guide to select and execute one dashboard route. Read only the exact installed API and component documentation named by the selected route.
+Use this guide after resolving data through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Every record-oriented route also implements [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md). Read only the exact installed API and component documentation named by the selected route.
 
 ## Contents
 
@@ -24,10 +24,10 @@ Choose one primary route from the user's physical page and workflow. Components 
 Apply these gates in order. Stop at the first match, then use only that route section and the exact external references it names.
 
 1. Existing `patterns.json` selects the Auto Patterns change route.
-2. A new supported one-collection manager selects Auto Patterns, including a documented Auto Patterns table extended by a contextual SidePanel, a Dashboard Modal action, or an entity page.
+2. A new manager backed by exactly one resolved CMS collection interface selects Auto Patterns, including Wix App Collections and external database collections exposed by an adaptor. A contextual SidePanel, Dashboard Modal action, entity page, derived field, or API origin does not change table ownership.
 3. A KPI, chart, or calculated summary triggers analytics evaluation, but does not transfer ownership of a supported one-collection table. First check whether the analytics region can be added through the documented Auto Patterns header, section, slot, or child-component path. The page may use the analytics route for composition while `regionOwners.collection` remains `auto-patterns`.
 4. Only after the Auto Patterns extension path is unavailable, selected-record contextual work selects table-and-panel.
-5. A remaining custom table selects custom-table.
+5. A genuine multi-collection joined table selects custom-table.
 6. A focused blocking task that is not an action of an Auto Patterns manager selects Dashboard Modal.
 
 ### Route Decision
@@ -45,11 +45,11 @@ If a page combines analytics with a table, assign ownership per region before ch
 
 ### Routing Gates
 
-- **Auto Patterns is a mandatory first gate for every new one-collection manager.** Before using a custom table, contextual-detail, analytics, or WDS component route, open [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md) and evaluate the requested physical page against its focused references.
-- Count physical systems or collections, not query branches. Search, projections, OR predicates, date comparisons, derived statuses, saved worksets, and filtered subsets of one collection still have `sourceCount: 1`.
+- **Auto Patterns is mandatory for every manager backed by exactly one resolved collection.** Before using a custom table, contextual-detail, analytics, or WDS component route, resolve the source through [DATA_FOUNDATION.md](DATA_FOUNDATION.md), then open [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md).
+- Count resolved collection IDs, not API calls or query branches. Search, projections, OR predicates, date comparisons, derived statuses, saved worksets, and filtered subsets of one collection still have one resolved collection.
 - Query complexity does not transfer table ownership. For a one-collection manager, adapt the data model with maintained filterable fields when needed, then keep Auto Patterns as the collection surface.
-- Unsupported capability is regional evidence, not page-wide permission. An unsupported chart, KPI formula, or visualization does not justify a custom WDS table. A one-source custom table requires table-specific unsupported capability evidence.
-- A contextual detail surface, input flow, or bounded confirmation does not by itself make a one-collection manager custom. First evaluate the documented Auto Patterns row action, child-component/AppContext, Modal, and entity-page paths. A custom dashboard route is **invalid** until the route record names each required Auto Patterns capability, the exact checked reference, and the first capability that is `unsupported`. Search, filters, Table/Grid, lifecycle-appropriate CRUD, saved views, documented row or bulk actions, and documented SidePanel/Modal/entity-page extensions are not evidence of unsupported complexity.
+- Unsupported capability is regional evidence, not page-wide permission. An unsupported chart, KPI formula, or visualization does not justify a custom WDS table. A one-collection custom table is invalid; extend the Auto Patterns-owned collection region or mark the foundation blocked.
+- A contextual detail surface, input flow, or bounded confirmation does not make a one-collection manager custom. Use the documented Auto Patterns row action, child-component/AppContext, Modal, or entity-page path. Search, filters, Table/Grid, lifecycle-appropriate CRUD, saved views, documented row or bulk actions, and documented SidePanel/Modal/entity-page extensions stay Auto Patterns-owned.
 - Do not classify a page as `custom-table` merely because it has a Table/Grid switch, gallery/card presentation, search, filters, a restock-style action, or sample records. These are Auto Patterns candidates and must be evaluated there first.
 - Use the [WDS component documentation gate](#wds-component-documentation-gate) when a documented Auto Patterns extension needs the exact WDS composition for its supplemental surface. Select a custom route only after an exact unsupported capability is recorded.
 - A new app-owned collection does not imply Auto Patterns or Dashboard Modal; the physical workflow selects the page route.
@@ -66,6 +66,10 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
   "route": "custom-table-panel",
   "sourceCount": 2,
   "sources": ["Appointments", "Clients"],
+  "resolvedCollections": [
+    { "system": "bookings", "mechanism": "wix-app-collection", "collectionId": "<verified appointments ID>", "schemaStatus": "verified", "read": true, "write": false, "freshness": "source-managed" },
+    { "system": "contacts", "mechanism": "wix-app-collection", "collectionId": "<verified clients ID>", "schemaStatus": "verified", "read": true, "write": false, "freshness": "source-managed" }
+  ],
   "secondary": "SidePanel detail",
   "regionOwners": {
     "collection": "custom-wds-table",
@@ -76,13 +80,19 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
   "detailSurface": "side-panel",
   "detailSurfaceReason": "Moderate record detail; preserve table context",
   "dataAdaptation": "Resolve client display fields by appointment reference",
-  "fallbackCategory": "multi-source"
+  "fallbackCategory": "multi-source",
+  "workflow": {
+    "focus": { "defaultWorkset": "Upcoming appointments", "controls": ["search", "status filter"] },
+    "investigate": { "required": true, "surface": "side-panel", "identityField": "id" },
+    "actions": [{ "id": "manage-appointment", "kind": "owning-app-navigation", "target": "verified appointment route" }],
+    "verify": { "postcondition": "The updated appointment is reloaded", "refresh": ["table", "detail", "selection"] }
+  }
 }
 ```
 
-Allowed custom fallback categories are `multi-source`, `external-data`, and `unsupported-presentation`. A one-source custom fallback must use `unsupported-presentation` and also provide non-empty `firstUnsupportedCapability`, `checkedReference`, and `whyDataAdaptationCannotSolve`. Filtering, OR/date logic, derived state, a gallery/table switch, or a detail overlay are never valid fallback categories.
+Allowed custom fallback categories are `multi-source` and `external-data`; record tables still require at least two resolved collections. `unsupported-presentation` cannot transfer ownership of a one-collection table. Filtering, OR/date logic, derived state, a gallery/table switch, or a detail overlay are never valid fallback categories.
 
-For multi-region pages, `regionOwners` records which implementation owns `collection`, `metrics`, `chart`, and `detail`. Use `auto-patterns` for a supported collection region even when another region uses WDS or a chart library. If a one-source analytics route assigns `collection` to `custom-wds-table`, also record `tableUnsupportedCapability`, `tableCheckedReference`, and `whyAutoPatternsTableCannotBeUsed`; chart- or metric-only evidence is invalid.
+For multi-region pages, `regionOwners` records which implementation owns `collection`, `metrics`, `chart`, and `detail`. Use `auto-patterns` for a one-collection region even when another region uses WDS or a chart library. A one-collection analytics route may not assign collection ownership to `custom-wds-table`.
 
 When `regionOwners.metrics` is non-null, also record `metricSurface`, `metricCheckedExample`, `metricContainmentOwner`, and `metricLayoutOwner`. `metricSurface` must name the installed composition actually rendered (`AnalyticsSummary` or `StatisticsWidget`). Copy containment from that exact installed example; do not infer that a component either needs or forbids an external Card.
 
@@ -100,11 +110,11 @@ Treat the audit output as an API; do not inspect its source. `RT-05` or `RT-06` 
 
 ## Custom Table Route
 
-Use this route for a WDS management table that requires multiple sources, joins, external data, unsupported custom logic, or a workflow Auto Patterns cannot represent. Use the contextual-detail route instead when selecting a row opens record detail.
+Use this route for a WDS management table that joins at least two resolved collections. Use the contextual-detail route when selecting a row opens record detail.
 
 ### Entry Gate
 
-Do not use this route for a new one-collection manager until [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md) has been evaluated. The route record must include the first required capability marked `unsupported` and the exact Auto Patterns reference that was checked.
+Do not use this route for a one-collection manager. Resolve the source through [DATA_FOUNDATION.md](DATA_FOUNDATION.md) and return to [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md).
 
 The following do **not** qualify a page for this custom route by themselves: Table/Grid or gallery presentation, search, filters, standard CRUD, saved views, sample data, or a same-collection row action. If those are the only requirements, return to the Auto Patterns guide.
 
@@ -165,7 +175,7 @@ Use this self-contained route for a custom WDS table where selecting a desktop r
 
 ### Entry Gate
 
-For a new one-collection manager, first evaluate [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md). This route may begin only after the route record identifies the first required capability that is `unsupported` and cites the checked Auto Patterns reference. A Table/Grid presentation, search, filters, CRUD, sample data, or a documented same-collection action is not sufficient reason to bypass Auto Patterns.
+For a one-collection manager, use [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md). A Table/Grid presentation, search, filters, CRUD, sample data, or a documented same-collection action is not a reason to bypass Auto Patterns.
 
 ### Required Documentation
 
@@ -224,7 +234,7 @@ Use this route for KPIs, summaries, charts, calculated worksets, or pages combin
 
 ### Entry Gate
 
-For a new one-collection manager, first evaluate [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md). Record ownership for the collection, metrics, chart, and detail regions. Select analytics as primary only after checking whether the KPI/chart can be added through a documented Auto Patterns header, section, slot, or child-component path. An unsupported chart or calculated summary does not transfer ownership of a supported Table/Grid, filters, search, CRUD, or action region.
+For a one-resolved-collection manager, use [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md). Record ownership for the collection, metrics, chart, and detail regions. Select analytics as primary only after checking whether the KPI/chart can be added through a documented Auto Patterns header, section, slot, or child-component path. An unsupported chart or calculated summary does not transfer ownership of a supported Table/Grid, filters, search, CRUD, or action region.
 
 ### Required Documentation
 
@@ -249,7 +259,7 @@ List the page regions in reading order, name the primary operational surface, an
 - **AN-11:** A chart lives in a bounded chart region inside its Card. Use the selected chart library's documented responsive-container pattern so its canvas or SVG fills that region and cannot paint into the next dashboard surface. For Chart.js, use `responsive: true` with `maintainAspectRatio: false` when the chart region has an intended height; do not combine a fixed-height chart wrapper with `maintainAspectRatio: true`.
 - **AN-12:** An analytics page with an operational table inherits the selected table route's populated-table contract. Keep `<Table.Content />` for visible rows; `Table.EmptyState` handles only source-empty or filtered-empty states and must not replace the normal table body.
 - **AN-13:** Preserve the selected metric composition. Top-level summary cards normally use the installed `AnalyticsSummary`/`AnalyticsLayout` example; compact grouped statistics use the installed `StatisticsWidget` example. Record and reproduce that example's containment, separators, spacing, and `Layout`/`Cell` placement. Do not flatten a contained example, invent a wrapper, target internals with custom styling, or split one documented group into manually styled widgets.
-- **AN-14:** Preserve collection-region ownership. For one physical collection, keep the table in Auto Patterns unless the table itself has a documented unsupported capability. A custom chart, metric formula, or neighboring analytical region is not table fallback evidence. When Auto Patterns owns the collection region, use its documented header, section, slot, child-component, action, and AppContext paths to compose supplemental WDS analytics.
+- **AN-14:** Preserve collection-region ownership. For one resolved collection, keep the table in Auto Patterns. A custom chart, metric formula, neighboring analytical region, API origin, or computed flag is not table fallback evidence. When Auto Patterns owns the collection region, use its documented header, section, slot, child-component, action, and AppContext paths to compose supplemental WDS analytics.
 
 ### Invalid Implementations
 
