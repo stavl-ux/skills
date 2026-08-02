@@ -150,6 +150,7 @@ const managedCollectionSuffixes = new Set();
 const collectionFieldsBySuffix = new Map();
 const collectionActionChecks = [];
 const savedViewFieldIds = new Set();
+const savedViewFilterIdsByField = new Map();
 let hasEntityPagePattern = false;
 
 for (const filePath of dataCollectionFiles) {
@@ -313,6 +314,9 @@ for (const document of patternDocuments) {
           const fieldId = filterFieldsById.get(filterId);
           if (fieldId) {
             savedViewFieldIds.add(fieldId);
+            const filterIds = savedViewFilterIdsByField.get(fieldId) ?? new Set();
+            filterIds.add(filterId);
+            savedViewFilterIdsByField.set(fieldId, filterIds);
             continue;
           }
           const content = fs.readFileSync(document.path, 'utf8');
@@ -965,18 +969,50 @@ function checkSavedViewRefresh(resolver, resolverSlice, resolverId, kindLabel) {
   const mutatedField = [...savedViewFieldIds].find((fieldId) =>
     new RegExp(`\\b${escapeRegExp(fieldId)}\\s*:`).test(resolverSlice)
   );
-  if (!mutatedField || /\b(?:sdk\s*\.\s*)?refreshCollection\s*\(/.test(resolverSlice)) {
-    return;
-  }
+  if (!mutatedField) return;
 
   const fieldMatch = new RegExp(`\\b${escapeRegExp(mutatedField)}\\s*:`).exec(resolverSlice);
-  addFinding(
-    resolver.filePath,
-    resolver.content,
-    resolver.index + (fieldMatch?.index ?? 0),
-    'AP-17',
-    `Custom ${kindLabel} "${resolverId}" mutates Saved View field "${mutatedField}" without calling refreshCollection() after persistence. Refresh the collection so View membership, counts, and selection are re-evaluated.`,
+  const findingIndex = resolver.index + (fieldMatch?.index ?? 0);
+  const usesOptimisticActions = /\b(?:getOptimisticActions|optimisticActions\s*\.\s*(?:updateOne|updateMany|updateAll))\b/.test(
+    resolverSlice,
   );
+  const hasRefresh = /\b(?:sdk\s*\.\s*)?refreshCollection\s*\(/.test(resolverSlice);
+  const hasDeferredRefresh = /\bsetTimeout\s*\(\s*\(\s*\)\s*=>\s*(?:\{[\s\S]{0,160})?(?:sdk\s*\.\s*)?refreshCollection\s*\(/.test(
+    resolverSlice,
+  );
+  const hasOptimisticPredicateOverride = /\boptimisticActions\b[\s\S]{0,2400}\bpredicate\s*:/.test(
+    projectSource,
+  );
+  const mismatchedFilterIds = [...(savedViewFilterIdsByField.get(mutatedField) ?? [])]
+    .filter((filterId) => filterId !== mutatedField);
+
+  if (!hasRefresh) {
+    addFinding(
+      resolver.filePath,
+      resolver.content,
+      findingIndex,
+      'AP-17',
+      `Custom ${kindLabel} "${resolverId}" mutates Saved View field "${mutatedField}" without refreshing canonical collection data after persistence. Refresh the collection so View membership, counts, metrics, and selection are reconciled.`,
+    );
+  } else if (usesOptimisticActions && !hasDeferredRefresh) {
+    addFinding(
+      resolver.filePath,
+      resolver.content,
+      findingIndex,
+      'AP-17',
+      `Custom ${kindLabel} "${resolverId}" refreshes Saved View field "${mutatedField}" synchronously inside an optimistic action. Defer refreshCollection() to the next task after the write succeeds so the optimistic patch settles before canonical View reconciliation.`,
+    );
+  }
+
+  if (usesOptimisticActions && mismatchedFilterIds.length && !hasOptimisticPredicateOverride) {
+    addFinding(
+      resolver.filePath,
+      resolver.content,
+      findingIndex,
+      'AP-17',
+      `Custom ${kindLabel} "${resolverId}" optimistically mutates "${mutatedField}", but Saved View filter ${mismatchedFilterIds.map((id) => `"${id}"`).join(', ')} does not match that record field and no optimistic predicate override is present. Align filter.id with fieldId or map the filter explicitly so the item leaves the active View immediately.`,
+    );
+  }
 }
 
 for (const [resolverId, kinds] of entityRuntimeResolvers) {

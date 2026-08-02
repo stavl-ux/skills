@@ -92,8 +92,8 @@ Views and panel filters share the collection query but have different entry beha
 ```typescript
 filters: {
   items: [
-    { id: 'reviewed-filter', fieldId: 'isReviewed' },
-    { id: 'attention-filter', fieldId: 'needsAttention' }
+    { id: 'isReviewed', fieldId: 'isReviewed' },
+    { id: 'needsAttention', fieldId: 'needsAttention' }
   ]
 },
 views: {
@@ -106,15 +106,15 @@ views: {
         label: 'Needs Attention',
         isDefaultView: true,
         filters: {
-          'reviewed-filter': { filterType: 'boolean', value: [{ id: 'unchecked', name: 'Not Reviewed' }] },
-          'attention-filter': { filterType: 'boolean', value: [{ id: 'checked', name: 'Needs Attention' }] }
+          isReviewed: { filterType: 'boolean', value: [{ id: 'unchecked', name: 'Not Reviewed' }] },
+          needsAttention: { filterType: 'boolean', value: [{ id: 'checked', name: 'Needs Attention' }] }
         }
       },
       {
         id: 'reviewed',
         label: 'Reviewed',
         filters: {
-          'reviewed-filter': { filterType: 'boolean', value: [{ id: 'checked', name: 'Reviewed' }] }
+          isReviewed: { filterType: 'boolean', value: [{ id: 'checked', name: 'Reviewed' }] }
         }
       }
     ]
@@ -127,12 +127,13 @@ views: {
 A workflow action may move a record between operational worksets, such as `Needs Attention` to `Reviewed`. Treat View membership as a post-action contract:
 
 - Update every maintained field used by the source and destination View predicates.
-- Persist first, then call `sdk.refreshCollection()` so Auto Patterns re-runs filters, counts, and selection against canonical data.
+- For a field changed by an optimistic transition, set its filter `id` equal to its `fieldId`, or configure a documented optimistic-actions `predicate` override that maps the filter ID to that record field. Without this mapping the optimistic row can repaint while remaining in a View it no longer matches.
+- Persist first, let the optimistic submit return, then refresh the collection in the next task so Auto Patterns can settle its optimistic patch before re-running filters, counts, and selection against canonical data. With the documented void-returning optimistic actions API, schedule `sdk.refreshCollection()` with `setTimeout(..., 0)` after the write succeeds; a synchronous refresh inside `submit` is too early.
 - Apply the same transition and refresh behavior to row, bulk, and detail actions.
-- Verify the record disappears from Views it no longer matches, appears once in the destination View, and cannot remain selected while absent.
+- Verify the record disappears immediately from Views and active filters it no longer matches without navigation or manual reload, appears once in the destination View, updates counts and supplemental metrics, and cannot remain selected while absent.
 - Keep operational filter declarations when adding display filters; replacing `filters.items` can invalidate every View that references them.
 
-Optimistic updates provide immediate row feedback but do not replace collection refresh when the mutation changes Saved View membership.
+Optimistic predicate mapping provides immediate membership feedback; the deferred collection refresh then reconciles that feedback with canonical data. If the installed Auto Patterns version exposes a documented post-success callback, use it instead of task deferral. If neither mechanism is available, use an awaited direct mutation followed by collection refresh for membership-changing transitions rather than leaving stale optimistic state.
 
 Verify the combined contract in preview: select each View, open the filter panel and confirm its values, add a panel refinement and confirm the table changes, then switch Views and confirm the table and panel reset to the new preset.
 

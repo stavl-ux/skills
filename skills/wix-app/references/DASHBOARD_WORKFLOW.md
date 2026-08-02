@@ -89,8 +89,9 @@ Verification is part of the action, not a later manual refresh:
 3. Re-fetch canonical data after a mutation.
 4. Call `refreshCollection()` when Auto Patterns owns the collection.
 5. Refresh affected Views, counts, metrics, detail content, and selected IDs.
-6. Confirm the intended postcondition in the rendered state.
-7. Display a success toast only after success is known.
+6. When a transition changes active filter or View membership, remove the record from every non-matching workset immediately after success without navigation or manual reload.
+7. Confirm the intended postcondition in the rendered state and its destination workset.
+8. Display a success toast only after success is known.
 
 Never optimistically remove a record from a workset without reconciling against canonical data. A Retry button is recovery from failure, not verification of an action.
 
@@ -99,5 +100,5 @@ Never optimistically remove a record from a workset without reconciling against 
 - **WF-01:** Every populated record table must provide a real investigation surface. A custom route must declare and implement `detailSurface`; Auto Patterns must configure an entity page, row action, or documented supplemental detail surface.
 - **WF-02:** A visible action must have a real effect. Reject toast-only, console-only, empty, unresolved-target, and static-state handlers. Toasts are feedback only.
 - **WF-03:** Selection controls require at least one real bulk operation that consumes selected stable IDs. Otherwise remove selection.
-- **WF-04:** A mutation must be awaited and followed by canonical refresh of every affected workflow surface. Success feedback occurs afterward.
+- **WF-04:** A mutation must be awaited and followed by canonical refresh of every affected workflow surface. Membership-changing transitions must also re-evaluate the active View immediately and reconcile without a manual reload. Success feedback occurs afterward.
 - **WF-05:** Investigation, action, and verification requirements apply to Auto Patterns and custom WDS implementations equally.

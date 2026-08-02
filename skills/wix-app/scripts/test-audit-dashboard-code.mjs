@@ -17,6 +17,7 @@ const badWorkflowRoot = path.join(root, 'bad-workflow');
 const badWritableRoot = path.join(root, 'bad-writable');
 const badActionsRoot = path.join(root, 'bad-actions');
 const badSavedViewTransitionRoot = path.join(root, 'bad-saved-view-transition');
+const badEarlySavedViewTransitionRoot = path.join(root, 'bad-early-saved-view-transition');
 const badSavedViewFilterRoot = path.join(root, 'bad-saved-view-filter');
 const badSavedViewFieldRoot = path.join(root, 'bad-saved-view-field');
 const goodSavedViewTransitionRoot = path.join(root, 'good-saved-view-transition');
@@ -39,6 +40,7 @@ fs.mkdirSync(badWorkflowRoot);
 fs.mkdirSync(badWritableRoot);
 fs.mkdirSync(badActionsRoot);
 fs.mkdirSync(badSavedViewTransitionRoot);
+fs.mkdirSync(badEarlySavedViewTransitionRoot);
 fs.mkdirSync(badSavedViewFilterRoot);
 fs.mkdirSync(badSavedViewFieldRoot);
 fs.mkdirSync(goodSavedViewTransitionRoot);
@@ -798,6 +800,9 @@ export default function OrderExceptions() {
       },
     }],
   });
+  const alignedSavedViewPatterns = savedViewPatterns
+    .replaceAll('reviewed-filter', 'isReviewed')
+    .replaceAll('attention-filter', 'needsAttention');
   write(badSavedViewTransitionRoot, 'patterns.json', savedViewPatterns);
   write(
     badSavedViewTransitionRoot,
@@ -809,6 +814,30 @@ export const markReviewed = ({ actionParams, sdk }) => ({
   onClick: () => sdk.getOptimisticActions(sdk.collectionId).updateOne(
     { ...actionParams.item, isReviewed: true, needsAttention: false },
     { submit: async ([item]) => items.update('orders', item) },
+  ),
+});
+export default function OrderExceptions() {
+  return <AutoPatternsApp />;
+}`,
+  );
+
+  write(badEarlySavedViewTransitionRoot, 'patterns.json', savedViewPatterns);
+  write(
+    badEarlySavedViewTransitionRoot,
+    'OrderExceptions.tsx',
+    `import { AutoPatternsApp } from '@wix/auto-patterns';
+export const markReviewed = ({ actionParams, sdk }) => ({
+  label: 'Mark as Reviewed',
+  biName: 'mark-reviewed',
+  onClick: () => sdk.getOptimisticActions(sdk.collectionId).updateOne(
+    { ...actionParams.item, isReviewed: true, needsAttention: false },
+    {
+      submit: async ([item]) => {
+        const updated = await items.update('orders', item);
+        sdk.refreshCollection();
+        return updated;
+      },
+    },
   ),
 });
 export default function OrderExceptions() {
@@ -904,7 +933,7 @@ export default function OrderExceptions() {
     }),
   );
 
-  write(goodSavedViewTransitionRoot, 'patterns.json', savedViewPatterns);
+  write(goodSavedViewTransitionRoot, 'patterns.json', alignedSavedViewPatterns);
   write(
     goodSavedViewTransitionRoot,
     'OrderExceptions.tsx',
@@ -917,7 +946,7 @@ export const markReviewed = ({ actionParams, sdk }) => ({
     {
       submit: async ([item]) => {
         const updated = await items.update('orders', item);
-        sdk.refreshCollection();
+        setTimeout(() => sdk.refreshCollection(), 0);
         return updated;
       },
     },
@@ -1377,6 +1406,24 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const badEarlySavedViewTransition = spawnSync(
+    process.execPath,
+    [auditPath, badEarlySavedViewTransitionRoot],
+    { encoding: 'utf8' },
+  );
+  const badEarlySavedViewTransitionOutput =
+    `${badEarlySavedViewTransition.stdout}\n${badEarlySavedViewTransition.stderr}`;
+  if (
+    badEarlySavedViewTransition.status === 0
+    || !badEarlySavedViewTransitionOutput.includes('AP-17')
+    || !badEarlySavedViewTransitionOutput.includes('synchronously inside an optimistic action')
+    || !badEarlySavedViewTransitionOutput.includes('does not match that record field')
+  ) {
+    console.error('Dashboard audit self-test accepted the stale Codegen 52 Saved View transition shape.');
+    console.error(badEarlySavedViewTransitionOutput.trim());
+    process.exit(1);
+  }
+
   const badSavedViewFilter = spawnSync(
     process.execPath,
     [auditPath, badSavedViewFilterRoot],
@@ -1409,7 +1456,7 @@ export default function SubscriptionHealth() {
     { encoding: 'utf8' },
   );
   if (goodSavedViewTransition.status !== 0) {
-    console.error('Dashboard audit self-test rejected a Saved View transition that refreshes after persistence.');
+    console.error('Dashboard audit self-test rejected a field-aligned Saved View transition with deferred canonical refresh.');
     console.error(
       `${goodSavedViewTransition.stdout}\n${goodSavedViewTransition.stderr}`.trim(),
     );
