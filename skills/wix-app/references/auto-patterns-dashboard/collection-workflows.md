@@ -198,7 +198,8 @@ type CustomActionCollectionPageActionOnRowClickResolver = (params: {
 - **MUST** use `actionParams.item` to produce the selected surface outcome. For a SidePanel, call a page-owned `openItem(item)` callback; for a Modal or entity page, invoke its documented navigation API. Do not rebuild the collection table or own a parallel data lifecycle.
 - **MUST** choose the detail surface from depth and context: SidePanel for moderate contextual work, Modal for short blocking work, and entity page for deep or multi-section work. These are recommendations, not rules based only on `view` versus `edit`.
 - **MUST** decide row, bulk, detail, and edit actions together before generation. Table actions do not automatically propagate to a linked entity page.
-- **MUST** map each audience permission to the matching workflow capability. For app-owned records with `itemUpdate: CMS_EDITOR`, use an edit entity page or paired view/edit flow; a custom row or bulk transition does not substitute for field editing. Use view-only when update is unavailable to that audience, and keep only named immutable fields read-only inside an otherwise editable workflow.
+- **MUST** map audience permissions and product intent separately. `itemUpdate: CMS_EDITOR` allows named transitions, feedback writes, or authoritative field editing; it does not choose among them. Use an edit entity page only when authoritative field editing belongs to the actor's job. Use a read-only decision surface for evidence-led transitions, and pair view/edit when both decision and general editing are intentional.
+- **MUST** keep the first workflow-defining single-record action available on the chosen investigation surface. A review or resolution drill-in cannot end at generic Save/Cancel while omitting its decision actions.
 - **NEVER** mix `create` logic with `custom` action types.
 - **NEVER** assume `schema` or `optimisticActions` exist without checking.
 
@@ -328,7 +329,7 @@ type CustomActionCellSecondaryActionResolver = (params: {
 - **MUST** label the primary action for its user outcome. Use `View` for inspection, `Edit` for editing, and the actual workflow verb for a transition; do not default to generic `Update`.
 - **MUST** make the workflow-defining transition the primary row action. If the same transition is a primary bulk action, its normalized label and outcome must match the row primary action unless it is inherently bulk-only.
 - **MUST** use row click or `entityPageId` for inspection when already configured; do not add a custom View action whose handler is empty or duplicates that navigation.
-- **MUST** keep row, detail-surface, and bulk actions coherent. Editing is supporting when a stronger operational transition defines the dashboard.
+- **MUST** keep row, detail-surface, and bulk actions coherent. Editing is supporting when a stronger operational transition defines the dashboard; do not make fields editable merely because the transition needs update permission.
 - **MUST** include a confirmed single-record Delete action when the intended audience has `itemRemove`, the collection is app-owned, and removal belongs to the entity lifecycle. Put it in the row's destructive secondary actions or the detail surface; do not leave deletion available only in bulk.
 - **SHOULD** use `multiplePrimary` for 2-3 equally important actions.
 - **NEVER** use `primaryAction` inside `secondaryActions`.

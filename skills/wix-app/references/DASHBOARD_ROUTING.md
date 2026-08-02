@@ -82,9 +82,31 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
   "dataAdaptation": "Resolve client display fields by appointment reference",
   "fallbackCategory": "multi-source",
   "workflow": {
+    "intent": {
+      "actorRole": "appointments operator",
+      "primaryJob": "inspect an appointment and open its owning management record"
+    },
     "focus": { "defaultWorkset": "Upcoming appointments", "controls": ["search", "status filter"] },
-    "investigate": { "required": true, "surface": "side-panel", "identityField": "id" },
-    "actions": [{ "id": "manage-appointment", "kind": "owning-app-navigation", "target": "verified appointment route" }],
+    "investigate": {
+      "required": true,
+      "surface": "side-panel",
+      "surfaceReason": "Moderate appointment context should remain beside the workset",
+      "preserveCollectionContext": true,
+      "evidenceMode": "read-only",
+      "identityField": "id"
+    },
+    "editing": {
+      "required": false,
+      "editableFields": [],
+      "transitionFields": [],
+      "reason": "Appointment editing remains in the owning manager"
+    },
+    "actions": [{
+      "id": "manage-appointment",
+      "kind": "owning-app-navigation",
+      "target": "verified appointment route",
+      "surfaces": ["row", "detail"]
+    }],
     "verify": { "postcondition": "The updated appointment is reloaded", "refresh": ["table", "detail", "selection"] }
   }
 }

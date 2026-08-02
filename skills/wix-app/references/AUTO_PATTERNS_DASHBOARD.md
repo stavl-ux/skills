@@ -37,13 +37,14 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-04:** Auto Patterns documents Table and Grid. Do not promise the native CMS layout menu, List layout, custom layout labels, or a configurable initial layout unless the installed docs explicitly support them.
 - **AP-05:** Do not use a custom WDS dashboard route until this evaluation records the first `unsupported` capability. A new one-collection manager stays on this route when every requested capability is `supported` or `supported-via-override`.
 - **AP-06:** Keep one resolved collection classified as one collection even when the workflow is described as an exception queue, review workset, alert list, or saved subset, or uses OR conditions, elapsed-time rules, comparisons, bulk transitions, or contextual record detail. Materialize operational state as maintained fields such as `needsAttention`, `exceptionType`, `exceptionSince`, and `isReviewed`, then configure filters/Views and documented actions against those fields. Do not rebuild the table to express query logic or attach a supplemental surface.
-- **AP-12:** When an app-owned collection grants the intended collaborator `itemUpdate: CMS_EDITOR`, its management workflow must include an edit entity page or paired view/edit pages. A custom transition action does not satisfy general editing.
+- **AP-12:** Separate update permission from product intent. Require a real edit surface only when the workflow declares authoritative field editing; choose SidePanel, Modal, edit entity page, or paired view/edit flow from depth and context. A transition-only or decision workflow may use a read-only investigation surface while persisting named transition or feedback fields through `itemUpdate`.
 - **AP-13:** Preserve operational field semantics across collection and detail surfaces. When a field communicates status, risk, priority, or required attention and appears as a badge in entity detail, render that same field with a documented custom-column badge in the collection Table/Grid when it is shown there. Reuse one label-to-skin mapping. Do not badge descriptive text or ordinary categories merely for decoration.
 - **AP-14:** Model bounded values before generating the collection. Use `TEXT` for one controlled value, `ARRAY_STRING` for zero-to-many controlled values, and `BOOLEAN` for binary state; use references instead when the options are managed records. Reuse one canonical value contract across schema, sample data, filters, forms, validation, and badges.
 - **AP-15:** App-owned editor collections default `itemRemove` to `CMS_EDITOR`, confirmed row/detail Delete, and useful bulk Delete. Restrict only for an explicit recorded ownership or safety reason. Process source queues with transitions; app-owned exception records remain deletable.
 - **AP-16:** Name the workflow-defining action first. It is primary for row, requested bulk selection, and detail. Row navigation or `entityPageId` handles inspection; Edit supports and Delete remains destructive.
 - **AP-17:** A custom transition that changes a field used by a Saved View or active filter must map that filter to the mutated record field for immediate optimistic membership feedback, persist every defining field, and refresh canonical data only after the optimistic submit settles. The item must leave any workset it no longer matches without a manual reload, enter the matching destination once, update counts and supplemental metrics, and clear stale selection. A synchronous `refreshCollection()` inside optimistic `submit` is not sufficient.
 - **AP-18:** Every Saved View filter key must resolve to a declaration in `filters.items`, and every declared `fieldId` must exist in the collection schema. Workflow Views must include every maintained field that defines membership.
+- **AP-19:** Keep declared investigation intent, evidence mode, editing policy, and action placement coherent. A read-only decision workflow must not resolve only to a generic edit page; the primary action and every workflow action offered on a row must remain available on the detail surface.
 
 ### Extension Choice
 
@@ -61,10 +62,12 @@ These are best-practice defaults, not intent-to-component rules: viewing and edi
 ### Action Coherence
 
 - Treat inspect, edit, workflow transition, create, and delete as different intents.
+- Identify the actor's role and primary job before choosing entity mode or detail surface.
+- Separate read-only evidence, bounded decision inputs, transition fields, and authoritative editable fields. `itemUpdate` permits mutations; it does not imply a general editor.
 - Mirror a primary bulk transition as the primary row action unless inherently bulk-only.
 - If row click or `entityPageId` opens details, omit redundant custom View.
 - Default app-owned editor deletion as AP-15 specifies.
-- When transition and editing both matter, pair view/edit pages: view owns the transition; edit owns persistence.
+- Keep the defining single-record transition available on the investigation surface. When transition and authoritative editing both matter, pair view/edit pages: view owns the transition; edit owns field persistence.
 
 Before generation, make one compact workflow decision table:
 
@@ -72,26 +75,15 @@ Before generation, make one compact workflow decision table:
 | --- | --- |
 | Data foundation | Original system, access mechanism, exact resolved collection ID, schema status, identity, capabilities, permissions, freshness, and write owner |
 | Audience capabilities | `itemRead`, `itemInsert`, `itemUpdate`, and `itemRemove` available to the intended user |
+| Actor and job | The intended actor's role and the outcome they are trying to achieve |
 | Primary job | The one action that resolves or advances the user's main operational task |
-| Mutability | Which fields and transitions this user may change |
-| Detail mode | `edit`, `view`, or paired `view` + `edit`, with one reason |
+| Field policy | Which fields are read-only evidence, bounded decision inputs, transition fields, and authoritative editable fields |
+| Context need | Whether keeping the collection workset, selection, and scroll position visible materially helps the task |
+| Detail mode | SidePanel, Modal, view entity page, edit entity page, paired view/edit, or owning-app navigation, with one contextual reason |
 | Action surfaces | Row, bulk, detail, and edit actions that must remain coherent |
 | Field semantics | Which fields are identity, operational status, metric, date, or descriptive text, and how each stays recognizable across list and detail |
 
-Resolve each permission before choosing entity mode. App-owned records with `itemUpdate: CMS_EDITOR` require edit or paired view/edit pages; default `itemRemove` to `CMS_EDITOR` unless a restriction is recorded. Use view-only when update is unavailable. Named immutable fields may stay read-only. Configure required actions on each surface because collection actions do not propagate.
-
-### Canonical Auto Patterns Profile: Inventory Manager
-
-Use Auto Patterns for a single `Inventory Products`-style collection that needs product name, image, SKU, category, stock/reorder values, standard search or filters, Table and Grid presentation, and a documented row action such as **Mark restocked**.
-
-This remains an Auto Patterns page even when the user asks for:
-
-- a card/gallery-first presentation alongside a table;
-- filters for category or stock status;
-- representative sample records; or
-- a row action that updates the same collection.
-
-Configure the documented Auto Patterns Table/Grid layouts and action override. Do not replace them with a custom WDS gallery, a hand-built layout toggle, or a custom React table unless a required capability is explicitly documented as unsupported.
+Resolve each permission before choosing entity mode, then decide what the actor should actually change. Default `itemRemove` to `CMS_EDITOR` only when removal belongs to the lifecycle. A review, approval, triage, or resolution workflow may update status and feedback while keeping source content read-only. Configure required actions on each surface because collection actions do not propagate.
 
 ### Build Contract
 
@@ -102,14 +94,6 @@ Configure the documented Auto Patterns Table/Grid layouts and action override. D
 5. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
 6. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
 7. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
-
-### Invalid Implementations
-
-- Rebuilding supported CRUD, filters, pagination, Table/Grid layouts, or actions in custom WDS React.
-- Rebuilding the collection table because a chart, KPI, or other neighboring region is unsupported.
-- Adding JSX directly to an Auto Patterns-owned page instead of using a documented override.
-- Creating an unregistered `page.tsx` beside the CLI-scaffolded page component.
-- Treating a schema reference field as populated data.
 
 ### Acceptance
 
@@ -370,9 +354,31 @@ cat > /tmp/auto-patterns-input.json << 'EOF'
     "capabilities": { "read": true, "insert": false, "update": false, "remove": false }
   },
   "workflow": {
+    "intent": {
+      "actorRole": "<intended actor>",
+      "primaryJob": "<outcome the actor is trying to achieve>"
+    },
     "focus": { "defaultWorkset": "<default workset>", "controls": ["search", "filter"] },
-    "investigate": { "required": true, "surface": "entity-page", "identityField": "_id" },
-    "actions": [{ "id": "<action-id>", "kind": "owning-app-navigation", "target": "<verified record target>" }],
+    "investigate": {
+      "required": true,
+      "surface": "<side-panel | modal | entity-page | owning-app-navigation>",
+      "surfaceReason": "<why depth and context justify this surface>",
+      "preserveCollectionContext": true,
+      "evidenceMode": "<read-only | editable | mixed>",
+      "identityField": "_id"
+    },
+    "editing": {
+      "required": false,
+      "editableFields": [],
+      "transitionFields": ["<status-or-feedback-field>"],
+      "reason": "<why authoritative field editing is or is not part of this job>"
+    },
+    "actions": [{
+      "id": "<action-id>",
+      "kind": "owning-app-navigation",
+      "target": "<verified record target>",
+      "surfaces": ["row", "detail"]
+    }],
     "verify": { "postcondition": "<observable result>", "refresh": ["collection", "views", "selection"] }
   }
 }

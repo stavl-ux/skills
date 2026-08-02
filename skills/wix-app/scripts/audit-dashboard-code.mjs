@@ -71,6 +71,7 @@ function report(filePath, content, rule, pattern, message) {
 let files;
 let routeRecordPaths;
 let patternsPaths;
+let dashboardContractPaths;
 let dataCollectionFiles;
 let dashboardModalFiles;
 try {
@@ -79,6 +80,9 @@ try {
   patternsPaths = routeOnly
     ? []
     : [...new Set(inputs.flatMap((input) => namedFiles(input, 'patterns.json')))];
+  dashboardContractPaths = routeOnly
+    ? []
+    : [...new Set(inputs.flatMap((input) => namedFiles(input, 'dashboard-contract.json')))];
   dataCollectionFiles = routeOnly
     ? []
     : [...new Set(
@@ -112,6 +116,7 @@ const dashboardPageSource = files
 const projectHasSidePanel = [...contents.values()].some((content) => /<SidePanel\b/.test(content));
 const routeRecords = [];
 const patternDocuments = [];
+const dashboardContracts = [];
 
 function walkJson(value, visit) {
   visit(value);
@@ -140,11 +145,26 @@ for (const patternsPath of patternsPaths) {
   }
 }
 
+for (const contractPath of dashboardContractPaths) {
+  try {
+    dashboardContracts.push({
+      path: contractPath,
+      value: JSON.parse(fs.readFileSync(contractPath, 'utf8')),
+    });
+  } catch (error) {
+    findings.push({
+      filePath: contractPath,
+      line: 1,
+      rule: 'AP-19',
+      message: `dashboard-contract.json is not valid JSON: ${error.message}`,
+    });
+  }
+}
+
 const collectionRuntimeResolvers = new Map();
 const entityRuntimeResolvers = new Map();
 const entityPages = new Map();
 const collectionEntityLinks = [];
-const editableCollectionSuffixes = new Set();
 const restrictedRemoveCollections = new Map();
 const managedCollectionSuffixes = new Set();
 const collectionFieldsBySuffix = new Map();
@@ -167,7 +187,6 @@ for (const filePath of dataCollectionFiles) {
   );
   if (suffix && fieldIds.size) collectionFieldsBySuffix.set(suffix, fieldIds);
   if (suffix && /\bitemUpdate\s*:\s*['"]CMS_EDITOR['"]/.test(content)) {
-    editableCollectionSuffixes.add(suffix);
     if (
       !/\bitemRemove\s*:\s*['"]CMS_EDITOR['"]/.test(content)
       && !/dashboard-item-remove:\s*restricted\s*-\s*\S/i.test(content)
@@ -434,23 +453,100 @@ for (const link of collectionEntityLinks) {
   }
 }
 
-for (const entityPage of entityPages.values()) {
-  if (entityPage.mode !== 'view' || typeof entityPage.collectionId !== 'string') continue;
-  const collectionSuffix = entityPage.collectionId.split('/').filter(Boolean).at(-1);
-  if (!editableCollectionSuffixes.has(collectionSuffix)) continue;
+for (const contract of dashboardContracts) {
+  const workflow = contract.value?.workflow;
+  const investigation = workflow?.investigate;
+  const editing = workflow?.editing;
+  const primaryAction = workflow?.actions?.[0];
+  const invalidIntent =
+    typeof workflow?.intent?.actorRole !== 'string'
+    || !workflow.intent.actorRole.trim()
+    || typeof workflow?.intent?.primaryJob !== 'string'
+    || !workflow.intent.primaryJob.trim()
+    || investigation?.required !== true
+    || typeof investigation?.surface !== 'string'
+    || !['side-panel', 'modal', 'entity-page', 'owning-app-navigation'].includes(investigation.surface)
+    || typeof investigation?.surfaceReason !== 'string'
+    || !investigation.surfaceReason.trim()
+    || typeof investigation?.preserveCollectionContext !== 'boolean'
+    || !['read-only', 'editable', 'mixed'].includes(investigation?.evidenceMode)
+    || typeof editing?.required !== 'boolean'
+    || !Array.isArray(editing?.editableFields)
+    || !Array.isArray(editing?.transitionFields)
+    || editing.editableFields.some((field) => typeof field !== 'string' || !field.trim())
+    || editing.transitionFields.some((field) => typeof field !== 'string' || !field.trim())
+    || typeof editing?.reason !== 'string'
+    || !editing.reason.trim()
+    || (editing.required && editing.editableFields.length === 0)
+    || (!editing.required && editing.editableFields.length > 0)
+    || (!editing.required && investigation.evidenceMode === 'editable');
 
-  const hasPairedEditPage = [...entityPages.values()].some((candidate) =>
-    candidate.mode === 'edit'
-    && candidate.id !== entityPage.id
-    && candidate.collectionId === entityPage.collectionId
-    && candidate.parentPageId === entityPage.parentPageId
-  );
-  if (!hasPairedEditPage) {
+  if (invalidIntent) {
     findings.push({
-      filePath: entityPage.path,
+      filePath: contract.path,
+      line: 1,
+      rule: 'AP-19',
+      message: 'Dashboard contract must declare actor/job intent, investigation rationale and evidence mode, context preservation, and a separate authoritative-editing policy.',
+    });
+    continue;
+  }
+
+  if (!Array.isArray(primaryAction?.surfaces) || !primaryAction.surfaces.includes('detail')) {
+    findings.push({
+      filePath: contract.path,
+      line: 1,
+      rule: 'AP-19',
+      message: 'The first workflow-defining action must declare detail placement so users can act after investigation instead of returning to the collection.',
+    });
+  }
+  if (workflow?.actions?.some((action) =>
+    action?.surfaces?.includes('row') && !action.surfaces.includes('detail')
+  )) {
+    findings.push({
+      filePath: contract.path,
+      line: 1,
+      rule: 'AP-19',
+      message: 'Every workflow action offered on a row must remain available after drill-in; add detail placement or remove the row placement.',
+    });
+  }
+
+  const editEntityPages = [...entityPages.values()].filter((page) => page.mode === 'edit');
+  const viewEntityPages = [...entityPages.values()].filter((page) => page.mode === 'view');
+  const hasDeclaredEditSurface =
+    editEntityPages.length > 0
+    || (investigation.surface === 'side-panel' && projectHasSidePanel)
+    || (investigation.surface === 'modal' && dashboardModalFiles.length > 0);
+
+  if (editing.required && !hasDeclaredEditSurface) {
+    findings.push({
+      filePath: contract.path,
       line: 1,
       rule: 'AP-12',
-      message: `Entity page "${entityPage.id}" is view-only, but its app-owned collection grants itemUpdate to CMS_EDITOR. Use edit mode or add a paired edit page so the dashboard matches the audience's editing capability.`,
+      message: 'The workflow declares authoritative field editing, but no matching edit entity page, SidePanel, or Modal implementation exists.',
+    });
+  }
+
+  if (
+    !editing.required
+    && investigation.evidenceMode === 'read-only'
+    && investigation.surface === 'entity-page'
+    && editEntityPages.length > 0
+    && viewEntityPages.length === 0
+  ) {
+    findings.push({
+      filePath: contract.path,
+      line: 1,
+      rule: 'AP-19',
+      message: 'The workflow declares read-only evidence and no authoritative editing, but investigation resolves only to a generic edit entity page. Use a view surface with the workflow actions, or explicitly declare why editing belongs to the job.',
+    });
+  }
+
+  if (investigation.surface === 'side-panel' && !projectHasSidePanel) {
+    findings.push({
+      filePath: contract.path,
+      line: 1,
+      rule: 'AP-19',
+      message: 'The workflow selects a SidePanel to preserve collection context, but no SidePanel implementation exists in the audited dashboard.',
     });
   }
 }
@@ -580,6 +676,35 @@ for (const recordPath of routeRecordPaths) {
       });
     }
 
+    const invalidWorkflowIntent =
+      typeof workflow?.intent?.actorRole !== 'string'
+      || !workflow.intent.actorRole.trim()
+      || typeof workflow?.intent?.primaryJob !== 'string'
+      || !workflow.intent.primaryJob.trim()
+      || !['side-panel', 'modal', 'entity-page', 'owning-app-navigation'].includes(workflow?.investigate?.surface)
+      || typeof workflow?.investigate?.surfaceReason !== 'string'
+      || !workflow.investigate.surfaceReason.trim()
+      || typeof workflow?.investigate?.preserveCollectionContext !== 'boolean'
+      || !['read-only', 'editable', 'mixed'].includes(workflow?.investigate?.evidenceMode)
+      || typeof workflow?.editing?.required !== 'boolean'
+      || !Array.isArray(workflow?.editing?.editableFields)
+      || !Array.isArray(workflow?.editing?.transitionFields)
+      || workflow.editing.editableFields.some((field) => typeof field !== 'string' || !field.trim())
+      || workflow.editing.transitionFields.some((field) => typeof field !== 'string' || !field.trim())
+      || typeof workflow?.editing?.reason !== 'string'
+      || !workflow.editing.reason.trim()
+      || (workflow.editing.required && workflow.editing.editableFields.length === 0)
+      || (!workflow.editing.required && workflow.editing.editableFields.length > 0)
+      || (!workflow.editing.required && workflow.investigate.evidenceMode === 'editable');
+    if (invalidWorkflowIntent) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'WF-06',
+        message: 'Record dashboards must declare actor/job intent, investigation rationale and evidence mode, context preservation, and a separate authoritative-editing policy.',
+      });
+    }
+
     const invalidActions =
       !Array.isArray(workflow?.actions)
       || workflow.actions.length === 0
@@ -595,6 +720,24 @@ for (const recordPath of routeRecordPaths) {
         line: 1,
         rule: 'WF-02',
         message: 'Custom record tables must declare at least one real mutation or owning-app navigation action. Toasts and local-only callbacks are not actions.',
+      });
+    }
+    if (!Array.isArray(workflow?.actions?.[0]?.surfaces) || !workflow.actions[0].surfaces.includes('detail')) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'WF-06',
+        message: 'The workflow-defining action must remain available on the investigation surface; declare detail in its action surfaces.',
+      });
+    }
+    if (workflow?.actions?.some((action) =>
+      action?.surfaces?.includes('row') && !action.surfaces.includes('detail')
+    )) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'WF-06',
+        message: 'Every workflow action offered on a row must remain available after drill-in.',
       });
     }
 

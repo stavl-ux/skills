@@ -1,6 +1,6 @@
 # Dashboard Operational Workflow
 
-Every record-oriented dashboard must help the user move from signal to confirmed outcome. “Understand” supplies overview and context; the operational loop is **Focus → Investigate → Act → Verify**. These are user needs, not necessarily separate screens.
+Every record dashboard must move the user from signal to confirmed outcome. “Understand” supplies context; the operational loop is **Focus → Investigate → Act → Verify**. These needs may share screens.
 
 ## Contents
 
@@ -18,6 +18,10 @@ Define the contract before JSX or Auto Patterns overrides:
 ```json
 {
   "workflow": {
+    "intent": {
+      "actorRole": "catalog operator",
+      "primaryJob": "resolve product issues without editing source product content"
+    },
     "focus": {
       "defaultWorkset": "Products needing attention",
       "controls": ["issue filter", "search", "sort"]
@@ -25,14 +29,24 @@ Define the contract before JSX or Auto Patterns overrides:
     "investigate": {
       "required": true,
       "surface": "entity-page",
+      "surfaceReason": "The owning product manager provides the deep source-of-truth record",
+      "preserveCollectionContext": false,
+      "evidenceMode": "read-only",
       "identityField": "_id",
       "fields": ["name", "issues", "inventory", "media"]
+    },
+    "editing": {
+      "required": false,
+      "editableFields": [],
+      "transitionFields": [],
+      "reason": "Product editing remains in the owning Wix application"
     },
     "actions": [
       {
         "id": "manage-product",
         "kind": "owning-app-navigation",
-        "target": "verified product management route"
+        "target": "verified product management route",
+        "surfaces": ["row", "detail"]
       }
     ],
     "verify": {
@@ -68,6 +82,10 @@ Every actionable record table needs a real drill-in. Valid surfaces are:
 
 The surface must receive a stable record identity and show enough context to explain the signal and decide what to do next. A toast, console log, selected-row highlight, or repeated table values is not investigation. Row click and the visible action must open the same destination.
 
+Choose investigation mode from the actor's job, not collection permission. Separate evidence, bounded decision inputs, transition fields, and authoritative editable fields. `itemUpdate` permits allowed mutations; it does not require a general editor.
+
+Prefer SidePanel for moderate inspection and bounded decisions that benefit from queue context; prefer a view entity page for deep, long, multi-section, or linkable inspection; use edit mode only when authoritative editing belongs to the job. These are heuristics, not component rules. Record the reason, context need, evidence mode, and editing policy.
+
 ## Act
 
 An action must cause a real, permission-valid outcome:
@@ -77,6 +95,8 @@ An action must cause a real, permission-valid outcome:
 - start a real assignment, resolution, export, or communication flow.
 
 Do not render actions whose only effect is a toast, console output, empty callback, or local state unrelated to a real surface. Do not label a control View, Inspect, Details, Edit, Fix, Resolve, or Delete unless its implementation performs that operation. If the source is read-only, navigate to the owning manager or explain that no action is available; do not simulate success.
+
+The investigation surface must continue the same operational job. Keep the primary action and every workflow action offered on a row available after drill-in; do not replace decisions such as Approve or Request Changes with generic Save/Cancel. When a transition needs an explanation, collect that bounded input before persistence. Render evidence for comprehension; do not expose rich content as raw markup unless source editing is intended.
 
 Selection is actionable state. Show selection controls only when at least one real bulk action consumes the selected stable IDs.
 
@@ -102,3 +122,4 @@ Never optimistically remove a record from a workset without reconciling against 
 - **WF-03:** Selection controls require at least one real bulk operation that consumes selected stable IDs. Otherwise remove selection.
 - **WF-04:** A mutation must be awaited and followed by canonical refresh of every affected workflow surface. Membership-changing transitions must also re-evaluate the active View immediately and reconcile without a manual reload. Success feedback occurs afterward.
 - **WF-05:** Investigation, action, and verification requirements apply to Auto Patterns and custom WDS implementations equally.
+- **WF-06:** Investigation mode must match the declared actor, field policy, and primary job. Update permission alone never requires general editing; a decision surface keeps the defining actions available, while an edit surface appears only when authoritative field editing is declared.

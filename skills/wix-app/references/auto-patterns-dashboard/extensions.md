@@ -321,6 +321,8 @@ interface AppContext {
 
 Use this SidePanel pattern when an Auto Patterns collection row opens moderate-depth supplemental view or edit content while retaining table context. Use a Modal for a short blocking task and an entity page for a deep, multi-section, or long-running flow.
 
+Before choosing it, classify the selected record's fields as evidence, decision input, transition state, or authoritative editable content. A decision-oriented SidePanel normally renders evidence read-only and keeps the defining actions in its footer; it may collect bounded feedback before a transition. This is a contextual default, not a rule that every review or approval workflow must use a SidePanel.
+
 1. The page component owns `selectedItem` state and renders the generated Auto Patterns collection page unchanged.
 2. A documented custom row/action resolver receives `actionParams.item` and calls the page-owned `openItem(item)` callback.
 3. The page renders the WDS `SidePanel` as an `AutoPatternsApp` child through the standard dashboard overlay host. The host is outside page, table, and card overflow containers.

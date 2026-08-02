@@ -15,6 +15,8 @@ const badAnalyticsRoot = path.join(root, 'bad-analytics');
 const badRerouteRoot = path.join(root, 'bad-reroute');
 const badWorkflowRoot = path.join(root, 'bad-workflow');
 const badWritableRoot = path.join(root, 'bad-writable');
+const badDecisionEditRoot = path.join(root, 'bad-decision-edit');
+const goodDecisionRoot = path.join(root, 'good-decision');
 const badActionsRoot = path.join(root, 'bad-actions');
 const badSavedViewTransitionRoot = path.join(root, 'bad-saved-view-transition');
 const badEarlySavedViewTransitionRoot = path.join(root, 'bad-early-saved-view-transition');
@@ -38,6 +40,8 @@ fs.mkdirSync(badAnalyticsRoot);
 fs.mkdirSync(badRerouteRoot);
 fs.mkdirSync(badWorkflowRoot);
 fs.mkdirSync(badWritableRoot);
+fs.mkdirSync(badDecisionEditRoot);
+fs.mkdirSync(goodDecisionRoot);
 fs.mkdirSync(badActionsRoot);
 fs.mkdirSync(badSavedViewTransitionRoot);
 fs.mkdirSync(badEarlySavedViewTransitionRoot);
@@ -685,6 +689,162 @@ export default {
   },
 };`,
   );
+  writeNested(
+    badWritableRoot,
+    'src/extensions/dashboard-pages/order-exceptions/dashboard-contract.json',
+    JSON.stringify({
+      workflow: {
+        intent: {
+          actorRole: 'order exception editor',
+          primaryJob: 'correct authoritative order exception fields',
+        },
+        focus: { defaultWorkset: 'Open exceptions', controls: ['status'] },
+        investigate: {
+          required: true,
+          surface: 'entity-page',
+          surfaceReason: 'Field correction requires a structured record surface',
+          preserveCollectionContext: false,
+          evidenceMode: 'editable',
+          identityField: '_id',
+        },
+        editing: {
+          required: true,
+          editableFields: ['reason'],
+          transitionFields: ['isReviewed'],
+          reason: 'The operator owns correction of the exception record',
+        },
+        actions: [{
+          id: 'reviewOrder',
+          kind: 'mutation',
+          target: 'persist review state',
+          surfaces: ['row', 'detail'],
+        }],
+        verify: { postcondition: 'Review state reloads', refresh: ['collection'] },
+      },
+    }),
+  );
+
+  const decisionWorkflow = {
+    intent: {
+      actorRole: 'content reviewer',
+      primaryJob: 'inspect submitted content and approve it or request changes',
+    },
+    focus: { defaultWorkset: 'Pending review', controls: ['risk', 'status'] },
+    investigate: {
+      required: true,
+      surface: 'entity-page',
+      surfaceReason: 'The submission is deep enough for a dedicated read-only detail view',
+      preserveCollectionContext: false,
+      evidenceMode: 'read-only',
+      identityField: '_id',
+    },
+    editing: {
+      required: false,
+      editableFields: [],
+      transitionFields: ['status', 'reviewerNotes'],
+      reason: 'The reviewer decides; the submitter owns source content changes',
+    },
+    actions: [{
+      id: 'approveSubmission',
+      kind: 'mutation',
+      target: 'set status to approved',
+      surfaces: ['row', 'detail'],
+    }],
+    verify: { postcondition: 'Approved item leaves pending review', refresh: ['collection'] },
+  };
+
+  for (const [fixtureRoot, entityMode] of [
+    [badDecisionEditRoot, 'edit'],
+    [goodDecisionRoot, 'view'],
+  ]) {
+    writeNested(
+      fixtureRoot,
+      'src/extensions/dashboard-pages/content-review/dashboard-contract.json',
+      JSON.stringify({ workflow: decisionWorkflow }),
+    );
+    writeNested(
+      fixtureRoot,
+      'src/extensions/dashboard-pages/content-review/patterns.json',
+      JSON.stringify({
+        pages: [
+          {
+            id: 'content-review',
+            type: 'collectionPage',
+            collectionPage: {
+              components: [{
+                type: 'collection',
+                entityPageId: 'submission-detail',
+                collection: {
+                  collectionId: 'app-id/content-submissions',
+                  entityTypeSource: 'cms',
+                },
+                actionCell: {
+                  primaryAction: {
+                    item: {
+                      id: 'approveSubmission',
+                      type: 'custom',
+                      label: 'Approve',
+                      biName: 'approve-submission-action',
+                    },
+                  },
+                },
+              }],
+            },
+          },
+          {
+            id: 'submission-detail',
+            type: 'entityPage',
+            entityPage: {
+              mode: entityMode,
+              parentPageId: 'content-review',
+              collectionId: 'app-id/content-submissions',
+              route: { path: '/submission/:entityId', params: { id: 'entityId' } },
+              ...(entityMode === 'view' ? {
+                actions: {
+                  primaryActions: {
+                    type: 'action',
+                    action: {
+                      item: {
+                        id: 'approveSubmission',
+                        type: 'custom',
+                        label: 'Approve',
+                        biName: 'approve-submission-action',
+                      },
+                    },
+                  },
+                },
+              } : {}),
+            },
+          },
+        ],
+      }),
+    );
+    writeNested(
+      fixtureRoot,
+      'src/extensions/dashboard-pages/content-review/ContentReview.tsx',
+      `import { AutoPatternsApp } from '@wix/auto-patterns';
+export const approveSubmission = ({ actionParams: { entity, item } }) => {
+  const record = entity ?? item;
+  if (!record) throw new Error('Submission is required');
+  return { label: 'Approve', biName: 'approve-submission-action', onClick: () => update(record._id) };
+};
+export default function ContentReview() { return <AutoPatternsApp />; }`,
+    );
+    writeNested(
+      fixtureRoot,
+      'src/extensions/backend/data-collections/ContentSubmissions.ts',
+      `export default {
+  idSuffix: 'content-submissions',
+  fields: [{ key: 'status' }, { key: 'reviewerNotes' }],
+  dataPermissions: {
+    itemRead: 'CMS_EDITOR',
+    itemInsert: 'CMS_EDITOR',
+    itemUpdate: 'CMS_EDITOR',
+    itemRemove: 'CMS_EDITOR',
+  },
+};`,
+    );
+  }
 
   write(
     badActionsRoot,
@@ -1122,9 +1282,31 @@ export default function SubscriptionHealth() {
       detailSurface: 'side-panel',
       detailSurfaceReason: 'Moderate detail while preserving table context',
       workflow: {
+        intent: {
+          actorRole: 'operations manager',
+          primaryJob: 'inspect orders and assign them without editing source order content',
+        },
         focus: { defaultWorkset: 'Orders requiring assignment', controls: ['search', 'status'] },
-        investigate: { required: true, surface: 'side-panel', identityField: 'id' },
-        actions: [{ id: 'assign-orders', kind: 'mutation', target: 'bulkAssign' }],
+        investigate: {
+          required: true,
+          surface: 'side-panel',
+          surfaceReason: 'Moderate evidence and quick assignment benefit from retaining table context',
+          preserveCollectionContext: true,
+          evidenceMode: 'read-only',
+          identityField: 'id',
+        },
+        editing: {
+          required: false,
+          editableFields: [],
+          transitionFields: ['assigneeId'],
+          reason: 'Assignment is a bounded workflow transition, not source-order editing',
+        },
+        actions: [{
+          id: 'assign-orders',
+          kind: 'mutation',
+          target: 'bulkAssign',
+          surfaces: ['row', 'detail', 'bulk'],
+        }],
         verify: {
           postcondition: 'Assigned orders are reloaded from the collection',
           refresh: ['table', 'detail', 'selection'],
@@ -1327,7 +1509,7 @@ export default function SubscriptionHealth() {
 
   const bad = spawnSync(process.execPath, [auditPath, badRoot], { encoding: 'utf8' });
   const badOutput = `${bad.stdout}\n${bad.stderr}`;
-  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
+  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'WF-06', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
   const missedRules = expectedRules.filter((rule) => !badOutput.includes(rule));
   if (bad.status === 0 || missedRules.length) {
     console.error('Dashboard audit self-test failed to reject the bad fixture.');
@@ -1369,8 +1551,24 @@ export default function SubscriptionHealth() {
   );
   const badWritableOutput = `${badWritable.stdout}\n${badWritable.stderr}`;
   if (badWritable.status === 0 || !badWritableOutput.includes('AP-12')) {
-    console.error('Dashboard audit self-test accepted a CMS_EDITOR-writable collection with no editing surface.');
+    console.error('Dashboard audit self-test accepted declared authoritative editing with no editing surface.');
     console.error(badWritableOutput.trim());
+    process.exit(1);
+  }
+
+  const badDecisionEditDashboard = path.join(
+    badDecisionEditRoot,
+    'src/extensions/dashboard-pages/content-review',
+  );
+  const badDecisionEdit = spawnSync(
+    process.execPath,
+    [auditPath, badDecisionEditDashboard],
+    { encoding: 'utf8' },
+  );
+  const badDecisionEditOutput = `${badDecisionEdit.stdout}\n${badDecisionEdit.stderr}`;
+  if (badDecisionEdit.status === 0 || !badDecisionEditOutput.includes('AP-19')) {
+    console.error('Dashboard audit self-test accepted a read-only decision workflow that resolves only to a generic edit page.');
+    console.error(badDecisionEditOutput.trim());
     process.exit(1);
   }
 
@@ -1557,6 +1755,21 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const goodDecisionDashboard = path.join(
+    goodDecisionRoot,
+    'src/extensions/dashboard-pages/content-review',
+  );
+  const goodDecision = spawnSync(
+    process.execPath,
+    [auditPath, goodDecisionDashboard],
+    { encoding: 'utf8' },
+  );
+  if (goodDecision.status !== 0) {
+    console.error('Dashboard audit self-test rejected a CMS_EDITOR-writable decision workflow with read-only evidence and detail actions.');
+    console.error(`${goodDecision.stdout}\n${goodDecision.stderr}`.trim());
+    process.exit(1);
+  }
+
   const hybrid = spawnSync(process.execPath, [auditPath, hybridRoot], { encoding: 'utf8' });
   if (hybrid.status !== 0) {
     console.error('Dashboard audit self-test rejected the valid Auto Patterns collection with supplemental analytics regions.');
@@ -1564,7 +1777,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, unverified permissions, generic permission failures, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, missing editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; verified scoped and no-scope, viewer, custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, unverified permissions, generic permission failures, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, mismatched decision/edit surfaces, missing declared editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; verified scoped and no-scope, viewer, decision, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

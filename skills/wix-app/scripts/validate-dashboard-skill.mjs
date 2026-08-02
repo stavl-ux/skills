@@ -241,7 +241,7 @@ for (const requiredGeneratorContract of [
   'dataFoundation',
   'workflow',
   'dashboard-contract.json',
-  "mode: canUpdate ? 'edit' : 'view'",
+  "mode: offersGeneralEditing ? 'edit' : 'view'",
 ]) {
   if (!generatorContent.includes(requiredGeneratorContract)) {
     fail(`Auto Patterns generator is missing ${requiredGeneratorContract}`);
@@ -313,9 +313,31 @@ try {
       capabilities: { read: true, insert: false, update: false, remove: false },
     },
     workflow: {
+      intent: {
+        actorRole: 'catalog operator',
+        primaryJob: 'inspect product issues and open the owning product manager',
+      },
       focus: { defaultWorkset: 'Products needing attention', controls: ['issue filter'] },
-      investigate: { required: true, surface: 'entity-page', identityField: '_id' },
-      actions: [{ id: 'manage-product', kind: 'owning-app-navigation', target: 'verified product manager' }],
+      investigate: {
+        required: true,
+        surface: 'entity-page',
+        surfaceReason: 'The owning manager provides deep product detail',
+        preserveCollectionContext: false,
+        evidenceMode: 'read-only',
+        identityField: '_id',
+      },
+      editing: {
+        required: false,
+        editableFields: [],
+        transitionFields: [],
+        reason: 'Source product editing remains in the owning application',
+      },
+      actions: [{
+        id: 'manage-product',
+        kind: 'owning-app-navigation',
+        target: 'verified product manager',
+        surfaces: ['row', 'detail'],
+      }],
       verify: { postcondition: 'Product state is reloaded', refresh: ['collection'] },
     },
   }));

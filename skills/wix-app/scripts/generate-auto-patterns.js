@@ -40,7 +40,14 @@
  *     "freshness": "source-managed",
  *     "capabilities": { "read": true, "insert": true, "update": true, "remove": true }
  *   },
- *   "workflow": { "focus": {...}, "investigate": {...}, "actions": [...], "verify": {...} }
+ *   "workflow": {
+ *     "intent": { "actorRole": "...", "primaryJob": "..." },
+ *     "focus": {...},
+ *     "investigate": { "surface": "...", "surfaceReason": "...", "preserveCollectionContext": true, "evidenceMode": "read-only", ... },
+ *     "editing": { "required": false, "editableFields": [], "transitionFields": ["status"], "reason": "..." },
+ *     "actions": [{ "id": "...", "kind": "mutation", "target": "...", "surfaces": ["row", "detail"] }],
+ *     "verify": {...}
+ *   }
  * }
  *
  * Output:
@@ -103,9 +110,28 @@ Input JSON shape:
       "capabilities": { "read": true, "insert": false, "update": false, "remove": false }
     },
     "workflow": {
+      "intent": { "actorRole": "string", "primaryJob": "string" },
       "focus": { "defaultWorkset": "string", "controls": [] },
-      "investigate": { "required": true, "surface": "entity-page", "identityField": "string" },
-      "actions": [{ "id": "string", "kind": "mutation | owning-app-navigation", "target": "string" }],
+      "investigate": {
+        "required": true,
+        "surface": "side-panel | modal | entity-page | owning-app-navigation",
+        "surfaceReason": "string",
+        "preserveCollectionContext": true,
+        "evidenceMode": "read-only | editable | mixed",
+        "identityField": "string"
+      },
+      "editing": {
+        "required": false,
+        "editableFields": [],
+        "transitionFields": ["status"],
+        "reason": "string"
+      },
+      "actions": [{
+        "id": "string",
+        "kind": "mutation | owning-app-navigation",
+        "target": "string",
+        "surfaces": ["row", "detail"]
+      }],
       "verify": { "postcondition": "string", "refresh": ["collection"] }
     }
   }
@@ -288,10 +314,31 @@ if (invalidFoundation) {
 
 const invalidWorkflow =
   !workflow
+  || typeof workflow.intent?.actorRole !== 'string'
+  || !workflow.intent.actorRole.trim()
+  || typeof workflow.intent?.primaryJob !== 'string'
+  || !workflow.intent.primaryJob.trim()
   || typeof workflow.focus?.defaultWorkset !== 'string'
   || workflow.investigate?.required !== true
   || typeof workflow.investigate?.surface !== 'string'
+  || !['side-panel', 'modal', 'entity-page', 'owning-app-navigation'].includes(workflow.investigate.surface)
+  || typeof workflow.investigate?.surfaceReason !== 'string'
+  || !workflow.investigate.surfaceReason.trim()
+  || typeof workflow.investigate?.preserveCollectionContext !== 'boolean'
+  || !['read-only', 'editable', 'mixed'].includes(workflow.investigate?.evidenceMode)
   || typeof workflow.investigate?.identityField !== 'string'
+  || typeof workflow.editing?.required !== 'boolean'
+  || !Array.isArray(workflow.editing?.editableFields)
+  || !Array.isArray(workflow.editing?.transitionFields)
+  || workflow.editing.editableFields.some((field) => typeof field !== 'string' || !field.trim())
+  || workflow.editing.transitionFields.some((field) => typeof field !== 'string' || !field.trim())
+  || typeof workflow.editing?.reason !== 'string'
+  || !workflow.editing.reason.trim()
+  || (workflow.editing.required && !capabilities.update)
+  || (workflow.editing.required && workflow.editing.editableFields.length === 0)
+  || (!workflow.editing.required && workflow.editing.editableFields.length > 0)
+  || (!workflow.editing.required && workflow.investigate.evidenceMode === 'editable')
+  || (workflow.editing.transitionFields.length > 0 && !capabilities.update)
   || !Array.isArray(workflow.actions)
   || workflow.actions.length === 0
   || workflow.actions.some(
@@ -299,14 +346,19 @@ const invalidWorkflow =
       typeof action?.id !== 'string'
       || !['mutation', 'owning-app-navigation'].includes(action?.kind)
       || typeof action?.target !== 'string'
-      || !action.target.trim(),
+      || !action.target.trim()
+      || !Array.isArray(action?.surfaces)
+      || action.surfaces.length === 0
+      || action.surfaces.some((surface) => !['row', 'bulk', 'detail', 'edit'].includes(surface))
+      || (action.surfaces.includes('row') && !action.surfaces.includes('detail')),
   )
+  || !workflow.actions[0].surfaces.includes('detail')
   || typeof workflow.verify?.postcondition !== 'string'
   || !Array.isArray(workflow.verify?.refresh)
   || !workflow.verify.refresh.includes('collection');
 if (invalidWorkflow) {
   console.error(
-    'Error: Input must include Focus, required Investigation, at least one real mutation or owning-app navigation action, and Verify with a collection refresh.',
+    'Error: Input must declare actor/job intent, Focus, Investigation rationale and evidence mode, editing policy, at least one real action whose primary action remains on detail, and Verify with a collection refresh.',
   );
   process.exit(1);
 }
@@ -319,6 +371,8 @@ function generatePatternsConfig(collection, schema) {
   const canInsert = capabilities.insert;
   const canUpdate = capabilities.update;
   const canRemove = capabilities.remove;
+  const offersGeneralEditing = canUpdate && workflow.editing.required;
+  const offersCreate = canInsert && workflow.editing.required;
 
   // Build field map
   const fieldMap = new Map();
@@ -478,7 +532,7 @@ function generatePatternsConfig(collection, schema) {
           subtitle: {
             text: schema.content.pageSubtitle || '',
           },
-          ...(canInsert ? { actions: {
+          ...(offersCreate ? { actions: {
             primaryActions: {
               type: 'action',
               action: {
@@ -518,13 +572,13 @@ function generatePatternsConfig(collection, schema) {
               emptyState: {
                 title: schema.content.emptyStateTitle,
                 subtitle: schema.content.emptyStateSubtitle,
-                ...(canInsert ? { addNewCta: {
+                ...(offersCreate ? { addNewCta: {
                   id: `create-${collectionRouteId}`,
                   text: schema.content.emptyStateButtonText,
                 } } : {}),
               },
-              ...((canUpdate || canRemove) ? { actionCell: {
-                ...(canUpdate ? {
+              ...((offersGeneralEditing || canRemove) ? { actionCell: {
+                ...(offersGeneralEditing ? {
                 primaryAction: {
                   item: {
                     id: `edit-${collectionRouteId}`,
@@ -614,7 +668,7 @@ function generatePatternsConfig(collection, schema) {
           title: { text: schema.content.entityPageTitle || '' },
           subtitle: { text: schema.content.entityPageSubtitle },
           parentPageId: `${collectionRouteId}-collection`,
-          mode: canUpdate ? 'edit' : 'view',
+          mode: offersGeneralEditing ? 'edit' : 'view',
           layout: generateEntityPageLayout(schema.layout),
           collectionId,
           entityTypeSource: 'cms',

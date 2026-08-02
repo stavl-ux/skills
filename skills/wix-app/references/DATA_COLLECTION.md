@@ -258,10 +258,10 @@ Resolve permissions for the intended dashboard audience per operation; do not in
 |---|---|
 | `itemRead` | List and inspect records. |
 | `itemInsert` | Offer create only when creation belongs to the workflow. |
-| `itemUpdate` | Provide an edit entity page or a paired inspect/edit flow for app-owned records managed by this dashboard. |
+| `itemUpdate` | Persist only the changes the intended workflow authorizes. Provide general editing only when authoritative field editing belongs to the actor's job; transition-only workflows may update named status or feedback fields from a read-only decision surface. |
 | `itemRemove` | Default to `CMS_EDITOR` for an app-owned editor workflow and provide confirmed single-record deletion; add bulk deletion when useful. |
 
-Permissions cap UI capabilities. App-owned management collections normally pair `itemUpdate: CMS_EDITOR` with `itemRemove: CMS_EDITOR`. Restrict removal only for an explicit ownership, retention, or safety reason and annotate `// dashboard-item-remove: restricted - <reason>` beside it. Process source queues with transitions; separately stored app-owned exceptions remain deletable.
+Permissions cap possible UI capabilities; they do not determine which capabilities the product should expose. Record the actor's field policy separately. App-owned editor collections normally pair `itemUpdate: CMS_EDITOR` with `itemRemove: CMS_EDITOR`, while review or process queues may allow update only to support workflow transitions without exposing general field editing. Restrict removal for an explicit ownership, retention, workflow, or safety reason and annotate `// dashboard-item-remove: restricted - <reason>` beside it. Process source queues with transitions; separately stored app-owned exceptions remain deletable.
 
 There is no separate `CMS_VIEWER` value. A CMS collaborator is effectively a viewer for an operation when they satisfy `itemRead` but not that operation's write permission.
 
