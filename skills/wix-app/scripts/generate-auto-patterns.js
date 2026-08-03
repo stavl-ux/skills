@@ -56,6 +56,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { basename, join, resolve } from 'path';
 import {
   authoritativeEditableFields,
+  validatePresentationContract,
   validateWorkflowContract,
   workflowActions,
   workflowHasOperation,
@@ -129,6 +130,19 @@ Input JSON shape:
         "evidenceMode": "read-only | editable | mixed", "identityField": "string",
         "actionBindings": { "logicalActionId": { "row": "rowResolverId", "detail": "detailResolverId" } }
       }
+    },
+    "presentation": {
+      "primaryRepresentation": { "type": "table", "reason": "string" },
+      "supportingRepresentations": [{ "type": "summary-metrics", "reason": "string" }],
+      "drillIn": {
+        "interface": "inline | side-panel | modal | entity-page | owning-app-navigation",
+        "reason": "string", "preservesContext": true
+      },
+      "stageEmphasis": {
+        "understand": ["string"], "focus": ["string"], "investigate": ["string"],
+        "act": ["string"], "verify": ["string"]
+      },
+      "consistency": ["string"]
     }
   }
 
@@ -263,7 +277,14 @@ if (validateConfigPath) {
 let input;
 input = readJsonFile(inputPath, 'input file');
 
-const { collection, schema, relevantCollectionId, dataFoundation, workflow } = input;
+const {
+  collection,
+  schema,
+  relevantCollectionId,
+  dataFoundation,
+  workflow,
+  presentation,
+} = input;
 
 if (!collection || !collection.idSuffix || !Array.isArray(collection.fields)) {
   console.error(
@@ -315,6 +336,13 @@ const workflowErrors = validateWorkflowContract(workflow, {
 if (workflowErrors.length) {
   console.error('Error: Invalid five-WHAT workflow contract:');
   workflowErrors.forEach((error) => console.error(`- ${error}`));
+  process.exit(1);
+}
+
+const presentationErrors = validatePresentationContract(presentation, { workflow });
+if (presentationErrors.length) {
+  console.error('Error: Invalid dashboard presentation contract:');
+  presentationErrors.forEach((error) => console.error(`- ${error}`));
   process.exit(1);
 }
 
@@ -679,7 +707,7 @@ try {
 const patternsConfig = generatePatternsConfig(collection, schema);
 exitOnConfigErrors(patternsConfig, collection.fields);
 const pageTsx = generatePageTsx();
-const dashboardContract = { dataFoundation, workflow };
+const dashboardContract = { dataFoundation, workflow, presentation };
 
 // The Wix CLI scaffolds the page component as `<folder>.tsx` and registers THAT
 // file in the generated `<folder>.extension.ts`. Write the auto-patterns wrapper

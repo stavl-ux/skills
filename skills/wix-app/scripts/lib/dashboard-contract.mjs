@@ -4,6 +4,24 @@ const ACTION_SURFACES = new Set(['collection', 'row', 'bulk', 'detail', 'edit'])
 const INVESTIGATION_SURFACES = new Set(['side-panel', 'modal', 'entity-page', 'owning-app-navigation']);
 const EVIDENCE_MODES = new Set(['read-only', 'editable', 'mixed']);
 const CONTEXT_PRIORITIES = new Set(['high', 'medium', 'low']);
+const PRESENTATION_REPRESENTATIONS = new Set([
+  'table',
+  'gallery',
+  'list',
+  'kanban',
+  'timeline',
+  'calendar',
+  'chart',
+  'summary-metrics',
+]);
+const PRESENTATION_DRILL_INS = new Set([
+  'inline',
+  'side-panel',
+  'modal',
+  'entity-page',
+  'owning-app-navigation',
+]);
+const WORKFLOW_STAGES = ['understand', 'focus', 'investigate', 'act', 'verify'];
 
 function isText(value) {
   return typeof value === 'string' && Boolean(value.trim());
@@ -66,6 +84,71 @@ export function authoritativeEditableFields(workflow) {
 
 export function workflowHasOperation(workflow, operation) {
   return workflowActions(workflow).some((action) => action.operation === operation);
+}
+
+function validateRepresentation(representation, prefix, errors) {
+  if (!representation
+      || typeof representation !== 'object'
+      || !PRESENTATION_REPRESENTATIONS.has(representation.type)
+      || !isText(representation.reason)) {
+    errors.push(`${prefix} must declare a supported type and a task-based reason`);
+  }
+}
+
+export function validatePresentationContract(presentation, { workflow } = {}) {
+  const errors = [];
+  if (!presentation || typeof presentation !== 'object' || Array.isArray(presentation)) {
+    return ['presentation must define how the completed journey and verified data are expressed'];
+  }
+
+  validateRepresentation(
+    presentation.primaryRepresentation,
+    'presentation.primaryRepresentation',
+    errors,
+  );
+
+  if (!Array.isArray(presentation.supportingRepresentations)) {
+    errors.push('presentation.supportingRepresentations must be an array');
+  } else {
+    presentation.supportingRepresentations.forEach((representation, index) => {
+      validateRepresentation(
+        representation,
+        `presentation.supportingRepresentations[${index}]`,
+        errors,
+      );
+    });
+  }
+
+  const drillIn = presentation.drillIn;
+  if (!drillIn
+      || typeof drillIn !== 'object'
+      || !PRESENTATION_DRILL_INS.has(drillIn.interface)
+      || !isText(drillIn.reason)
+      || typeof drillIn.preservesContext !== 'boolean') {
+    errors.push('presentation.drillIn must declare a supported interface, task-based reason, and context-preservation decision');
+  }
+
+  for (const stage of WORKFLOW_STAGES) {
+    if (!isTextArray(presentation.stageEmphasis?.[stage], { allowEmpty: false })) {
+      errors.push(`presentation.stageEmphasis.${stage} must describe how that workflow need remains legible`);
+    }
+  }
+
+  if (!isTextArray(presentation.consistency, { allowEmpty: false })) {
+    errors.push('presentation.consistency must name the states and representations that should remain coherent');
+  }
+
+  const implementation = workflow?.implementation;
+  const adaptationReason = drillIn?.adaptationReason;
+  if (implementation && drillIn) {
+    const interfaceChanged = drillIn.interface !== implementation.investigationSurface;
+    const contextChanged = drillIn.preservesContext !== implementation.preserveCollectionContext;
+    if ((interfaceChanged || contextChanged) && !isText(adaptationReason)) {
+      errors.push('presentation.drillIn and workflow.implementation must align or declare a capability-driven adaptationReason');
+    }
+  }
+
+  return [...new Set(errors)];
 }
 
 export function validateWorkflowContract(

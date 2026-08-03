@@ -26,7 +26,7 @@ Treat answers as requirements, not UI selections. Record uncertainty. Surface ca
 
 ## Workflow Contract
 
-Define `workflow` before the data-foundation contract, JSX, Auto Patterns configuration, or route selection:
+Define `workflow.journey` before the data-foundation contract, presentation contract, JSX, Auto Patterns configuration, or route selection:
 
 ```json
 {
@@ -86,7 +86,7 @@ Define `workflow` before the data-foundation contract, JSX, Auto Patterns config
 }
 ```
 
-Keep `journey` solution-independent. Add `implementation` after routing. Store it in `.dashboard-route.json` or `dashboard-contract.json`. Runtime behavior must match it.
+Keep `journey` solution-independent. After resolving data, use [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md) to choose how the journey should be expressed. Add `implementation` after routing by adapting the accepted presentation contract to verified platform capabilities. Store all three contracts in `.dashboard-route.json` or `dashboard-contract.json`. Runtime behavior must match them.
 
 An action `id` is the stable logical outcome. If every surface registers that same resolver ID, omit `implementation.actionBindings`. When row, bulk, and detail surfaces require different runtime resolver names, declare every mapping there after routing. Never rename the journey action merely to make one surface pass validation; all bound resolvers must adapt to one shared domain operation.
 
@@ -104,9 +104,7 @@ Use stored, maintained fields. Filter complexity does not justify replacing Auto
 
 ## Investigate
 
-Every actionable table needs real drill-in. Choose a surface after defining questions, evidence, depth, and context needs. Valid surfaces are an entity view, documented SidePanel, Dashboard Modal, or verified owning-record navigation.
-
-Prefer SidePanel for bounded decisions needing queue context and a view entity page for deep or linkable inspection. Use edit mode only for authoritative editing. Record the reason; these are heuristics.
+Every actionable table needs real drill-in. Define the questions, evidence, depth, and context needs here; choose and justify the representation and interaction surface through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md).
 
 Use stable identity and sufficient evidence. Toasts, selection, logs, or repeated row values are not investigation. Row click and its action open the same destination.
 
@@ -147,7 +145,7 @@ Never optimistically remove a record without reconciling canonical data. Retry r
 - **WF-02:** Every visible action has a real, permission-valid effect. Reject toast-only, console-only, empty, unresolved-target, and static-state handlers.
 - **WF-03:** Show selection only when a real bulk operation consumes selected stable IDs.
 - **WF-04:** Await mutations and reconcile canonical collection data, Views, counts, detail, and selection. Confirm visible success without manual reload.
-- **WF-05:** Apply the journey equally to Auto Patterns and custom WDS routes. Routing never weakens the workflow.
+- **WF-05:** Apply the journey and accepted presentation equally to Auto Patterns and custom WDS routes. Routing never weakens the workflow or silently substitutes a different interaction model.
 - **WF-06:** Keep decision, transition, and authoritative fields disjoint. Only authoritative editing permits a general editor; preserve row actions on detail.
 - **WF-07:** Generate creation only for an explicit `create` operation. Insert permission alone is insufficient.
 - **WF-08:** Treat one user outcome as one logical action across row, bulk, and detail. Bind surface-specific resolver IDs in implementation and route them through one shared mutation lifecycle.

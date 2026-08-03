@@ -221,6 +221,9 @@ if (skillContent.includes('For every dashboard request, read [DASHBOARD_ROUTING.
 if (!skillContent.includes('exactly one resolved CMS collection interface')) {
   fail('SKILL.md is missing the resolved one-collection Auto Patterns fast path');
 }
+if (!skillContent.includes('DASHBOARD_PRESENTATION.md')) {
+  fail('SKILL.md is missing the presentation-success decision layer');
+}
 if (!skillContent.includes('including standard Auto Patterns pages')) {
   fail('SKILL.md does not require the lightweight code audit for standard Auto Patterns pages');
 }
@@ -231,10 +234,11 @@ const simpleAutoPatternsHotPath = [
   path.join(referencesRoot, 'DATA_COLLECTION.md'),
   path.join(referencesRoot, 'DATA_FOUNDATION.md'),
   path.join(referencesRoot, 'DASHBOARD_WORKFLOW.md'),
+  path.join(referencesRoot, 'DASHBOARD_PRESENTATION.md'),
 ];
 const hotPathWords = simpleAutoPatternsHotPath.reduce((sum, filePath) => sum + wordCount(filePath), 0);
-if (hotPathWords > 10500) {
-  fail(`simple Auto Patterns hot path exceeds 10500 words (${hotPathWords})`);
+if (hotPathWords > 12250) {
+  fail(`simple Auto Patterns hot path exceeds 12250 words (${hotPathWords})`);
 }
 
 const routingContent = fs.readFileSync(path.join(referencesRoot, 'DASHBOARD_ROUTING.md'), 'utf8');
@@ -246,7 +250,9 @@ const generatorContent = fs.readFileSync(path.join(scriptDirectory, 'generate-au
 for (const requiredGeneratorContract of [
   'dataFoundation',
   'workflow',
+  'presentation',
   'dashboard-contract.json',
+  'validatePresentationContract',
   'validateWorkflowContract',
   'authoritativeEditableFields',
   "workflowHasOperation(workflow, 'create')",
@@ -394,6 +400,26 @@ try {
         identityField: '_id',
       },
     },
+    presentation: {
+      primaryRepresentation: {
+        type: 'table',
+        reason: 'Products must be compared by identity and issue state',
+      },
+      supportingRepresentations: [],
+      drillIn: {
+        interface: 'entity-page',
+        reason: 'The owning manager provides the relevant linkable detail',
+        preservesContext: false,
+      },
+      stageEmphasis: {
+        understand: ['products needing attention'],
+        focus: ['issue-filtered workset'],
+        investigate: ['product identity and issue evidence'],
+        act: ['manage product'],
+        verify: ['correct owning product opens'],
+      },
+      consistency: ['filters', 'selected record', 'owning destination'],
+    },
   }));
   execFileSync(
     process.execPath,
@@ -422,6 +448,9 @@ try {
   }
   if (generatedContract.dataFoundation?.mechanism !== 'wix-app-collection') {
     fail('Auto Patterns generator did not preserve the data-foundation contract');
+  }
+  if (generatedContract.presentation?.primaryRepresentation?.type !== 'table') {
+    fail('Auto Patterns generator did not preserve the presentation contract');
   }
 } catch (error) {
   fail(`Auto Patterns generator contract fixture failed: ${error.stderr?.toString().trim() || error.message}`);

@@ -10,7 +10,7 @@ Use this guide for new and existing one-collection management surfaces. It owns 
 
 ## Route And Workflow Contract
 
-Use this route for every new management surface backed by exactly one resolved CMS collection interface. Receive the completed journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) and the resolved source from [DATA_FOUNDATION.md](DATA_FOUNDATION.md); do not reinterpret either contract while choosing components.
+Use this route for every new management surface backed by exactly one resolved CMS collection interface. Receive the completed journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), the resolved source from [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and the accepted presentation from [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md); do not reinterpret those contracts while choosing components.
 
 ### Capability References
 
@@ -58,7 +58,7 @@ Keep Auto Patterns as the owner of the collection table, layouts, filters, selec
 | Extensive or multi-section view/edit flow, complex validation, deep linking, or long work | Link to an Auto Patterns `entityPage` in the appropriate mode. |
 | KPI or chart around a supported one-collection manager | Keep Auto Patterns as the table owner and mount the analytical component through a documented header, section, slot, or child-component override. |
 
-These are best-practice defaults, not intent-to-component rules: viewing and editing may use any surface when its depth and context justify it. For SidePanel or Modal, invoke the Wix Design System skill and read the exact installed component documentation before importing WDS. The supplemental surface is not evidence that the table itself should be rebuilt in WDS.
+These route defaults implement the presentation contract; they do not replace its task-level reasoning. Viewing and editing may use any verified surface when depth and context justify it. If the route adapts the selected drill-in, preserve the intended context and workflow and record the reason. For SidePanel or Modal, invoke the Wix Design System skill and read the exact installed component documentation before importing WDS. The supplemental surface is not evidence that the table itself should be rebuilt in WDS.
 
 ### Action Coherence
 
@@ -70,18 +70,19 @@ These are best-practice defaults, not intent-to-component rules: viewing and edi
 - Default app-owned editor deletion as AP-15 specifies.
 - Keep the defining single-record transition available on the investigation surface. When transition and authoritative editing both matter, pair view/edit pages: view owns the transition; edit owns field persistence.
 
-Do not create a second workflow decision table in this route. Consume the canonical `workflow.journey`, resolved `dataFoundation`, and derived `workflow.implementation`. Configure required actions on every declared surface because collection actions do not propagate automatically.
+Do not create a second workflow or presentation decision table in this route. Consume the canonical `workflow.journey`, resolved `dataFoundation`, accepted `presentation`, and derived `workflow.implementation`. Configure required actions on every declared surface because collection actions do not propagate automatically.
 
 ### Build Contract
 
 1. Preserve the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md); route and component choices may implement it but must not redefine it.
 2. Resolve a verified native, Wix App, external-adaptor, or app-owned collection through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
-3. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
-4. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
-5. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
-6. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
-7. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
-8. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
+3. Preserve the representation, hierarchy, drill-in intent, and consistency expectations selected through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md). Record any verified route adaptation instead of silently substituting a different interface.
+4. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
+5. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
+6. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
+7. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
+8. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
+9. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
 
 ### Acceptance
 
@@ -386,6 +387,26 @@ cat > /tmp/auto-patterns-input.json << 'EOF'
         }
       }
     }
+  },
+  "presentation": {
+    "primaryRepresentation": {
+      "type": "table",
+      "reason": "<why this representation supports the primary task>"
+    },
+    "supportingRepresentations": [],
+    "drillIn": {
+      "interface": "<inline | side-panel | modal | entity-page | owning-app-navigation>",
+      "reason": "<why this interface fits the depth and context needs>",
+      "preservesContext": true
+    },
+    "stageEmphasis": {
+      "understand": ["<summary or health signal>"],
+      "focus": ["<active workset or attention cue>"],
+      "investigate": ["<evidence needed to decide>"],
+      "act": ["<named workflow action>"],
+      "verify": ["<visible confirmed result>"]
+    },
+    "consistency": ["filters", "views", "records", "detail"]
   }
 }
 EOF
@@ -399,7 +420,7 @@ The `--output` directory MUST be the exact folder the CLI scaffolded in Step 1 �
 The script produces:
 
 - `patterns.json` — The declarative AppConfig
-- `dashboard-contract.json` — The data-foundation and Focus → Investigate → Act → Verify contract used by the audit
+- `dashboard-contract.json` — The data-foundation, presentation, and Focus → Investigate → Act → Verify contracts used by the audit
 - `<page-name>.tsx` — Thin React wrapper component, written to the SAME filename the CLI scaffolded and the builder already registers (overwrites the stub)
 
 The builder file (`<page-name>.extension.ts`) and `src/extensions.ts` registration from Step 1 stay as-is — no manual registration edit, and no stray `page.tsx`.

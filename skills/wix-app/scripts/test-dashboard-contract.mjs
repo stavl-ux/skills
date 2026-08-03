@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import {
   authoritativeEditableFields,
+  validatePresentationContract,
   validateWorkflowContract,
   workflowHasOperation,
 } from './lib/dashboard-contract.mjs';
@@ -61,6 +62,32 @@ function reviewWorkflow() {
   };
 }
 
+function reviewPresentation() {
+  return {
+    primaryRepresentation: {
+      type: 'table',
+      reason: 'Submissions must be compared across status, risk, and age',
+    },
+    supportingRepresentations: [{
+      type: 'summary-metrics',
+      reason: 'Pending and high-risk counts explain queue health',
+    }],
+    drillIn: {
+      interface: 'side-panel',
+      reason: 'Reviewers are likely to inspect several submissions from one queue',
+      preservesContext: true,
+    },
+    stageEmphasis: {
+      understand: ['pending and high-risk counts'],
+      focus: ['pending review workset'],
+      investigate: ['submission body and risk reasons'],
+      act: ['approve or request changes'],
+      verify: ['updated queue membership and counts'],
+    },
+    consistency: ['filters', 'views', 'counts', 'selected record', 'detail'],
+  };
+}
+
 const capabilities = { read: true, insert: true, update: true, remove: true };
 const workflow = reviewWorkflow();
 
@@ -70,6 +97,7 @@ assert.deepEqual(
 );
 assert.deepEqual(authoritativeEditableFields(workflow), []);
 assert.equal(workflowHasOperation(workflow, 'create'), false);
+assert.deepEqual(validatePresentationContract(reviewPresentation(), { workflow }), []);
 
 const overlappingFields = reviewWorkflow();
 overlappingFields.journey.act.actions[0].authoritativeEditableFields = ['reviewerNotes'];
@@ -108,4 +136,25 @@ assert.match(
   /five WHATs/,
 );
 
-console.log('Dashboard contract tests passed: journey, field responsibility, operations, and capability gates.');
+const unsupportedRepresentation = reviewPresentation();
+unsupportedRepresentation.primaryRepresentation.type = 'dashboard';
+assert.match(
+  validatePresentationContract(unsupportedRepresentation, { workflow }).join('\n'),
+  /supported type and a task-based reason/,
+);
+
+const unexplainedSurfaceChange = reviewPresentation();
+unexplainedSurfaceChange.drillIn.interface = 'entity-page';
+unexplainedSurfaceChange.drillIn.preservesContext = false;
+assert.match(
+  validatePresentationContract(unexplainedSurfaceChange, { workflow }).join('\n'),
+  /must align or declare a capability-driven adaptationReason/,
+);
+
+unexplainedSurfaceChange.drillIn.adaptationReason = 'Installed route supports a linkable entity view but not contextual detail';
+assert.deepEqual(
+  validatePresentationContract(unexplainedSurfaceChange, { workflow }),
+  [],
+);
+
+console.log('Dashboard contract tests passed: journey, presentation, field responsibility, operations, and capability gates.');

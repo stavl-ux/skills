@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   authoritativeEditableFields,
+  validatePresentationContract,
   validateWorkflowContract,
   workflowActions,
 } from './lib/dashboard-contract.mjs';
@@ -507,6 +508,22 @@ for (const contract of dashboardContracts) {
     continue;
   }
 
+  if (contract.value?.presentation) {
+    const presentationErrors = validatePresentationContract(
+      contract.value.presentation,
+      { workflow },
+    );
+    if (presentationErrors.length) {
+      findings.push({
+        filePath: contract.path,
+        line: 1,
+        rule: 'PS-01',
+        message: `Dashboard presentation contract is incomplete or diverges from implementation: ${presentationErrors.join('; ')}.`,
+      });
+      continue;
+    }
+  }
+
   const editEntityPages = [...entityPages.values()].filter((page) => page.mode === 'edit');
   const viewEntityPages = [...entityPages.values()].filter((page) => page.mode === 'view');
   const hasDeclaredEditSurface =
@@ -684,6 +701,20 @@ for (const recordPath of routeRecordPaths) {
         rule: 'WF-01',
         message: `Custom record dashboard does not complete the five-WHAT journey: ${workflowErrors.join('; ')}.`,
       });
+    }
+    if (record.presentation) {
+      const presentationErrors = validatePresentationContract(
+        record.presentation,
+        { workflow: record.workflow },
+      );
+      if (presentationErrors.length) {
+        findings.push({
+          filePath: recordPath,
+          line: 1,
+          rule: 'PS-01',
+          message: `Custom dashboard presentation contract is incomplete or diverges from implementation: ${presentationErrors.join('; ')}.`,
+        });
+      }
     }
   }
 

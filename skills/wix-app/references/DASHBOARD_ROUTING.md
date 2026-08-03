@@ -1,6 +1,6 @@
 # Dashboard Workflows
 
-Use this guide only after completing the five-WHAT journey in [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) and resolving data through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Consume those contracts without reinterpreting the prompt. Read only the exact installed API and component documentation named by the selected route.
+Use this guide only after completing the five-WHAT journey in [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), resolving data through [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and defining the presentation through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md). Consume those contracts without reinterpreting the prompt. Read only the exact installed API and component documentation named by the selected route.
 
 ## Contents
 
@@ -115,6 +115,17 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
       "evidenceMode": "read-only",
       "identityField": "id"
     }
+  },
+  "presentation": {
+    "primaryRepresentation": { "type": "table", "reason": "Appointments must be compared across time, status, client, and service" },
+    "supportingRepresentations": [],
+    "drillIn": {
+      "interface": "side-panel",
+      "reason": "Appointment review benefits from retaining the active workset",
+      "preservesContext": true
+    },
+    "stageEmphasis": { "understand": ["upcoming appointment scope"], "focus": ["appointments needing attention"], "investigate": ["appointment, client, and service context"], "act": ["manage appointment"], "verify": ["correct owning record opens"] },
+    "consistency": ["filters", "selected record", "detail"]
   }
 }
 ```
@@ -125,7 +136,7 @@ For multi-region pages, `regionOwners` records which implementation owns `collec
 
 When `regionOwners.metrics` is non-null, also record `metricSurface`, `metricCheckedExample`, `metricContainmentOwner`, and `metricLayoutOwner`. `metricSurface` must name the installed composition actually rendered (`AnalyticsSummary` or `StatisticsWidget`). Copy containment from that exact installed example; do not infer that a component either needs or forbids an external Card.
 
-When record detail exists, declare it once in `workflow.implementation.investigationSurface` and explain it in `surfaceReason`. Do not duplicate the decision in route-level `detailSurface` fields.
+When record detail exists, select and justify it in `presentation.drillIn`, then adapt it to the verified runtime in `workflow.implementation`. Keep those fields aligned unless `presentation.drillIn.adaptationReason` explains a capability-driven difference. Do not duplicate the decision in route-level `detailSurface` fields.
 
 Do not proceed with custom or hybrid implementation without this record. Standard generated Auto Patterns pages use `patterns.json` and their registered wrapper as ownership evidence and do not need a route record. Update a custom route record if evidence changes the route.
 

@@ -1,6 +1,6 @@
 # Dashboard Data Foundation
 
-Receive the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), then resolve data ownership before selecting a route or component. The goal is a CMS collection interface with a real schema, stable record identity, known permissions, and a supported source-of-truth path. A backend API response is not itself a reason to build a custom table.
+Receive the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), then resolve data ownership before selecting a route or component. After resolution, use [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md) to express the journey through representations and interaction surfaces that fit the verified data. The goal is a CMS collection interface with a real schema, stable record identity, known permissions, and a supported source-of-truth path. A backend API response is not itself a reason to build a custom table.
 
 ## Contents
 
