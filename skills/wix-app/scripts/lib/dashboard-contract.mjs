@@ -25,6 +25,10 @@ const WORKFLOW_STAGES = ['understand', 'focus', 'investigate', 'act', 'verify'];
 const ACTION_PROMINENCE = new Set(['immediate', 'contextual', 'progressive']);
 const ACTION_EVIDENCE_RELATIONSHIPS = new Set(['adjacent', 'same-surface', 'separate-step']);
 const DATA_SCOPES = new Set(['active-workset', 'entire-collection']);
+const DISCOVERY_SUPPORT = new Set(['verified', 'unsupported', 'unknown']);
+const DISCOVERY_HOSTS = new Set(['dashboard', 'backend', 'site-frontend', 'owning-app']);
+const PERMISSION_STATUSES = new Set(['verified', 'not-required', 'missing', 'unknown']);
+const UNRESOLVED_IMPACTS = new Set(['blocking', 'material', 'minor']);
 
 function isText(value) {
   return typeof value === 'string' && Boolean(value.trim());
@@ -88,6 +92,147 @@ export function authoritativeEditableFields(workflow) {
 
 export function workflowHasOperation(workflow, operation) {
   return workflowActions(workflow).some((action) => action.operation === operation);
+}
+
+export function discoveryCapabilities(discovery) {
+  return Array.isArray(discovery?.capabilities) ? discovery.capabilities : [];
+}
+
+export function validateDiscoveryContract(discovery, { requireResolved = true } = {}) {
+  const errors = [];
+  if (!discovery || typeof discovery !== 'object' || Array.isArray(discovery)) {
+    return ['discovery must record bounded context, entities, capabilities, constraints, and unresolved questions'];
+  }
+
+  const context = discovery.context;
+  const terminology = context?.terminology;
+  if (!context
+      || !isText(context.businessDomain)
+      || !isTextArray(context.actorContext)
+      || !terminology
+      || typeof terminology !== 'object'
+      || Array.isArray(terminology)
+      || !Object.keys(terminology).length
+      || Object.values(terminology).some((value) => !isText(value))) {
+    errors.push('discovery.context must declare businessDomain, actorContext, and verified terminology');
+  }
+
+  const entities = discovery.entities;
+  const entityIds = new Set();
+  if (!Array.isArray(entities) || !entities.length) {
+    errors.push('discovery.entities must contain at least one managed entity with identity provenance');
+  } else {
+    for (const [index, entity] of entities.entries()) {
+      const prefix = `discovery.entities[${index}]`;
+      if (!isText(entity?.id)
+          || !isText(entity?.name)
+          || !isText(entity?.system)
+          || !isText(entity?.identityField)
+          || !isText(entity?.identitySource)
+          || !isText(entity?.source)) {
+        errors.push(`${prefix} must declare id, name, system, identityField, identitySource, and source`);
+        continue;
+      }
+      if (entityIds.has(entity.id)) errors.push(`${prefix}.id must be unique`);
+      entityIds.add(entity.id);
+    }
+  }
+
+  if (!Array.isArray(discovery.existingSurfaces)) {
+    errors.push('discovery.existingSurfaces must be an array');
+  } else {
+    for (const [index, surface] of discovery.existingSurfaces.entries()) {
+      if (!isText(surface?.id)
+          || !isText(surface?.name)
+          || !isText(surface?.owner)
+          || !isText(surface?.purpose)) {
+        errors.push(`discovery.existingSurfaces[${index}] must declare id, name, owner, and purpose`);
+      }
+    }
+  }
+
+  const capabilities = discoveryCapabilities(discovery);
+  const capabilityIds = new Set();
+  if (!capabilities.length) {
+    errors.push('discovery.capabilities must contain at least one checked operation');
+  } else {
+    for (const [index, capability] of capabilities.entries()) {
+      const prefix = `discovery.capabilities[${index}]`;
+      const permission = capability?.permission;
+      if (!isText(capability?.id)
+          || !isText(capability?.entityId)
+          || !isText(capability?.effect)
+          || !DISCOVERY_SUPPORT.has(capability?.support)
+          || !isText(capability?.source)
+          || !isText(capability?.executionOwner)
+          || !DISCOVERY_HOSTS.has(capability?.executionHost)) {
+        errors.push(`${prefix} must declare id, entityId, effect, support, source, executionOwner, and executionHost`);
+      }
+      if (isText(capability?.id)) {
+        if (capabilityIds.has(capability.id)) errors.push(`${prefix}.id must be unique`);
+        capabilityIds.add(capability.id);
+      }
+      if (isText(capability?.entityId) && !entityIds.has(capability.entityId)) {
+        errors.push(`${prefix}.entityId must reference a discovered entity`);
+      }
+      if (!permission
+          || !PERMISSION_STATUSES.has(permission.status)
+          || !isTextArray(permission.requiredScopes)
+          || !isText(permission.evidence)) {
+        errors.push(`${prefix}.permission must declare status, requiredScopes, and evidence`);
+      }
+      if (!isTextArray(capability?.dependencies)) {
+        errors.push(`${prefix}.dependencies must be an array of capability IDs`);
+      }
+    }
+  }
+
+  const capabilitiesById = new Map(capabilities.map((capability) => [capability.id, capability]));
+  for (const [index, capability] of capabilities.entries()) {
+    for (const dependencyId of capability?.dependencies ?? []) {
+      if (!capabilitiesById.has(dependencyId)) {
+        errors.push(`discovery.capabilities[${index}].dependencies references unknown capability ${dependencyId}`);
+      }
+      if (dependencyId === capability.id) {
+        errors.push(`discovery.capabilities[${index}].dependencies cannot reference itself`);
+      }
+    }
+  }
+
+  const visiting = new Set();
+  const visited = new Set();
+  function hasDependencyCycle(capabilityId) {
+    if (visiting.has(capabilityId)) return true;
+    if (visited.has(capabilityId)) return false;
+    visiting.add(capabilityId);
+    const capability = capabilitiesById.get(capabilityId);
+    const cyclic = (capability?.dependencies ?? []).some(
+      (dependencyId) => capabilitiesById.has(dependencyId) && hasDependencyCycle(dependencyId),
+    );
+    visiting.delete(capabilityId);
+    visited.add(capabilityId);
+    return cyclic;
+  }
+  if ([...capabilityIds].some(hasDependencyCycle)) {
+    errors.push('discovery.capabilities dependencies must be acyclic');
+  }
+
+  if (!isTextArray(discovery.constraints)) {
+    errors.push('discovery.constraints must be an array');
+  }
+  if (!Array.isArray(discovery.unresolved)) {
+    errors.push('discovery.unresolved must be an array');
+  } else {
+    for (const [index, unresolved] of discovery.unresolved.entries()) {
+      if (!isText(unresolved?.question) || !UNRESOLVED_IMPACTS.has(unresolved?.impact)) {
+        errors.push(`discovery.unresolved[${index}] must declare question and blocking, material, or minor impact`);
+      } else if (requireResolved && ['blocking', 'material'].includes(unresolved.impact)) {
+        errors.push(`discovery.unresolved[${index}] must be resolved before generation`);
+      }
+    }
+  }
+
+  return [...new Set(errors)];
 }
 
 function validateRepresentation(representation, prefix, errors) {
@@ -188,12 +333,15 @@ export function validatePresentationContract(presentation, { workflow } = {}) {
 
 export function validateWorkflowContract(
   workflow,
-  { capabilities, requireCollectionRefresh = false } = {},
+  { capabilities, discovery, requireCollectionRefresh = false } = {},
 ) {
   const errors = [];
   const journey = workflow?.journey;
   const implementation = workflow?.implementation;
   const actions = workflowActions(workflow);
+  const discoveredCapabilities = new Map(
+    discoveryCapabilities(discovery).map((capability) => [capability.id, capability]),
+  );
 
   if (!journey || typeof journey !== 'object') {
     return ['workflow.journey must answer the five WHATs before implementation choices'];
@@ -222,10 +370,31 @@ export function validateWorkflowContract(
   for (const [index, action] of actions.entries()) {
     const prefix = `journey.act.actions[${index}]`;
     if (!isText(action?.id)
+        || (discovery && !isText(action?.capabilityId))
         || !ACTION_KINDS.has(action?.kind)
         || !ACTION_OPERATIONS.has(action?.operation)
         || !isText(action?.target)) {
-      errors.push(`${prefix} must declare id, kind, operation, and target`);
+      errors.push(`${prefix} must declare id, capabilityId, kind, operation, and target`);
+    }
+    if (discovery) {
+      const discoveredCapability = discoveredCapabilities.get(action?.capabilityId);
+      if (!discoveredCapability) {
+        errors.push(`${prefix}.capabilityId must reference a discovered capability`);
+      } else {
+        if (discoveredCapability.support !== 'verified') {
+          errors.push(`${prefix}.capabilityId must reference a verified capability`);
+        }
+        if (!['verified', 'not-required'].includes(discoveredCapability.permission?.status)) {
+          errors.push(`${prefix}.capabilityId does not have usable permission evidence`);
+        }
+        for (const dependencyId of discoveredCapability.dependencies ?? []) {
+          const dependency = discoveredCapabilities.get(dependencyId);
+          if (dependency?.support !== 'verified'
+              || !['verified', 'not-required'].includes(dependency?.permission?.status)) {
+            errors.push(`${prefix}.capabilityId depends on an unavailable capability ${dependencyId}`);
+          }
+        }
+      }
     }
     if (!Array.isArray(action?.surfaces)
         || !action.surfaces.length

@@ -1,6 +1,6 @@
 # Dashboard Operational Workflow
 
-Interpret every record-dashboard request before data resolution or routing. The five WHATs define **Understand → Focus → Investigate → Act → Verify**.
+Receive bounded context reconnaissance from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md), then interpret every record-dashboard request before data resolution or routing. The five WHATs define **Understand → Focus → Investigate → Act → Verify**. Discovery supplies evidence; it does not decide the journey.
 
 ## Contents
 
@@ -14,7 +14,7 @@ Interpret every record-dashboard request before data resolution or routing. The 
 
 ## Five-WHAT Gate
 
-Answer these before naming data, routes, or components:
+Answer these using the user's request and discovered context before naming data, routes, or components:
 
 1. What outcome is the actor trying to achieve?
 2. What must the actor understand before acting?
@@ -22,7 +22,7 @@ Answer these before naming data, routes, or components:
 4. Which real actions must be available?
 5. What visible result will confirm success?
 
-Treat answers as requirements, not UI selections. Record uncertainty. Surface capability conflicts; never substitute placeholder behavior.
+Treat answers as requirements, not UI selections. Distinguish explicit user intent, discovered facts, and inference. Record uncertainty. After the required actions are known, complete targeted capability verification through [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md). Surface conflicts; never substitute placeholder behavior.
 
 ## Workflow Contract
 
@@ -53,6 +53,7 @@ Define `workflow.journey` before the data-foundation contract, presentation cont
         "actions": [
           {
             "id": "request-changes",
+            "capabilityId": "request-changes",
             "kind": "mutation",
             "operation": "transition",
             "target": "submission collection",
@@ -86,7 +87,7 @@ Define `workflow.journey` before the data-foundation contract, presentation cont
 }
 ```
 
-Keep `journey` solution-independent. After resolving data, use [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md) to choose how the journey should be expressed. Add `implementation` after routing by adapting the accepted presentation contract to verified platform capabilities. Store all three contracts in `.dashboard-route.json` or `dashboard-contract.json`. Runtime behavior must match them.
+Keep `journey` solution-independent. Every action's `capabilityId` must resolve to a verified discovery capability with a supported host and verified or unnecessary permissions. After resolving data, use [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md) to choose how the journey should be expressed. Add `implementation` after routing by adapting the accepted presentation contract to verified platform capabilities. Store discovery, workflow, data-foundation, and presentation contracts in `.dashboard-route.json` or `dashboard-contract.json`. Runtime behavior must match them.
 
 An action `id` is the stable logical outcome. If every surface registers that same resolver ID, omit `implementation.actionBindings`. When row, bulk, and detail surfaces require different runtime resolver names, declare every mapping there after routing. Never rename the journey action merely to make one surface pass validation; all bound resolvers must adapt to one shared domain operation.
 
@@ -149,3 +150,4 @@ Never optimistically remove a record without reconciling canonical data. Retry r
 - **WF-06:** Keep authoritative editing separate from bounded action inputs and transitions. Decision inputs may also be transition fields when the entered value is the persisted change. Only authoritative editing permits a general editor; preserve every named row action on detail.
 - **WF-07:** Generate creation only for an explicit `create` operation. Insert permission alone is insufficient.
 - **WF-08:** Treat one user outcome as one logical action across row, bulk, and detail. Bind surface-specific resolver IDs in implementation and route them through one shared mutation lifecycle.
+- **WF-09:** Bind every action to its verified domain capability and preserve its identifier provenance, execution owner, host, permission state, dependencies, and observable effect through implementation.

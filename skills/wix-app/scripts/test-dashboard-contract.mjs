@@ -3,10 +3,47 @@
 import assert from 'node:assert/strict';
 import {
   authoritativeEditableFields,
+  validateDiscoveryContract,
   validatePresentationContract,
   validateWorkflowContract,
   workflowHasOperation,
 } from './lib/dashboard-contract.mjs';
+
+function reviewDiscovery() {
+  return {
+    context: {
+      businessDomain: 'content operations',
+      actorContext: ['content reviewer'],
+      terminology: { record: 'Submission', completedState: 'Approved' },
+    },
+    entities: [{
+      id: 'submission',
+      name: 'Submission',
+      system: 'native CMS',
+      identityField: '_id',
+      identitySource: 'verified collection metadata',
+      source: 'ContentSubmissions collection',
+    }],
+    existingSurfaces: [],
+    capabilities: [{
+      id: 'request-changes',
+      entityId: 'submission',
+      effect: 'persist review feedback and transition status',
+      support: 'verified',
+      source: 'verified collection update capability',
+      executionOwner: 'ContentSubmissions collection',
+      executionHost: 'dashboard',
+      permission: {
+        status: 'verified',
+        requiredScopes: ['collection update'],
+        evidence: 'installed app grant and collection permissions',
+      },
+      dependencies: [],
+    }],
+    constraints: [],
+    unresolved: [],
+  };
+}
 
 function reviewWorkflow() {
   return {
@@ -31,6 +68,7 @@ function reviewWorkflow() {
       act: {
         actions: [{
           id: 'request-changes',
+          capabilityId: 'request-changes',
           kind: 'mutation',
           operation: 'transition',
           target: 'submissions collection',
@@ -95,10 +133,13 @@ function reviewPresentation() {
 }
 
 const capabilities = { read: true, insert: true, update: true, remove: true };
+const discovery = reviewDiscovery();
 const workflow = reviewWorkflow();
 
+assert.deepEqual(validateDiscoveryContract(discovery), []);
+
 assert.deepEqual(
-  validateWorkflowContract(workflow, { capabilities, requireCollectionRefresh: true }),
+  validateWorkflowContract(workflow, { capabilities, discovery, requireCollectionRefresh: true }),
   [],
 );
 assert.deepEqual(authoritativeEditableFields(workflow), []);
@@ -134,6 +175,63 @@ assert.match(
     capabilities: { ...capabilities, insert: false },
   }).join('\n'),
   /requires insert capability/,
+);
+
+const missingIdentityProvenance = reviewDiscovery();
+delete missingIdentityProvenance.entities[0].identitySource;
+assert.match(
+  validateDiscoveryContract(missingIdentityProvenance).join('\n'),
+  /identitySource/,
+);
+
+const unresolvedMaterialChoice = reviewDiscovery();
+unresolvedMaterialChoice.unresolved = [{
+  question: 'Should approval publish immediately?',
+  impact: 'material',
+}];
+assert.match(
+  validateDiscoveryContract(unresolvedMaterialChoice).join('\n'),
+  /must be resolved before generation/,
+);
+
+const unavailableAction = reviewDiscovery();
+unavailableAction.capabilities[0].support = 'unsupported';
+assert.match(
+  validateWorkflowContract(reviewWorkflow(), { capabilities, discovery: unavailableAction }).join('\n'),
+  /must reference a verified capability/,
+);
+
+const missingActionPermission = reviewDiscovery();
+missingActionPermission.capabilities[0].permission.status = 'missing';
+assert.match(
+  validateWorkflowContract(reviewWorkflow(), { capabilities, discovery: missingActionPermission }).join('\n'),
+  /does not have usable permission evidence/,
+);
+
+const unknownCapability = reviewWorkflow();
+unknownCapability.journey.act.actions[0].capabilityId = 'invented-action';
+assert.match(
+  validateWorkflowContract(unknownCapability, { capabilities, discovery }).join('\n'),
+  /must reference a discovered capability/,
+);
+
+const unknownDependency = reviewDiscovery();
+unknownDependency.capabilities[0].dependencies = ['load-review-policy'];
+assert.match(
+  validateDiscoveryContract(unknownDependency).join('\n'),
+  /dependencies references unknown capability load-review-policy/,
+);
+
+const cyclicDependencies = reviewDiscovery();
+cyclicDependencies.capabilities.push({
+  ...structuredClone(cyclicDependencies.capabilities[0]),
+  id: 'load-review-policy',
+  dependencies: ['request-changes'],
+});
+cyclicDependencies.capabilities[0].dependencies = ['load-review-policy'];
+assert.match(
+  validateDiscoveryContract(cyclicDependencies).join('\n'),
+  /dependencies must be acyclic/,
 );
 
 const missingDetailRefresh = reviewWorkflow();
@@ -182,6 +280,7 @@ const renewalWorkflow = reviewWorkflow();
 renewalWorkflow.journey.act.actions = [
   {
     id: 'assign-owner',
+    capabilityId: 'assign-owner',
     kind: 'mutation',
     operation: 'update',
     target: 'renewal accounts collection',
@@ -192,6 +291,7 @@ renewalWorkflow.journey.act.actions = [
   },
   {
     id: 'update-next-step',
+    capabilityId: 'update-next-step',
     kind: 'mutation',
     operation: 'update',
     target: 'renewal accounts collection',
@@ -202,6 +302,7 @@ renewalWorkflow.journey.act.actions = [
   },
   {
     id: 'complete-follow-up',
+    capabilityId: 'complete-follow-up',
     kind: 'mutation',
     operation: 'transition',
     target: 'renewal accounts collection',
@@ -240,4 +341,4 @@ assert.match(
   /actions missing from the workflow: assign-owner, update-next-step/,
 );
 
-console.log('Dashboard contract tests passed: journey, presentation, field responsibility, operations, and capability gates.');
+console.log('Dashboard contract tests passed: discovery, journey, presentation, field responsibility, operations, and capability gates.');

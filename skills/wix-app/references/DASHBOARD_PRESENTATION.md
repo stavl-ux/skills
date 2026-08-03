@@ -1,6 +1,6 @@
 # Dashboard Presentation Success
 
-Translate the completed workflow and resolved data foundation into a presentation contract before routing or choosing components. Presentation success determines how the journey is expressed; it does not redefine the user outcome, invent data, or prescribe one interface for every scenario.
+Translate the completed workflow, discovered domain context, and resolved data foundation into a presentation contract before routing or choosing components. Presentation success determines how the journey is expressed; it does not redefine the user outcome, invent data, or prescribe one interface merely because the domain commonly uses it.
 
 ## Contents
 
@@ -69,7 +69,7 @@ Choose the default representation that best supports the primary task. Add anoth
 | **Chart** | The user needs to understand a trend, distribution, or relationship. | The visualization answers a specific business question and connects to relevant records. |
 | **Summary metrics** | The user needs a quick health or scope signal. | Metrics clarify current conditions and direct attention to the underlying work. |
 
-Use the data shape as evidence, not as the sole decision. A collection does not automatically require a table, and the availability of a chart does not make it useful. Preserve the owning record workflow when a supplemental representation is added.
+Use the data shape and discovered domain conventions as evidence, not as the sole decision. A collection does not automatically require a table, a pipeline does not automatically require Kanban, and the availability of a chart does not make it useful. Preserve the owning record workflow when a supplemental representation is added.
 
 ## Choose The Drill-In
 
@@ -107,6 +107,7 @@ General edit mode can be a good fit when maintaining authoritative record conten
 ## Keep Meaning And State Consistent
 
 - Reuse understandable names, status meaning, formatting, and action labels across summaries, representations, and detail.
+- Prefer terminology verified during discovery; do not expose internal entity names, raw IDs, action keys, or payload fields.
 - Keep filters, sorting, selected record, and workset meaning coherent when users switch representations or return from drill-in.
 - Connect summaries and visualizations to the records that explain them.
 - Derive `active-workset` summaries from filtered records.

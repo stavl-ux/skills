@@ -10,7 +10,7 @@ Use this guide for new and existing one-collection management surfaces. It owns 
 
 ## Route And Workflow Contract
 
-Use this route for every new management surface backed by exactly one resolved CMS collection interface. Receive the completed journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), the resolved source from [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and the accepted presentation from [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md); do not reinterpret those contracts while choosing components.
+Use this route for every new management surface backed by exactly one resolved CMS collection interface. Receive discovery from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md), the completed journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), the resolved source from [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and the accepted presentation from [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md); do not reinterpret those contracts while choosing components.
 
 ### Capability References
 
@@ -74,19 +74,20 @@ These route defaults implement the presentation contract; they do not replace it
 - Default app-owned editor deletion as AP-15 specifies.
 - Keep the defining single-record transition available on the investigation surface. When transition and authoritative editing both matter, pair view/edit pages: view owns the transition; edit owns field persistence.
 
-Do not create a second workflow or presentation decision table in this route. Consume the canonical `workflow.journey`, resolved `dataFoundation`, accepted `presentation`, and derived `workflow.implementation`. Configure required actions on every declared surface because collection actions do not propagate automatically.
+Do not create a second discovery, workflow, or presentation decision table in this route. Consume the canonical `discovery`, `workflow.journey`, resolved `dataFoundation`, accepted `presentation`, and derived `workflow.implementation`. Configure required actions on every declared surface because collection actions do not propagate automatically.
 
 ### Build Contract
 
-1. Preserve the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md); route and component choices may implement it but must not redefine it.
-2. Resolve a verified native, Wix App, external-adaptor, or app-owned collection through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
-3. Preserve the representation, hierarchy, drill-in intent, and consistency expectations selected through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md). Record any verified route adaptation instead of silently substituting a different interface.
-4. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
-5. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
-6. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
-7. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
-8. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
-9. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
+1. Preserve the verified entities, terminology, action capabilities, and provenance from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md); do not replace missing capabilities with generated behavior.
+2. Preserve the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md); route and component choices may implement it but must not redefine it.
+3. Resolve a verified native, Wix App, external-adaptor, or app-owned collection through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
+4. Preserve the representation, hierarchy, drill-in intent, and consistency expectations selected through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md). Record any verified route adaptation instead of silently substituting a different interface.
+5. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
+6. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
+7. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
+8. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
+9. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
+10. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
 
 ### Acceptance
 
@@ -200,14 +201,16 @@ src/extensions/dashboard/pages/<page-name>/
 ├── <page-name>.extension.ts   # Builder file (generated — registration + UUID, component → <page-name>.tsx)
 ├── <page-name>.tsx            # CLI component stub (overwritten in Step 3)
 ├── patterns.json              # Declarative AppConfig — added in Step 3, edit this to iterate
-└── dashboard-contract.json    # Verified data foundation and operational workflow
+└── dashboard-contract.json    # Discovery, data, workflow, and presentation contracts
 ```
 
 > **Why this matters for Step 3:** the generator writes the auto-patterns wrapper to `<page-name>.tsx` — the SAME file the builder already registers — so it overwrites the stub and is wired up automatically. Do NOT let it produce a separate `page.tsx`; that would leave the wrapper unregistered next to the empty stub, and the dashboard would render blank.
 
 #### Step 2: Generate the Schema
 
-You must produce the input JSON for the generator script. Top-level keys: `collection`, `schema`, `relevantCollectionId`, `extensionName`, `dataFoundation`, and `workflow`.
+You must produce the input JSON for the generator script. Top-level keys: `collection`, `schema`, `relevantCollectionId`, `extensionName`, `discovery`, `dataFoundation`, `workflow`, and `presentation`.
+
+**`discovery`** — the completed [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md) contract. Every managed entity has verified identity provenance; every workflow action references a `support: verified` capability whose permission is `verified` or `not-required`; blocking and material uncertainty is resolved.
 
 **`collection`** (from the data collection you scaffolded):
 
@@ -216,9 +219,9 @@ You must produce the input JSON for the generator script. Top-level keys: `colle
 
 **`relevantCollectionId`** (top-level, sibling to `collection` and `schema`) — full scoped collection ID (e.g., `@namespace/my-collection`)
 
-**`dataFoundation`** — the verified source-resolution contract from [DATA_FOUNDATION.md](DATA_FOUNDATION.md). `collectionId` must equal `relevantCollectionId`; `mechanism` and schema must be verified; and `capabilities` declares boolean `read`, `insert`, `update`, and `remove`. Capabilities are necessary but never sufficient: the generator exposes create, edit, delete, or bulk-delete only when the journey explicitly declares the corresponding operation.
+**`dataFoundation`** — the verified source-resolution contract from [DATA_FOUNDATION.md](DATA_FOUNDATION.md). `discoveryEntityId` must reference the managed discovery entity; `collectionId` must equal `relevantCollectionId`; `mechanism` and schema must be verified; and `capabilities` declares boolean `read`, `insert`, `update`, and `remove`. Capabilities are necessary but never sufficient: the generator exposes create, edit, delete, or bulk-delete only when the journey explicitly declares the corresponding operation.
 
-**`workflow`** — the [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) contract. `journey` must answer all five WHATs without UI choices; `implementation` then records the selected investigation surface and identity. Every action classifies decision inputs, transition fields, and authoritative editable fields. At least one real action must remain available on detail, and Verify must include canonical `collection` refresh. Add the documented resolver for custom actions; do not replace it with a toast.
+**`workflow`** — the [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) contract. `journey` must answer all five WHATs without UI choices; `implementation` then records the selected investigation surface and identity. Every action references its discovery `capabilityId` and classifies decision inputs, transition fields, and authoritative editable fields. At least one real action must remain available on detail, and Verify must include canonical `collection` refresh. Add the documented resolver for custom actions; do not replace it with a toast.
 
 **`schema.content`** — 20 string fields you generate:
 
@@ -510,7 +513,7 @@ Do NOT use this skill when:
 - User needs custom business logic or external APIs that cannot be implemented through a documented action, override, or child component → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
 - User needs contextual record detail → preserve the Auto Patterns collection page, use its documented row-action/AppContext extension, and invoke the Wix Design System skill for the exact installed `SidePanel` documentation
 - User needs structured inputs → use the linked Auto Patterns entity page before considering an overlay
-- User needs a focused blocking confirmation or isolated input → use the documented custom action path and [DASHBOARD_MODAL.md](DASHBOARD_MODAL.md)
+- User needs a focused blocking confirmation or isolated input → use the documented custom action path and [DASHBOARD_MODAL.md](DASHBOARD_MODAL.md), including its single-owner sizing and scroll contract
 - User needs backend endpoints → see [BACKEND_API.md](BACKEND_API.md)
 
 ### Example patterns.json

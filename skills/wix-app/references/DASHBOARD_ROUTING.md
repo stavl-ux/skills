@@ -1,6 +1,6 @@
 # Dashboard Workflows
 
-Use this guide only after completing the five-WHAT journey in [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), resolving data through [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and defining the presentation through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md). Consume those contracts without reinterpreting the prompt. Read only the exact installed API and component documentation named by the selected route.
+Use this guide only after completing context and capability discovery through [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md), the five-WHAT journey in [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), data resolution through [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and presentation through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md). Consume those contracts without reinterpreting the prompt. Read only the exact installed API and component documentation named by the selected route.
 
 ## Contents
 
@@ -64,11 +64,22 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
 ```json
 {
   "route": "custom-table-panel",
+  "discovery": {
+    "context": { "businessDomain": "appointments", "actorContext": ["appointments operator"], "terminology": { "record": "Appointment" } },
+    "entities": [
+      { "id": "appointment", "name": "Appointment", "system": "Bookings", "identityField": "id", "identitySource": "verified collection metadata", "source": "installed Bookings app" },
+      { "id": "client", "name": "Client", "system": "Contacts", "identityField": "id", "identitySource": "verified collection metadata", "source": "installed Contacts app" }
+    ],
+    "existingSurfaces": [{ "id": "bookings-manager", "name": "Bookings Manager", "owner": "Wix Bookings", "purpose": "authoritative appointment management" }],
+    "capabilities": [{ "id": "manage-appointment", "entityId": "appointment", "effect": "open the selected appointment in its owning manager", "support": "verified", "source": "verified dashboard navigation contract", "executionOwner": "Wix Bookings", "executionHost": "owning-app", "permission": { "status": "not-required", "requiredScopes": [], "evidence": "documented dashboard navigation" }, "dependencies": [] }],
+    "constraints": [],
+    "unresolved": []
+  },
   "sourceCount": 2,
   "sources": ["Appointments", "Clients"],
   "resolvedCollections": [
-    { "system": "bookings", "mechanism": "wix-app-collection", "collectionId": "<verified appointments ID>", "schemaStatus": "verified", "read": true, "write": false, "freshness": "source-managed" },
-    { "system": "contacts", "mechanism": "wix-app-collection", "collectionId": "<verified clients ID>", "schemaStatus": "verified", "read": true, "write": false, "freshness": "source-managed" }
+    { "discoveryEntityId": "appointment", "system": "bookings", "mechanism": "wix-app-collection", "collectionId": "<verified appointments ID>", "schemaStatus": "verified", "read": true, "write": false, "freshness": "source-managed" },
+    { "discoveryEntityId": "client", "system": "contacts", "mechanism": "wix-app-collection", "collectionId": "<verified clients ID>", "schemaStatus": "verified", "read": true, "write": false, "freshness": "source-managed" }
   ],
   "secondary": "SidePanel detail",
   "regionOwners": {
@@ -94,6 +105,7 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
       },
       "act": { "actions": [{
         "id": "manage-appointment",
+        "capabilityId": "manage-appointment",
         "kind": "owning-app-navigation",
         "operation": "navigate",
         "target": "verified appointment route",
@@ -328,13 +340,13 @@ Read [DASHBOARD_MODAL.md](DASHBOARD_MODAL.md), apply the [WDS component document
 - **DM-01:** Scaffold a Dashboard Modal extension and open it through the documented dashboard API. Do not render a hand-built or WDS Modal directly inside a Dashboard Page.
 - **DM-02:** Keep the task focused and bounded. Use a SidePanel for non-blocking selected-record context and Drawer for mobile sliding work.
 - **DM-03:** Use the documented modal header, content, and footer composition. Secondary actions precede a right-aligned primary action.
-- **DM-04:** Give one element ownership of scrolling. Constrain the surface to its documented viewport behavior; only Content scrolls when necessary, and horizontal overflow is forbidden.
+- **DM-04:** Give one element ownership of scrolling. The Dashboard Modal config owns outer frame dimensions; do not mirror those numeric dimensions onto `CustomModalLayout`. Reset margin and overflow on the modal document, keep the document root non-scrolling, and let only the WDS content region use `overflowY="auto"` when content actually exceeds a bounded height. A short modal has no scrollbar; horizontal overflow and `overflowY="scroll"` are forbidden.
 - **DM-05:** Apply the mutation-readiness contract from [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md#4-mutation-readiness): validate inputs, disable a no-op or invalid save, preserve entered data on recoverable failure, communicate success, and intentionally close or return a result to the caller.
 - **DM-06:** Treat `observeState` params as initially absent or partial. Guard the params object and required identity before dereferencing, keep a stable loading/error surface mounted, and prefer passing a record ID plus a small serializable context object when the modal can load authoritative data itself.
 
 ### Acceptance
 
-Open the modal from its real caller, complete and cancel the task, test initial missing params, loading, changed, reverted, saving, validation, and request-failure states, and verify focus, content containment, footer visibility, console, network, and persisted result. A successful build without this runtime check is `blocked`, not verified.
+Open the modal from its real caller, complete and cancel the task, test initial missing params, loading, shortest content, longest content, changed, reverted, saving, validation, and request-failure states, and verify focus, content containment, footer visibility, console, network, and persisted result. Confirm `document.scrollingElement` has no horizontal or vertical overflow; when long content needs scrolling, confirm the WDS content region alone scrolls and its scrollbar disappears again for short content. A successful build without this runtime check is `blocked`, not verified.
 
 ## WDS Component Documentation Gate
 

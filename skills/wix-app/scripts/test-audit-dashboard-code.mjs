@@ -760,6 +760,7 @@ export default {
       },
       act: { actions: [{
         id: 'approveSubmission',
+        capabilityId: 'approve-submission',
         kind: 'mutation',
         operation: 'transition',
         target: 'set status to approved',
@@ -782,6 +783,39 @@ export default {
       identityField: '_id',
     },
   };
+  const decisionDiscovery = {
+    context: {
+      businessDomain: 'content operations',
+      actorContext: ['content reviewer'],
+      terminology: { record: 'Submission', completedState: 'Approved' },
+    },
+    entities: [{
+      id: 'submission',
+      name: 'Submission',
+      system: 'native CMS',
+      identityField: '_id',
+      identitySource: 'verified collection metadata',
+      source: 'content-submissions collection',
+    }],
+    existingSurfaces: [],
+    capabilities: [{
+      id: 'approve-submission',
+      entityId: 'submission',
+      effect: 'persist review decision and approved status',
+      support: 'verified',
+      source: 'verified collection update capability',
+      executionOwner: 'content-submissions collection',
+      executionHost: 'dashboard',
+      permission: {
+        status: 'verified',
+        requiredScopes: ['collection update'],
+        evidence: 'CMS_EDITOR itemUpdate permission',
+      },
+      dependencies: [],
+    }],
+    constraints: [],
+    unresolved: [],
+  };
 
   for (const [fixtureRoot, entityMode] of [
     [badDecisionEditRoot, 'edit'],
@@ -790,7 +824,14 @@ export default {
     writeNested(
       fixtureRoot,
       'src/extensions/dashboard-pages/content-review/dashboard-contract.json',
-      JSON.stringify({ workflow: decisionWorkflow }),
+      JSON.stringify({
+        discovery: decisionDiscovery,
+        dataFoundation: {
+          discoveryEntityId: 'submission',
+          capabilities: { read: true, insert: true, update: true, remove: true },
+        },
+        workflow: decisionWorkflow,
+      }),
     );
     writeNested(
       fixtureRoot,
@@ -1565,7 +1606,9 @@ export default function SubscriptionHealth() {
   writeNested(
     badModalRoot,
     'src/extensions/dashboard/modals/subscription-detail/subscription-detail.tsx',
-    `export default function SubscriptionDetail() {
+    `const width = 600;
+const height = 420;
+export default function SubscriptionDetail() {
   const [subscription, setSubscription] = useState(null);
   useEffect(() => {
     dashboard.observeState((state) => {
@@ -1573,10 +1616,57 @@ export default function SubscriptionHealth() {
     });
   }, []);
   return <CustomModalLayout
+    width={width}
+    maxHeight={height}
+    overflowY="scroll"
     title="Subscription detail"
     secondaryButtonText="Close"
     secondaryButtonOnClick={() => setSubscription(null)}
     content={subscription ? <Text>{subscription.name}</Text> : <Text>Loading</Text>}
+  />;
+}`,
+  );
+
+  writeNested(
+    goodRoot,
+    'src/extensions/dashboard/modals/quick-action/quick-action.extension.ts',
+    `export default extensions.dashboardModal({
+  id: 'quick-action-modal-id',
+  title: 'Quick action',
+  width: 600,
+  height: 420,
+  component: './extensions/dashboard/modals/quick-action/quick-action.tsx',
+});`,
+  );
+  writeNested(
+    goodRoot,
+    'src/extensions/dashboard/modals/quick-action/quick-action-frame.css',
+    `html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}`,
+  );
+  writeNested(
+    goodRoot,
+    'src/extensions/dashboard/modals/quick-action/quick-action.tsx',
+    `import './quick-action-frame.css';
+export default function QuickAction() {
+  return <CustomModalLayout
+    title="Quick action"
+    maxHeight="100%"
+    overflowY="auto"
+    secondaryButtonText="Cancel"
+    secondaryButtonOnClick={() => dashboard.closeModal()}
+    content={<Text>Ready</Text>}
   />;
 }`,
   );
@@ -1586,11 +1676,55 @@ export default function SubscriptionHealth() {
     '.dashboard-route.json',
     JSON.stringify({
       route: 'custom-table-panel',
+      discovery: {
+        context: {
+          businessDomain: 'order operations',
+          actorContext: ['operations manager'],
+          terminology: { record: 'Order', ownershipField: 'Assignee' },
+        },
+        entities: [
+          {
+            id: 'order',
+            name: 'Order',
+            system: 'native CMS',
+            identityField: 'id',
+            identitySource: 'verified collection metadata',
+            source: 'orders collection',
+          },
+          {
+            id: 'customer',
+            name: 'Customer',
+            system: 'Wix Contacts',
+            identityField: 'id',
+            identitySource: 'verified collection metadata',
+            source: 'customers Wix App Collection',
+          },
+        ],
+        existingSurfaces: [],
+        capabilities: [{
+          id: 'assign-orders',
+          entityId: 'order',
+          effect: 'persist the selected assignee on each selected order',
+          support: 'verified',
+          source: 'verified orders collection update capability',
+          executionOwner: 'orders collection',
+          executionHost: 'dashboard',
+          permission: {
+            status: 'verified',
+            requiredScopes: ['collection update'],
+            evidence: 'installed app grant and collection permissions',
+          },
+          dependencies: [],
+        }],
+        constraints: ['Customer records are read-only'],
+        unresolved: [],
+      },
       sourceCount: 2,
       sources: ['Orders', 'Customers'],
       resolvedCollections: [
         {
           system: 'orders',
+          discoveryEntityId: 'order',
           mechanism: 'native-cms',
           collectionId: 'orders',
           schemaStatus: 'verified',
@@ -1600,6 +1734,7 @@ export default function SubscriptionHealth() {
         },
         {
           system: 'customers',
+          discoveryEntityId: 'customer',
           mechanism: 'wix-app-collection',
           collectionId: 'customers',
           schemaStatus: 'verified',
@@ -1628,6 +1763,7 @@ export default function SubscriptionHealth() {
           },
           act: { actions: [{
             id: 'assign-orders',
+            capabilityId: 'assign-orders',
             kind: 'mutation',
             operation: 'transition',
             target: 'bulkAssign',
@@ -1847,7 +1983,7 @@ export default function SubscriptionHealth() {
 
   const bad = spawnSync(process.execPath, [auditPath, badRoot], { encoding: 'utf8' });
   const badOutput = `${bad.stdout}\n${bad.stderr}`;
-  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'WF-01', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
+  const expectedRules = ['DD-01', 'RT-02', 'RT-04', 'RT-05', 'WF-01', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
   const missedRules = expectedRules.filter((rule) => !badOutput.includes(rule));
   if (bad.status === 0 || missedRules.length) {
     console.error('Dashboard audit self-test failed to reject the bad fixture.');
@@ -2114,7 +2250,7 @@ export default function SubscriptionHealth() {
     { encoding: 'utf8' },
   );
   const badModalOutput = `${badModal.stdout}\n${badModal.stderr}`;
-  const missingModalRules = ['MD-01', 'MD-02', 'MD-03'].filter(
+  const missingModalRules = ['MD-01', 'MD-02', 'MD-03', 'MD-04', 'MD-05'].filter(
     (rule) => !badModalOutput.includes(rule),
   );
   if (badModal.status === 0 || missingModalRules.length) {
@@ -2169,7 +2305,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, unverified permissions, generic permission failures, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, destructive replacement mutations, incomplete row/detail lifecycles, invalid Saved View enums, mismatched decision/edit surfaces, missing declared editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; verified scoped and no-scope, viewer, decision, custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: missing domain discovery, bad routes, incompatible host APIs, unverified permissions, generic permission failures, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, modal frame overflow, broken action wiring, destructive replacement mutations, incomplete row/detail lifecycles, invalid Saved View enums, mismatched decision/edit surfaces, missing declared editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; verified scoped and no-scope, viewer, decision, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

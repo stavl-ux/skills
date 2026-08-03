@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   authoritativeEditableFields,
+  validateDiscoveryContract,
   validatePresentationContract,
   validateWorkflowContract,
   workflowActions,
@@ -550,12 +551,35 @@ for (const link of collectionUpdateLinks) {
 }
 
 for (const contract of dashboardContracts) {
+  const discoveryErrors = validateDiscoveryContract(contract.value?.discovery, {
+    requireResolved: true,
+  });
+  if (discoveryErrors.length) {
+    findings.push({
+      filePath: contract.path,
+      line: 1,
+      rule: 'DD-01',
+      message: `Dashboard contract does not complete context and domain discovery: ${discoveryErrors.join('; ')}.`,
+    });
+  }
+  const discoveredEntityIds = new Set(
+    (contract.value?.discovery?.entities ?? []).map((entity) => entity.id),
+  );
+  if (!discoveredEntityIds.has(contract.value?.dataFoundation?.discoveryEntityId)) {
+    findings.push({
+      filePath: contract.path,
+      line: 1,
+      rule: 'DF-02',
+      message: 'Dashboard dataFoundation.discoveryEntityId must reference the discovered entity represented by this collection.',
+    });
+  }
   const workflow = contract.value?.workflow;
   const implementation = workflow?.implementation;
   const actions = workflowActions(workflow);
   const editableFields = authoritativeEditableFields(workflow);
   const workflowErrors = validateWorkflowContract(workflow, {
     capabilities: contract.value?.dataFoundation?.capabilities,
+    discovery: discoveryErrors.length ? undefined : contract.value.discovery,
     requireCollectionRefresh: true,
   });
 
@@ -751,12 +775,27 @@ for (const recordPath of routeRecordPaths) {
   }
 
   if (hasCustomRecordSurface) {
+    const discoveryErrors = validateDiscoveryContract(record.discovery, {
+      requireResolved: true,
+    });
+    if (discoveryErrors.length) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'DD-01',
+        message: `Custom record dashboard does not complete context and domain discovery: ${discoveryErrors.join('; ')}.`,
+      });
+    }
+    const discoveredEntityIds = new Set(
+      (record.discovery?.entities ?? []).map((entity) => entity.id),
+    );
     const resolvedCollections = record.resolvedCollections;
     const invalidResolvedCollection = !Array.isArray(resolvedCollections)
       || resolvedCollections.length !== record.sourceCount
       || resolvedCollections.some((collection) =>
         !collection
         || typeof collection.system !== 'string'
+        || !discoveredEntityIds.has(collection.discoveryEntityId)
         || !['native-cms', 'wix-app-collection', 'external-database-adaptor', 'data-collection-extension'].includes(collection.mechanism)
         || typeof collection.collectionId !== 'string'
         || !collection.collectionId.trim()
@@ -771,11 +810,13 @@ for (const recordPath of routeRecordPaths) {
         filePath: recordPath,
         line: 1,
         rule: 'DF-02',
-        message: 'Custom record tables must list every resolved CMS collection with verified mechanism, collection ID, schema, read/write capability, and freshness. If no supported collection interface exists, mark the data foundation blocked.',
+        message: 'Custom record tables must link every resolved CMS collection to a discovered entity and include verified mechanism, collection ID, schema, read/write capability, and freshness. If no supported collection interface exists, mark the data foundation blocked.',
       });
     }
 
-    const workflowErrors = validateWorkflowContract(record.workflow);
+    const workflowErrors = validateWorkflowContract(record.workflow, {
+      discovery: discoveryErrors.length ? undefined : record.discovery,
+    });
     if (workflowErrors.length) {
       findings.push({
         filePath: recordPath,
@@ -1454,6 +1495,74 @@ for (const [filePath, content] of contents) {
 for (const filePath of dashboardModalFiles) {
   const content = contents.get(filePath);
   if (!/<CustomModalLayout\b/.test(content)) continue;
+
+  const importedModalStyles = [...content.matchAll(
+    /\bimport\s+(?:[^'";]+?\s+from\s+)?['"]([^'"]+\.css)['"]\s*;?/g,
+  )]
+    .map((match) => match[1])
+    .filter((specifier) => specifier.startsWith('.'))
+    .map((specifier) => path.resolve(path.dirname(filePath), specifier))
+    .filter(fs.existsSync)
+    .map((stylePath) => fs.readFileSync(stylePath, 'utf8'))
+    .join('\n');
+  const cssRules = [...importedModalStyles.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+  const declarationsFor = (selector) => cssRules
+    .filter((match) => match[1].split(',').some((part) => part.trim() === selector))
+    .map((match) => match[2])
+    .join('\n');
+  const htmlDeclarations = declarationsFor('html');
+  const bodyDeclarations = declarationsFor('body');
+  const hasPercentSize = (declarations, property) => new RegExp(
+    `\\b${property}\\s*:\\s*100%(?:\\s|;|$)`,
+  ).test(declarations);
+  const hasMountRoot = cssRules.some((match) => {
+    const selectors = match[1].split(',').map((part) => part.trim());
+    if (selectors.every((selector) => selector === 'html' || selector === 'body')) return false;
+    return hasPercentSize(match[2], 'width')
+      && hasPercentSize(match[2], 'height')
+      && /\bmin-width\s*:\s*0(?:px)?\b/.test(match[2]);
+  });
+  const hasDocumentReset =
+    /\boverflow\s*:\s*hidden\b/.test(htmlDeclarations)
+    && hasPercentSize(htmlDeclarations, 'width')
+    && hasPercentSize(htmlDeclarations, 'height')
+    && /\bmargin\s*:\s*0(?:px)?(?:\s+0(?:px)?){0,3}\b/.test(bodyDeclarations)
+    && /\boverflow\s*:\s*hidden\b/.test(bodyDeclarations)
+    && hasPercentSize(bodyDeclarations, 'width')
+    && hasPercentSize(bodyDeclarations, 'height')
+    && hasMountRoot;
+
+  if (!hasDocumentReset) {
+    addFinding(
+      filePath,
+      content,
+      content.indexOf('<CustomModalLayout'),
+      'MD-04',
+      'Dashboard Modal does not import a local stylesheet that resets html/body size, margin, and overflow plus a 100%-sized, min-width: 0 mount root. Keep the extension document non-scrolling so short modal content cannot produce frame scrollbars.',
+    );
+  }
+
+  for (const layoutMatch of content.matchAll(/<CustomModalLayout\b[\s\S]{0,1800}?(?:\/>|>)/g)) {
+    const openingTag = layoutMatch[0];
+    const ownsFrameGeometry = /\b(?:width|maxWidth|height)\s*=/.test(openingTag);
+    const maxHeightMatch = /\bmaxHeight\s*=\s*(?:['"]([^'"]+)['"]|\{\s*['"]([^'"]+)['"]\s*\}|\{[^}]+\})/.exec(openingTag);
+    const maxHeightValue = maxHeightMatch?.[1] ?? maxHeightMatch?.[2];
+    const unsafeMaxHeight = Boolean(maxHeightMatch && maxHeightValue !== '100%');
+    const viewportGeometry = /\b(?:width|maxWidth|height|maxHeight)\s*=\s*(?:\{\s*)?['"]100(?:d?v[wh])['"]/.test(openingTag);
+    const persistentScroll = /\boverflowY\s*=\s*(?:['"]scroll['"]|\{\s*['"]scroll['"]\s*\})/.test(openingTag)
+      || /\boverflow(?:-y)?\s*:\s*scroll\b/.test(importedModalStyles);
+    const boundedContentWithoutAuto = maxHeightValue === '100%'
+      && !/\boverflowY\s*=\s*(?:['"]auto['"]|\{\s*['"]auto['"]\s*\})/.test(openingTag);
+
+    if (!ownsFrameGeometry && !unsafeMaxHeight && !viewportGeometry && !persistentScroll && !boundedContentWithoutAuto) continue;
+    addFinding(
+      filePath,
+      content,
+      layoutMatch.index,
+      'MD-05',
+      'CustomModalLayout takes outer-frame geometry or forces a persistent scrollbar. Size the Dashboard Modal in its config; omit inner width/height props for short content, or use maxHeight="100%" with overflowY="auto" when content can genuinely overflow.',
+    );
+  }
 
   if (!/\bdashboard\.closeModal\s*\(/.test(content)) {
     addFinding(

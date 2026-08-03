@@ -32,7 +32,9 @@
  *   },
  *   "relevantCollectionId": "my-namespace/additional-fees",
  *   "extensionName": "Additional Fees Manager",
+ *   "discovery": { "context": { ... }, "entities": [...], "capabilities": [...], "existingSurfaces": [], "constraints": [], "unresolved": [] },
  *   "dataFoundation": {
+ *     "discoveryEntityId": "additional-fee",
  *     "system": "app-owned",
  *     "mechanism": "data-collection-extension",
  *     "collectionId": "my-namespace/additional-fees",
@@ -40,7 +42,8 @@
  *     "freshness": "source-managed",
  *     "capabilities": { "read": true, "insert": true, "update": true, "remove": true }
  *   },
- *   "workflow": { "journey": { ...five WHATs... }, "implementation": { ...surface decision... } }
+ *   "workflow": { "journey": { ...five WHATs with capabilityId... }, "implementation": { ...surface decision... } },
+ *   "presentation": { ...presentation contract... }
  * }
  *
  * Output:
@@ -56,6 +59,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { basename, join, resolve } from 'path';
 import {
   authoritativeEditableFields,
+  validateDiscoveryContract,
   validatePresentationContract,
   validateWorkflowContract,
   workflowActions,
@@ -101,7 +105,21 @@ Input JSON shape:
     },
     "relevantCollectionId": "string",
     "extensionName": "string",
+    "discovery": {
+      "context": { "businessDomain": "string", "actorContext": [], "terminology": { "record": "string" } },
+      "entities": [{ "id": "string", "name": "string", "system": "string", "identityField": "string", "identitySource": "string", "source": "string" }],
+      "existingSurfaces": [],
+      "capabilities": [{
+        "id": "string", "entityId": "string", "effect": "string", "support": "verified",
+        "source": "string", "executionOwner": "string",
+        "executionHost": "dashboard | backend | site-frontend | owning-app",
+        "permission": { "status": "verified | not-required", "requiredScopes": [], "evidence": "string" },
+        "dependencies": []
+      }],
+      "constraints": [], "unresolved": []
+    },
     "dataFoundation": {
+      "discoveryEntityId": "string",
       "system": "string",
       "mechanism": "native-cms | wix-app-collection | external-database-adaptor | data-collection-extension",
       "collectionId": "string",
@@ -116,7 +134,7 @@ Input JSON shape:
         "focus": { "defaultWorkset": "string", "controls": [] },
         "investigate": { "questions": ["string"], "evidenceFields": ["fieldId"], "contextPriority": "high | medium | low" },
         "act": { "actions": [{
-          "id": "string", "kind": "mutation | owning-app-navigation",
+          "id": "string", "capabilityId": "string", "kind": "mutation | owning-app-navigation",
           "operation": "create | update | transition | delete | navigate | execute",
           "target": "string", "surfaces": ["row", "detail"],
           "decisionInputFields": [], "transitionFields": ["status"],
@@ -289,6 +307,7 @@ const {
   collection,
   schema,
   relevantCollectionId,
+  discovery,
   dataFoundation,
   workflow,
   presentation,
@@ -318,9 +337,18 @@ const allowedMechanisms = new Set([
   'external-database-adaptor',
   'data-collection-extension',
 ]);
+const discoveryErrors = validateDiscoveryContract(discovery, { requireResolved: true });
+if (discoveryErrors.length) {
+  console.error('Error: Invalid context and domain discovery contract:');
+  discoveryErrors.forEach((error) => console.error(`- ${error}`));
+  process.exit(1);
+}
+
+const discoveredEntityIds = new Set(discovery.entities.map((entity) => entity.id));
 const capabilities = dataFoundation?.capabilities;
 const invalidFoundation =
   !dataFoundation
+  || !discoveredEntityIds.has(dataFoundation.discoveryEntityId)
   || typeof dataFoundation.system !== 'string'
   || !allowedMechanisms.has(dataFoundation.mechanism)
   || dataFoundation.collectionId !== relevantCollectionId
@@ -332,13 +360,14 @@ const invalidFoundation =
   || ['insert', 'update', 'remove'].some((key) => typeof capabilities[key] !== 'boolean');
 if (invalidFoundation) {
   console.error(
-    'Error: Input must include a verified dataFoundation whose collectionId matches relevantCollectionId and whose read/insert/update/remove capabilities are explicit.',
+    'Error: Input must include a verified dataFoundation linked to a discovered entity, whose collectionId matches relevantCollectionId and whose read/insert/update/remove capabilities are explicit.',
   );
   process.exit(1);
 }
 
 const workflowErrors = validateWorkflowContract(workflow, {
   capabilities,
+  discovery,
   requireCollectionRefresh: true,
 });
 if (workflowErrors.length) {
@@ -715,7 +744,7 @@ try {
 const patternsConfig = generatePatternsConfig(collection, schema);
 exitOnConfigErrors(patternsConfig, collection.fields);
 const pageTsx = generatePageTsx();
-const dashboardContract = { dataFoundation, workflow, presentation };
+const dashboardContract = { discovery, dataFoundation, workflow, presentation };
 
 // The Wix CLI scaffolds the page component as `<folder>.tsx` and registers THAT
 // file in the generated `<folder>.extension.ts`. Write the auto-patterns wrapper

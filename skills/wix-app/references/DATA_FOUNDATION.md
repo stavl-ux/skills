@@ -1,6 +1,6 @@
 # Dashboard Data Foundation
 
-Receive the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), then resolve data ownership before selecting a route or component. After resolution, use [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md) to express the journey through representations and interaction surfaces that fit the verified data. The goal is a CMS collection interface with a real schema, stable record identity, known permissions, and a supported source-of-truth path. A backend API response is not itself a reason to build a custom table.
+Receive the discovered entities and verified capabilities from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md) plus the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), then resolve data ownership before selecting a route or component. After resolution, use [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md) to express the journey through representations and interaction surfaces that fit the verified data. The goal is a CMS collection interface with a real schema, stable record identity, known permissions, and a supported source-of-truth path. A backend API response or verified domain action is not itself a reason to build a custom table.
 
 ## Contents
 
@@ -12,8 +12,8 @@ Receive the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_W
 
 ## Resolution Order
 
-1. Preserve the journey's required outcome, evidence, actions, and visible success criteria while inspecting the project, enabled Wix applications, declared collections, and installed integrations.
-2. Identify the owning data system for every record type.
+1. Preserve the journey's required outcome, evidence, actions, and visible success criteria while consuming the discovery contract. Do not repeat broad domain discovery.
+2. Resolve each discovered entity to its authoritative data system and verify that identity agrees with discovery provenance.
 3. Resolve each system to one of the supported collection surfaces below.
 4. Inspect collection metadata and a representative query before designing the UI.
 5. Count resolved collection IDs. Multiple API calls against one collection still count as one. A joined record surface backed by two collections counts as two.
@@ -28,6 +28,7 @@ Record this information before generation. Custom and hybrid dashboards place it
 
 | Field | Required evidence |
 | --- | --- |
+| Discovery entity | Stable `discoveryEntityId` from the discovery contract |
 | Original system | Native CMS, Wix business app, connected external database, or app-owned data |
 | Access mechanism | Native collection, Wix App Collection, external database adaptor, or Data Collections Extension |
 | Collection ID | Exact queryable collection ID, not a display label |
@@ -45,6 +46,7 @@ Recommended route-record shape:
   "sources": ["Wix Stores Products"],
   "resolvedCollections": [
     {
+      "discoveryEntityId": "product",
       "system": "wix-stores",
       "mechanism": "wix-app-collection",
       "collectionId": "<verified Stores collection ID>",
@@ -57,7 +59,7 @@ Recommended route-record shape:
 }
 ```
 
-Never treat this record as proof by itself. The audit and runtime verification must agree with the implementation.
+Never treat discovery or this record as proof by itself. Domain capability establishes what an operation can do; the foundation separately establishes how records are read and managed. The audit and runtime verification must agree with the implementation.
 
 ## Source Types
 

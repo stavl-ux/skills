@@ -44,6 +44,10 @@ const consolidatedReferences = [
 
 const compactReferences = [
   {
+    file: 'DOMAIN_DISCOVERY.md',
+    required: ['## Contents', '## Two-Pass Discovery', '## Discovery Contract', '## Capability Verification', '**DD-01:**', '**DD-08:**'],
+  },
+  {
     file: 'DATA_FOUNDATION.md',
     required: ['## Contents', '## Resolution Order', '## Foundation Contract', '**DF-01:**'],
   },
@@ -153,7 +157,7 @@ for (const reference of consolidatedReferences) {
   const count = lineCount(filePath);
   const content = fs.readFileSync(filePath, 'utf8');
   if (count < 350) fail(`${reference.file} is too small to justify a separate context read (${count} lines)`);
-  if (count > 550) fail(`${reference.file} exceeds the focused-reference limit (${count} lines)`);
+  if (count > 575) fail(`${reference.file} exceeds the focused-reference limit (${count} lines)`);
   for (const heading of reference.required) {
     if (!content.includes(heading)) fail(`${reference.file} is missing ${heading}`);
   }
@@ -201,10 +205,15 @@ for (const reference of [...consolidatedReferences, ...compactReferences]) {
   }
 }
 
+const discoveryLinkIndex = skillContent.indexOf('references/DOMAIN_DISCOVERY.md');
 const workflowLinkIndex = skillContent.indexOf('references/DASHBOARD_WORKFLOW.md');
 const foundationLinkIndex = skillContent.indexOf('references/DATA_FOUNDATION.md');
-if (workflowLinkIndex < 0 || foundationLinkIndex < 0 || workflowLinkIndex > foundationLinkIndex) {
-  fail('SKILL.md must place the five-WHAT workflow gate before data-foundation and route selection');
+if (discoveryLinkIndex < 0
+    || workflowLinkIndex < 0
+    || foundationLinkIndex < 0
+    || discoveryLinkIndex > workflowLinkIndex
+    || workflowLinkIndex > foundationLinkIndex) {
+  fail('SKILL.md must place domain discovery before the five-WHAT, data-foundation, and route gates');
 }
 
 const autoPatternsPath = path.join(referencesRoot, 'AUTO_PATTERNS_DASHBOARD.md');
@@ -228,17 +237,25 @@ if (!skillContent.includes('including standard Auto Patterns pages')) {
   fail('SKILL.md does not require the lightweight code audit for standard Auto Patterns pages');
 }
 
-const simpleAutoPatternsHotPath = [
+const existingCollectionHotPath = [
   skillPath,
   autoPatternsPath,
-  path.join(referencesRoot, 'DATA_COLLECTION.md'),
+  path.join(referencesRoot, 'DOMAIN_DISCOVERY.md'),
   path.join(referencesRoot, 'DATA_FOUNDATION.md'),
   path.join(referencesRoot, 'DASHBOARD_WORKFLOW.md'),
   path.join(referencesRoot, 'DASHBOARD_PRESENTATION.md'),
 ];
-const hotPathWords = simpleAutoPatternsHotPath.reduce((sum, filePath) => sum + wordCount(filePath), 0);
-if (hotPathWords > 12250) {
-  fail(`simple Auto Patterns hot path exceeds 12250 words (${hotPathWords})`);
+const existingCollectionWords = existingCollectionHotPath.reduce(
+  (sum, filePath) => sum + wordCount(filePath),
+  0,
+);
+if (existingCollectionWords > 11000) {
+  fail(`existing-collection Auto Patterns hot path exceeds 11000 words (${existingCollectionWords})`);
+}
+const appOwnedCollectionWords = existingCollectionWords
+  + wordCount(path.join(referencesRoot, 'DATA_COLLECTION.md'));
+if (appOwnedCollectionWords > 13600) {
+  fail(`app-owned Auto Patterns hot path exceeds 13600 words (${appOwnedCollectionWords})`);
 }
 
 const routingContent = fs.readFileSync(path.join(referencesRoot, 'DASHBOARD_ROUTING.md'), 'utf8');
@@ -248,11 +265,13 @@ if (!routingContent.includes('scaffold the Dashboard Page first')) {
 
 const generatorContent = fs.readFileSync(path.join(scriptDirectory, 'generate-auto-patterns.js'), 'utf8');
 for (const requiredGeneratorContract of [
+  'discovery',
   'dataFoundation',
   'workflow',
   'presentation',
   'dashboard-contract.json',
   'validatePresentationContract',
+  'validateDiscoveryContract',
   'validateWorkflowContract',
   'authoritativeEditableFields',
   "workflowHasOperation(workflow, 'create')",
@@ -352,7 +371,46 @@ try {
     },
     relevantCollectionId: 'Stores/Products',
     extensionName: 'Catalog Health',
+    discovery: {
+      context: {
+        businessDomain: 'catalog operations',
+        actorContext: ['catalog operator'],
+        terminology: { record: 'Product', completedState: 'Managed' },
+      },
+      entities: [{
+        id: 'product',
+        name: 'Product',
+        system: 'Wix Stores',
+        identityField: '_id',
+        identitySource: 'verified Stores collection metadata',
+        source: 'installed Wix Stores app',
+      }],
+      existingSurfaces: [{
+        id: 'stores-product-manager',
+        name: 'Product Manager',
+        owner: 'Wix Stores',
+        purpose: 'authoritative product management',
+      }],
+      capabilities: [{
+        id: 'manage-product',
+        entityId: 'product',
+        effect: 'open the selected product in the owning manager',
+        support: 'verified',
+        source: 'verified dashboard navigation contract',
+        executionOwner: 'Wix Stores',
+        executionHost: 'owning-app',
+        permission: {
+          status: 'not-required',
+          requiredScopes: [],
+          evidence: 'documented dashboard navigation',
+        },
+        dependencies: [],
+      }],
+      constraints: ['Product content remains owned by Wix Stores'],
+      unresolved: [],
+    },
     dataFoundation: {
+      discoveryEntityId: 'product',
       system: 'wix-stores',
       mechanism: 'wix-app-collection',
       collectionId: 'Stores/Products',
@@ -378,6 +436,7 @@ try {
         },
         act: { actions: [{
           id: 'manage-product',
+          capabilityId: 'manage-product',
           kind: 'owning-app-navigation',
           operation: 'navigate',
           target: 'verified product manager',
@@ -453,6 +512,9 @@ try {
   }
   if (generatedContract.dataFoundation?.mechanism !== 'wix-app-collection') {
     fail('Auto Patterns generator did not preserve the data-foundation contract');
+  }
+  if (generatedContract.discovery?.capabilities?.[0]?.id !== 'manage-product') {
+    fail('Auto Patterns generator did not preserve the discovery contract');
   }
   if (generatedContract.presentation?.primaryRepresentation?.type !== 'table') {
     fail('Auto Patterns generator did not preserve the presentation contract');
