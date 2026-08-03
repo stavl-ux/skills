@@ -24,6 +24,7 @@ const PRESENTATION_DRILL_INS = new Set([
 const WORKFLOW_STAGES = ['understand', 'focus', 'investigate', 'act', 'verify'];
 const ACTION_PROMINENCE = new Set(['immediate', 'contextual', 'progressive']);
 const ACTION_EVIDENCE_RELATIONSHIPS = new Set(['adjacent', 'same-surface', 'separate-step']);
+const DATA_SCOPES = new Set(['active-workset', 'entire-collection']);
 
 function isText(value) {
   return typeof value === 'string' && Boolean(value.trim());
@@ -95,6 +96,13 @@ function validateRepresentation(representation, prefix, errors) {
       || !PRESENTATION_REPRESENTATIONS.has(representation.type)
       || !isText(representation.reason)) {
     errors.push(`${prefix} must declare a supported type and a task-based reason`);
+    return;
+  }
+  if (
+    ['chart', 'summary-metrics'].includes(representation.type)
+    && !DATA_SCOPES.has(representation.dataScope)
+  ) {
+    errors.push(`${prefix}.dataScope must declare active-workset or entire-collection`);
   }
 }
 

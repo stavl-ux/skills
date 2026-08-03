@@ -133,7 +133,10 @@ Input JSON shape:
     },
     "presentation": {
       "primaryRepresentation": { "type": "table", "reason": "string" },
-      "supportingRepresentations": [{ "type": "summary-metrics", "reason": "string" }],
+      "supportingRepresentations": [{
+        "type": "summary-metrics", "reason": "string",
+        "dataScope": "active-workset | entire-collection"
+      }],
       "drillIn": {
         "interface": "inline | side-panel | modal | entity-page | owning-app-navigation",
         "reason": "string", "preservesContext": true

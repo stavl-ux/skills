@@ -175,6 +175,7 @@ const collectionUpdateLinks = [];
 const restrictedRemoveCollections = new Map();
 const managedCollectionSuffixes = new Set();
 const collectionFieldsBySuffix = new Map();
+const collectionFieldTypesBySuffix = new Map();
 const collectionActionChecks = [];
 const savedViewFieldIds = new Set();
 const savedViewFilterIdsByField = new Map();
@@ -192,7 +193,13 @@ for (const filePath of dataCollectionFiles) {
     [...content.matchAll(/\bkey\s*:\s*['"]([^'"]+)['"]/g)]
       .map((match) => match[1]),
   );
+  const fieldTypes = new Map(
+    [...content.matchAll(
+      /\{[^{}]{0,240}\bkey\s*:\s*['"]([^'"]+)['"][^{}]{0,240}\btype\s*:\s*['"]([^'"]+)['"][^{}]{0,240}\}/g,
+    )].map((match) => [match[1], match[2]]),
+  );
   if (suffix && fieldIds.size) collectionFieldsBySuffix.set(suffix, fieldIds);
+  if (suffix && fieldTypes.size) collectionFieldTypesBySuffix.set(suffix, fieldTypes);
   if (suffix && /\bitemUpdate\s*:\s*['"]CMS_EDITOR['"]/.test(content)) {
     if (
       !/\bitemRemove\s*:\s*['"]CMS_EDITOR['"]/.test(content)
@@ -324,6 +331,7 @@ for (const document of patternDocuments) {
           .map((filter) => [filter.id, filter]),
       );
       const collectionFields = collectionFieldsBySuffix.get(collectionSuffix);
+      const collectionFieldTypes = collectionFieldTypesBySuffix.get(collectionSuffix);
       if (collectionFields) {
         for (const filter of filterItems) {
           if (
@@ -340,6 +348,26 @@ for (const document of patternDocuments) {
             content.indexOf(`"${filter.fieldId}"`),
             'AP-18',
             `Filter "${filter.id}" references unknown collection field "${filter.fieldId}". Define the field in the app-owned collection or correct the filter before using it in a Saved View.`,
+          );
+        }
+      }
+      if (collectionFieldTypes) {
+        for (const filter of filterItems) {
+          const fieldType = collectionFieldTypes.get(filter?.fieldId);
+          if (
+            !['TEXT', 'SHORT_TEXT', 'LONG_TEXT', 'ARRAY', 'ARRAY_STRING'].includes(fieldType)
+            || (
+              Array.isArray(filter?.enumConfig?.options)
+              && filter.enumConfig.options.length > 0
+            )
+          ) continue;
+          const content = fs.readFileSync(document.path, 'utf8');
+          addFinding(
+            document.path,
+            content,
+            content.indexOf(`"${filter.fieldId}"`),
+            'AP-18',
+            `Filter "${filter.id}" targets ${fieldType} field "${filter.fieldId}" without enumConfig options, so Auto Patterns cannot create a functional controlled filter. Declare canonical stored values or remove the inert filter.`,
           );
         }
       }
@@ -1526,10 +1554,48 @@ const projectRequiresScopedHostApi = routeRecords.some(
     Array.isArray(record.hostApiCheck?.requiredScopes)
     && record.hostApiCheck.requiredScopes.length > 0,
 );
+const hasAutoPatternsPanelFilters = patternDocuments.some((document) => {
+  let hasFilters = false;
+  walkJson(document.value?.pages, (value) => {
+    if (Array.isArray(value?.filters?.items) && value.filters.items.length > 0) {
+      hasFilters = true;
+    }
+  });
+  return hasFilters;
+});
+const metricRepresentations = dashboardContracts.flatMap(
+  (contract) => [
+    contract.value?.presentation?.primaryRepresentation,
+    ...(contract.value?.presentation?.supportingRepresentations ?? []),
+  ],
+).filter((representation) => ['chart', 'summary-metrics'].includes(representation?.type));
+const metricsAreExplicitlyGlobal = metricRepresentations.length > 0
+  && metricRepresentations.every(
+    (representation) => representation.dataScope === 'entire-collection',
+  );
 
 for (const filePath of files) {
   const content = contents.get(filePath);
   const hasSidePanel = /<SidePanel\b/.test(content);
+  const isSupplementalMetricSource = /(?:metric|kpi|summary|statistic|analytics)/i.test(
+    path.basename(filePath),
+  ) || /<(?:AnalyticsSummary|StatisticsWidget)\b|\bKPICard\b/.test(content);
+
+  if (
+    hasAutoPatternsPanelFilters
+    && isSupplementalMetricSource
+    && /\bitems\s*\.\s*query\s*\(/.test(content)
+    && !/\buseAppContext\s*\(/.test(content)
+    && !metricsAreExplicitlyGlobal
+  ) {
+    addFinding(
+      filePath,
+      content,
+      content.search(/\bitems\s*\.\s*query\s*\(/),
+      'AP-22',
+      'Supplemental metrics query the Auto Patterns collection independently while panel filters are active. Derive active-workset metrics from useAppContext().items so filters, Views, mutations, and refreshes keep summaries and records synchronized; use an independent query only for an explicitly labeled entire-collection scope.',
+    );
+  }
 
   if (
     /from\s+['"]@wix\/site-site['"]/.test(content)

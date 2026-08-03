@@ -78,8 +78,8 @@ interface PresetView {
 - **IF** setting filters **THEN** keys MUST match defined filter IDs.
 - **IF** a View represents workflow state **THEN** include every maintained field that defines membership.
 - **IF** a CMS filter appears in the filter panel **THEN** declare it in `filters.items`; do not rely on an automatically exposed field that lacks an Auto Patterns field mapping.
+- **IF** filtering text or arrays **THEN** provide canonical `enumConfig`; bare declarations are inert.
 - **IF** a Saved View uses `filterType: 'enum'` **THEN** its matching `filters.items` entry MUST provide `enumConfig.options`, and every selected View value MUST match an option `value` exactly.
-
 ### Implementation Rules
 - **MUST** set `enabled: true` to activate.
 - **MUST** use valid filter structures (Date/Number/Boolean/Enum/Reference) matching `AppConfig`.
@@ -156,7 +156,7 @@ A workflow action may move a record between operational worksets, such as `Needs
 
 Optimistic predicate mapping provides immediate membership feedback; the deferred collection refresh then reconciles that feedback with canonical data. If the installed Auto Patterns version exposes a documented post-success callback, use it instead of task deferral. If neither mechanism is available, use an awaited direct mutation followed by collection refresh for membership-changing transitions rather than leaving stale optimistic state.
 
-Verify the combined contract in preview: select each View, open the filter panel and confirm its values, add a panel refinement and confirm the table changes, then switch Views and confirm the table and panel reset to the new preset.
+In preview, verify each View and panel filter updates the table and `active-workset` metrics, then resets coherently when switching Views.
 
 ## Collection Page Actions
 

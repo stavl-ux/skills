@@ -51,7 +51,7 @@ node <SKILL_ROOT>/scripts/generate-auto-patterns.js \
   --validate-config src/extensions/dashboard/pages/<page-name>/patterns.json
 ```
 
-This rejects Saved View filter keys that are not declared in `filters.items`, duplicate filter IDs, and missing filter mappings. Fix these configuration errors before compiling.
+This rejects Saved View filter keys that are not declared in `filters.items`, duplicate filter IDs, and missing filter mappings. The dashboard audit additionally rejects inert text filters and disconnected active-workset metrics. Fix these configuration errors before compiling.
 
 Run TypeScript compiler to check for type errors.
 
@@ -190,3 +190,4 @@ When a collection page uses both Saved Views and filter-panel controls:
 3. Add a panel filter and verify the table narrows without a hard refresh.
 4. Switch Views and verify the table and panel reset to the new preset.
 5. Confirm every panel filter is explicitly declared in `filters.items`.
+6. Confirm every `active-workset` metric changes with the filtered rows and returns to the original value when filters clear.

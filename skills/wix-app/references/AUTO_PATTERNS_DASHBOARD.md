@@ -47,6 +47,7 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-19:** Keep the journey and implementation coherent. A read-only decision workflow must not resolve only to a generic edit page. Preserve one logical action across every declared surface, and map different runtime resolver IDs through `workflow.implementation.actionBindings`.
 - **AP-20:** Treat mutations as a complete lifecycle. Replacement writes preserve the canonical record, optimistic submits consume and return the submitted item, row and detail adapters share one transition operation, success and retryable failure remain visible, and every declared collection/detail workset reconciles after persistence.
 - **AP-21:** Keep action semantics truthful. A built-in update/Edit action targets an actual edit-mode page; inspection navigation targets a view surface. Preserve every `presentation.actionPresentation.actionIds` action at the promised prominence after drill-in rather than replacing the set with a generic Edit or only one surviving transition.
+- **AP-22:** `active-workset` metrics consume Auto Patterns AppContext items. Independent queries require visibly global `entire-collection` scope.
 
 ### Extension Choice
 

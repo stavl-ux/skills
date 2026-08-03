@@ -71,6 +71,7 @@ function reviewPresentation() {
     supportingRepresentations: [{
       type: 'summary-metrics',
       reason: 'Pending and high-risk counts explain queue health',
+      dataScope: 'active-workset',
     }],
     drillIn: {
       interface: 'side-panel',
@@ -103,6 +104,13 @@ assert.deepEqual(
 assert.deepEqual(authoritativeEditableFields(workflow), []);
 assert.equal(workflowHasOperation(workflow, 'create'), false);
 assert.deepEqual(validatePresentationContract(reviewPresentation(), { workflow }), []);
+
+const missingMetricScope = reviewPresentation();
+delete missingMetricScope.supportingRepresentations[0].dataScope;
+assert.match(
+  validatePresentationContract(missingMetricScope, { workflow }).join('\n'),
+  /dataScope must declare active-workset or entire-collection/,
+);
 
 const overlappingFields = reviewWorkflow();
 overlappingFields.journey.act.actions[0].authoritativeEditableFields = ['reviewerNotes'];

@@ -22,6 +22,8 @@ const badSavedViewTransitionRoot = path.join(root, 'bad-saved-view-transition');
 const badEarlySavedViewTransitionRoot = path.join(root, 'bad-early-saved-view-transition');
 const badSavedViewFilterRoot = path.join(root, 'bad-saved-view-filter');
 const badSavedViewFieldRoot = path.join(root, 'bad-saved-view-field');
+const badFilteredMetricsRoot = path.join(root, 'bad-filtered-metrics');
+const goodFilteredMetricsRoot = path.join(root, 'good-filtered-metrics');
 const goodSavedViewTransitionRoot = path.join(root, 'good-saved-view-transition');
 const badRemoveRoot = path.join(root, 'bad-remove');
 const badModalRoot = path.join(root, 'bad-modal');
@@ -48,6 +50,8 @@ fs.mkdirSync(badSavedViewTransitionRoot);
 fs.mkdirSync(badEarlySavedViewTransitionRoot);
 fs.mkdirSync(badSavedViewFilterRoot);
 fs.mkdirSync(badSavedViewFieldRoot);
+fs.mkdirSync(badFilteredMetricsRoot);
+fs.mkdirSync(goodFilteredMetricsRoot);
 fs.mkdirSync(goodSavedViewTransitionRoot);
 fs.mkdirSync(badRemoveRoot);
 fs.mkdirSync(badModalRoot);
@@ -1138,6 +1142,92 @@ export default function OrderExceptions() {
     }),
   );
 
+  const filteredMetricsPatterns = (ownerFilter) => JSON.stringify({
+    pages: [{
+      id: 'renewals',
+      type: 'collectionPage',
+      collectionPage: {
+        components: [{ type: 'custom', id: 'renewalKPIs' }, {
+          type: 'collection',
+          collection: {
+            collectionId: 'app-id/renewal-accounts',
+            entityTypeSource: 'cms',
+          },
+          filters: { items: [ownerFilter] },
+        }],
+      },
+    }],
+  });
+  const renewalCollectionSource = `export default {
+  idSuffix: 'renewal-accounts',
+  fields: [
+    { key: 'owner', displayName: 'Owner', type: 'TEXT' },
+    { key: 'arr', displayName: 'ARR', type: 'NUMBER' },
+  ],
+};`;
+  const autoPatternsPageSource = `import { AutoPatternsApp } from '@wix/auto-patterns';
+export default function Renewals() { return <AutoPatternsApp />; }`;
+
+  writeNested(
+    badFilteredMetricsRoot,
+    'src/extensions/backend/data-collections/renewal-accounts.ts',
+    renewalCollectionSource,
+  );
+  writeNested(
+    badFilteredMetricsRoot,
+    'src/extensions/dashboard-pages/renewals/patterns.json',
+    filteredMetricsPatterns({ id: 'owner', fieldId: 'owner', displayName: 'Owner' }),
+  );
+  writeNested(
+    badFilteredMetricsRoot,
+    'src/extensions/dashboard-pages/renewals/Renewals.tsx',
+    autoPatternsPageSource,
+  );
+  writeNested(
+    badFilteredMetricsRoot,
+    'src/extensions/dashboard-pages/renewals/RenewalKPIs.tsx',
+    `import { items } from '@wix/data';
+export function RenewalKPIs() {
+  const load = () => items.query('app-id/renewal-accounts').find();
+  return <StatisticsWidget value={load} />;
+}`,
+  );
+
+  writeNested(
+    goodFilteredMetricsRoot,
+    'src/extensions/backend/data-collections/renewal-accounts.ts',
+    renewalCollectionSource,
+  );
+  writeNested(
+    goodFilteredMetricsRoot,
+    'src/extensions/dashboard-pages/renewals/patterns.json',
+    filteredMetricsPatterns({
+      id: 'owner',
+      fieldId: 'owner',
+      displayName: 'Owner',
+      enumConfig: {
+        options: [{ value: 'sarah', label: 'Sarah' }],
+        selectionMode: 'single',
+      },
+    }),
+  );
+  writeNested(
+    goodFilteredMetricsRoot,
+    'src/extensions/dashboard-pages/renewals/Renewals.tsx',
+    autoPatternsPageSource,
+  );
+  writeNested(
+    goodFilteredMetricsRoot,
+    'src/extensions/dashboard-pages/renewals/RenewalKPIs.tsx',
+    `import { useMemo } from 'react';
+import { useAppContext } from '@wix/auto-patterns';
+export function RenewalKPIs() {
+  const { items } = useAppContext();
+  const total = useMemo(() => items.reduce((sum, item) => sum + item.arr, 0), [items]);
+  return <StatisticsWidget value={total} />;
+}`,
+  );
+
   write(goodSavedViewTransitionRoot, 'patterns.json', alignedSavedViewPatterns);
   write(
     goodSavedViewTransitionRoot,
@@ -1893,6 +1983,38 @@ export default function SubscriptionHealth() {
   if (badSavedViewField.status === 0 || !badSavedViewFieldOutput.includes('AP-18')) {
     console.error('Dashboard audit self-test accepted a filter for an unknown collection field.');
     console.error(badSavedViewFieldOutput.trim());
+    process.exit(1);
+  }
+
+  const badFilteredMetrics = spawnSync(
+    process.execPath,
+    [auditPath, badFilteredMetricsRoot],
+    { encoding: 'utf8' },
+  );
+  const badFilteredMetricsOutput =
+    `${badFilteredMetrics.stdout}\n${badFilteredMetrics.stderr}`;
+  const missedFilteredMetricRules = ['AP-18', 'AP-22'].filter(
+    (rule) => !badFilteredMetricsOutput.includes(rule),
+  );
+  if (badFilteredMetrics.status === 0 || missedFilteredMetricRules.length) {
+    console.error('Dashboard audit self-test accepted an inert text filter and disconnected active-workset metrics.');
+    if (missedFilteredMetricRules.length) {
+      console.error(`Missing rules: ${missedFilteredMetricRules.join(', ')}`);
+    }
+    console.error(badFilteredMetricsOutput.trim());
+    process.exit(1);
+  }
+
+  const goodFilteredMetrics = spawnSync(
+    process.execPath,
+    [auditPath, goodFilteredMetricsRoot],
+    { encoding: 'utf8' },
+  );
+  if (goodFilteredMetrics.status !== 0) {
+    console.error('Dashboard audit self-test rejected AppContext metrics with a configured text filter.');
+    console.error(
+      `${goodFilteredMetrics.stdout}\n${goodFilteredMetrics.stderr}`.trim(),
+    );
     process.exit(1);
   }
 

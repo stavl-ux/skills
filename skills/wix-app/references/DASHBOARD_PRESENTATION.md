@@ -25,7 +25,8 @@ Record the presentation decision after completing [DASHBOARD_WORKFLOW.md](DASHBO
     "supportingRepresentations": [
       {
         "type": "summary-metrics",
-        "reason": "Value at risk provides a quick renewal-health signal"
+        "reason": "Value at risk provides a quick renewal-health signal",
+        "dataScope": "active-workset"
       }
     ],
     "drillIn": {
@@ -51,6 +52,8 @@ Record the presentation decision after completing [DASHBOARD_WORKFLOW.md](DASHBO
 ```
 
 Treat `reason` as the important part of each choice. Prefer a different representation or interface when the task, information depth, interaction duration, context needs, or verified platform capability makes it a better fit. When routing requires an adapted implementation, preserve the presentation intent and record `drillIn.adaptationReason` rather than silently changing the experience.
+
+Charts and metrics declare `dataScope`: `active-workset` follows filters; `entire-collection` remains visibly global.
 
 ## Choose The Primary Representation
 
@@ -106,6 +109,7 @@ General edit mode can be a good fit when maintaining authoritative record conten
 - Reuse understandable names, status meaning, formatting, and action labels across summaries, representations, and detail.
 - Keep filters, sorting, selected record, and workset meaning coherent when users switch representations or return from drill-in.
 - Connect summaries and visualizations to the records that explain them.
+- Derive `active-workset` summaries from filtered records.
 - Make loading, source-empty, no-results, access, connection, synchronization, and system-error states visually distinct and useful.
 - Reconcile affected representations after an action so the confirmed business state appears everywhere relevant.
 

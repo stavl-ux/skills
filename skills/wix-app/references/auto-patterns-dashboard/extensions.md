@@ -306,6 +306,16 @@ interface AppContext {
 - **MUST** use `refreshCollection` after data mutations in external components.
 - **NEVER** use `useAppContext` outside of the `AutoPatternsApp` tree.
 
+### Supplemental Metric Synchronization
+
+- Derive `active-workset` metrics from `useAppContext().items`; do not query the same collection independently.
+- Query independently only for visibly labeled `entire-collection` scope.
+
+```tsx
+const { items } = useAppContext();
+const metrics = useMemo(() => summarize(items), [items]);
+```
+
 ### Contextual Detail Integration
 
 Use this SidePanel pattern when an Auto Patterns collection row opens moderate-depth supplemental view or edit content while retaining table context. Use a Modal for a short blocking task and an entity page for a deep, multi-section, or long-running flow.
