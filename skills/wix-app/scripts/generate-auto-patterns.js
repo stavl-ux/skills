@@ -121,12 +121,13 @@ Input JSON shape:
           "decisionInputFields": [], "transitionFields": ["status"],
           "authoritativeEditableFields": []
         }] },
-        "verify": { "visibleResult": "string", "postconditions": ["string"], "refresh": ["collection"] }
+        "verify": { "visibleResult": "string", "postconditions": ["string"], "refresh": ["collection", "detail"] }
       },
       "implementation": {
         "investigationSurface": "side-panel | modal | entity-page | owning-app-navigation",
         "surfaceReason": "string", "preserveCollectionContext": true,
-        "evidenceMode": "read-only | editable | mixed", "identityField": "string"
+        "evidenceMode": "read-only | editable | mixed", "identityField": "string",
+        "actionBindings": { "logicalActionId": { "row": "rowResolverId", "detail": "detailResolverId" } }
       }
     }
   }

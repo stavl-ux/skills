@@ -85,6 +85,7 @@ type EntityPageHeaderBadges = (entity: any) => {
 - **MUST** use paired `view` + `edit` pages when an operational transition must remain a primary detail action while general field editing is also required. The view page owns the transition and links to edit; the edit page owns Save/Cancel.
 - **MUST** allow a `view` entity page or SidePanel to persist named workflow transitions or feedback when the audience has update permission but authoritative content editing is not part of the job.
 - **MUST** keep relevant single-record transitions available on the entity surface when equivalent row or bulk actions exist. Collection actions do not propagate automatically.
+- **MUST** bind surface-specific resolver IDs back to one logical workflow action and call the same shared transition operation used by row and bulk adapters.
 - **MUST** keep the workflow-defining transition primary on the view page, editing supporting, and confirmed Delete destructive in `moreActions` when `itemRemove` is available.
 - **MUST** render evidence for comprehension. Use formatted rich content for review; do not expose raw markup in a generic field editor unless editing that source is intended.
 - **MUST** treat business-field editing and workflow transitions as separate capabilities. A custom transition such as **Mark as Reviewed** neither requires nor replaces general editing.
@@ -250,6 +251,8 @@ type CustomEntityPageActionResolver = (params: {
 - **MUST** use `moreActions` for less common/admin tasks.
 - **MUST** use optimistic-action `errorToast` for collection mutations and explicit `try/catch` for other documented calls; never invent `sdk.errorHandler`.
 - **MUST** tolerate an absent or partial `entity` during route loading. Entity-dependent actions start disabled and their click handlers reject missing identity.
+- **MUST** preserve the complete canonical item for replacement-style updates. If the entity payload may be partial, fetch the canonical item before merging the transition fields.
+- **MUST** return the persisted record from the optimistic submit, show success only after it resolves, expose retryable failure feedback, and defer `refreshCollection()` so the entity, collection, Saved Views, and counts reconcile.
 - **NEVER** manually add "Edit" action; it's automatic if an Edit Mode page exists.
 
 ### Canonical Example
@@ -297,6 +300,55 @@ export const duplicateEntity: CustomEntityPageActionResolver = ({ actionParams }
   };
 };
 ```
+
+### Canonical Mutation Lifecycle
+
+Use the same transition helper from row and detail resolvers. The resolver owns surface state; the helper owns canonical replacement safety.
+
+```typescript
+async function persistStatusTransition(
+  collectionId: string,
+  itemId: string,
+  changes: Record<string, unknown>,
+) {
+  const canonical = await items.get(collectionId, itemId);
+  if (!canonical) throw new Error('Record not found');
+  return items.update(collectionId, { ...canonical, ...changes });
+}
+
+export const approveEntity: CustomEntityPageActionResolver = ({ actionParams, sdk }) => {
+  const entity = actionParams.entity;
+  const ready = Boolean(entity?._id);
+  return {
+    label: 'Approve',
+    biName: 'approve-entity-action',
+    disabled: !ready,
+    tooltip: ready ? undefined : 'Loading record',
+    onClick: () => {
+      if (!entity?._id) return;
+      const optimistic = sdk.getOptimisticActions(sdk.collectionId);
+      optimistic.updateOne({ ...entity, status: 'approved' }, {
+        submit: async ([submitted]) => {
+          const persisted = await persistStatusTransition(
+            sdk.collectionId,
+            submitted._id,
+            { status: submitted.status },
+          );
+          setTimeout(() => sdk.refreshCollection(), 0);
+          return persisted;
+        },
+        successToast: 'Submission approved',
+        errorToast: (_error, { retry }) => ({
+          message: 'Could not approve submission',
+          action: { text: 'Retry', onClick: retry },
+        }),
+      });
+    },
+  };
+};
+```
+
+After implementation, exercise this action from both the collection and entity surfaces. Confirm that unrelated fields remain populated, the entity displays the persisted status, the active workset and counts update, and failures remain visible and retryable.
 
 ## Custom Form Components
 

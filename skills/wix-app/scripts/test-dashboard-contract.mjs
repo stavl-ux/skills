@@ -51,6 +51,12 @@ function reviewWorkflow() {
       preserveCollectionContext: true,
       evidenceMode: 'read-only',
       identityField: '_id',
+      actionBindings: {
+        'request-changes': {
+          row: 'requestChanges',
+          detail: 'requestChangesEntity',
+        },
+      },
     },
   };
 }
@@ -79,6 +85,20 @@ assert.match(
     capabilities: { ...capabilities, insert: false },
   }).join('\n'),
   /requires insert capability/,
+);
+
+const missingDetailRefresh = reviewWorkflow();
+missingDetailRefresh.journey.verify.refresh = ['collection', 'views'];
+assert.match(
+  validateWorkflowContract(missingDetailRefresh, { capabilities }).join('\n'),
+  /must include detail when a mutation is available on detail/,
+);
+
+const incompleteBindings = reviewWorkflow();
+delete incompleteBindings.implementation.actionBindings['request-changes'].detail;
+assert.match(
+  validateWorkflowContract(incompleteBindings, { capabilities }).join('\n'),
+  /actionBindings\.request-changes must bind every declared surface/,
 );
 
 assert.match(

@@ -49,7 +49,7 @@ const compactReferences = [
   },
   {
     file: 'DASHBOARD_WORKFLOW.md',
-    required: ['## Contents', '## Five-WHAT Gate', '## Workflow Contract', '## Investigate', '## Verify', '**WF-01:**'],
+    required: ['## Contents', '## Five-WHAT Gate', '## Workflow Contract', '## Investigate', '## Verify', '**WF-01:**', '**WF-08:**'],
   },
 ];
 

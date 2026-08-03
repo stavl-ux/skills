@@ -24,6 +24,34 @@ function duplicateFields(action) {
   return fields.filter((field, index) => fields.indexOf(field) !== index);
 }
 
+function validateActionBindings(actions, implementation, errors) {
+  if (implementation?.actionBindings == null) return;
+  if (!implementation.actionBindings || typeof implementation.actionBindings !== 'object' || Array.isArray(implementation.actionBindings)) {
+    errors.push('workflow.implementation.actionBindings must map logical action IDs to surface resolver IDs');
+    return;
+  }
+
+  const actionsById = new Map(actions.map((action) => [action.id, action]));
+  for (const [actionId, bindings] of Object.entries(implementation.actionBindings)) {
+    const action = actionsById.get(actionId);
+    if (!action || !bindings || typeof bindings !== 'object' || Array.isArray(bindings)) {
+      errors.push('workflow.implementation.actionBindings contains an unknown action or invalid bindings');
+      continue;
+    }
+    const declaredSurfaces = new Set(action.surfaces ?? []);
+    for (const [surface, resolverId] of Object.entries(bindings)) {
+      if (!ACTION_SURFACES.has(surface) || !declaredSurfaces.has(surface) || !isText(resolverId)) {
+        errors.push(`workflow.implementation.actionBindings.${actionId} contains an undeclared surface or invalid resolver ID`);
+      }
+    }
+    for (const surface of declaredSurfaces) {
+      if (!isText(bindings[surface])) {
+        errors.push(`workflow.implementation.actionBindings.${actionId} must bind every declared surface`);
+      }
+    }
+  }
+}
+
 export function workflowActions(workflow) {
   return Array.isArray(workflow?.journey?.act?.actions)
     ? workflow.journey.act.actions
@@ -148,6 +176,13 @@ export function validateWorkflowContract(
     errors.push('journey.verify.refresh must include collection');
   }
 
+  const mutatesOnDetail = actions.some(
+    (action) => action.kind === 'mutation' && action.surfaces?.includes('detail'),
+  );
+  if (mutatesOnDetail && !journey.verify?.refresh?.includes('detail')) {
+    errors.push('journey.verify.refresh must include detail when a mutation is available on detail');
+  }
+
   if (!implementation || typeof implementation !== 'object'
       || !INVESTIGATION_SURFACES.has(implementation.investigationSurface)
       || !isText(implementation.surfaceReason)
@@ -156,6 +191,7 @@ export function validateWorkflowContract(
       || !isText(implementation.identityField)) {
     errors.push('workflow.implementation must declare the investigation surface, rationale, context preservation, evidence mode, and identity field');
   }
+  validateActionBindings(actions, implementation, errors);
 
   if (implementation?.evidenceMode === 'editable'
       && authoritativeEditableFields(workflow).length === 0) {

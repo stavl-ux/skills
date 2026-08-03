@@ -310,6 +310,11 @@ for (const document of patternDocuments) {
           .filter((filter) => typeof filter?.id === 'string' && typeof filter?.fieldId === 'string')
           .map((filter) => [filter.id, filter.fieldId]),
       );
+      const filtersById = new Map(
+        filterItems
+          .filter((filter) => typeof filter?.id === 'string')
+          .map((filter) => [filter.id, filter]),
+      );
       const collectionFields = collectionFieldsBySuffix.get(collectionSuffix);
       if (collectionFields) {
         for (const filter of filterItems) {
@@ -334,13 +339,37 @@ for (const document of patternDocuments) {
         if (!preset?.filters || typeof preset.filters !== 'object' || Array.isArray(preset.filters)) {
           return;
         }
-        for (const filterId of Object.keys(preset.filters)) {
+        for (const [filterId, presetFilter] of Object.entries(preset.filters)) {
           const fieldId = filterFieldsById.get(filterId);
           if (fieldId) {
             savedViewFieldIds.add(fieldId);
             const filterIds = savedViewFilterIdsByField.get(fieldId) ?? new Set();
             filterIds.add(filterId);
             savedViewFilterIdsByField.set(fieldId, filterIds);
+            if (presetFilter?.filterType === 'enum') {
+              const declaredOptions = filtersById.get(filterId)?.enumConfig?.options;
+              const selectedIds = Array.isArray(presetFilter.value)
+                ? presetFilter.value.map((option) => option?.id).filter(Boolean)
+                : [];
+              const declaredValues = new Set(
+                Array.isArray(declaredOptions)
+                  ? declaredOptions.map((option) => option?.value).filter(Boolean)
+                  : [],
+              );
+              if (
+                !declaredValues.size
+                || selectedIds.some((selectedId) => !declaredValues.has(selectedId))
+              ) {
+                const content = fs.readFileSync(document.path, 'utf8');
+                addFinding(
+                  document.path,
+                  content,
+                  content.indexOf(`"${filterId}"`),
+                  'AP-18',
+                  `Saved View enum filter "${filterId}" is missing a matching filters.items enumConfig, or its selected values are not declared options. Configure the enum before relying on this View as an operational workset.`,
+                );
+              }
+            }
             continue;
           }
           const content = fs.readFileSync(document.path, 'utf8');
@@ -518,20 +547,22 @@ for (const contract of dashboardContracts) {
     });
   }
 
-  const declaredDetailActionIds = actions
-    .filter((action) => action.surfaces.includes('detail'))
-    .map((action) => action.id);
-  if (
-    implementation.investigationSurface === 'entity-page'
-    && declaredDetailActionIds.length
-    && !declaredDetailActionIds.some((id) => entityRuntimeResolvers.has(id))
-  ) {
-    findings.push({
-      filePath: contract.path,
-      line: 1,
-      rule: 'AP-19',
-      message: `The journey declares detail actions (${declaredDetailActionIds.join(', ')}), but no matching entity action resolver is registered. Preserve the operational decisions after drill-in.`,
-    });
+  for (const action of actions) {
+    for (const surface of action.surfaces ?? []) {
+      if (!['row', 'bulk', 'detail'].includes(surface)) continue;
+      const resolverId = implementation.actionBindings?.[action.id]?.[surface] ?? action.id;
+      const collectionKinds = collectionRuntimeResolvers.get(resolverId) ?? new Set();
+      const isRegistered = surface === 'detail'
+        ? entityRuntimeResolvers.has(resolverId)
+        : collectionKinds.has(`${surface} action`);
+      if (isRegistered) continue;
+      findings.push({
+        filePath: contract.path,
+        line: 1,
+        rule: 'AP-19',
+        message: `Workflow action "${action.id}" declares a ${surface} surface bound to resolver "${resolverId}", but that resolver is not registered on the ${surface} surface. Use one logical action with explicit workflow.implementation.actionBindings when runtime resolver IDs differ.`,
+      });
+    }
   }
 }
 
@@ -1060,6 +1091,46 @@ function checkSavedViewRefresh(resolver, resolverSlice, resolverId, kindLabel) {
   }
 }
 
+function checkMutationLifecycle(resolver, resolverSlice, resolverId, kindLabel) {
+  const directlyMutatesCollection = /\bitems\s*\.\s*(?:update|save|bulkUpdate)\s*\(/.test(
+    resolverSlice,
+  );
+  if (!directlyMutatesCollection) return;
+
+  const usesOptimisticActions = /\b(?:getOptimisticActions|optimisticActions\s*\.\s*(?:updateOne|updateMany|updateAll))\b/.test(
+    resolverSlice,
+  );
+  if (!usesOptimisticActions) {
+    addFinding(
+      resolver.filePath,
+      resolver.content,
+      resolver.index,
+      'AP-20',
+      `Custom ${kindLabel} "${resolverId}" writes collection data outside the documented optimistic-action lifecycle. Use one optimistic transition that owns pending state, success, failure, and canonical refresh on this surface.`,
+    );
+    return;
+  }
+
+  if (/\bsubmit\s*:\s*async\s*\(\s*\)\s*=>/.test(resolverSlice)) {
+    addFinding(
+      resolver.filePath,
+      resolver.content,
+      resolver.index,
+      'AP-20',
+      `Custom ${kindLabel} "${resolverId}" ignores the optimistic record submitted by updateOne. Persist and return the submitted full record instead of rebuilding a partial replacement from a closure.`,
+    );
+  }
+  if (!/\bsuccessToast\s*:/.test(resolverSlice) || !/\berrorToast\s*:/.test(resolverSlice)) {
+    addFinding(
+      resolver.filePath,
+      resolver.content,
+      resolver.index,
+      'AP-20',
+      `Custom ${kindLabel} "${resolverId}" does not expose both confirmed success and retryable failure feedback through the optimistic action.`,
+    );
+  }
+}
+
 for (const [resolverId, kinds] of entityRuntimeResolvers) {
   const resolver = findResolver(resolverId);
   const kindLabel = [...kinds].join('/');
@@ -1073,8 +1144,9 @@ for (const [resolverId, kinds] of entityRuntimeResolvers) {
     continue;
   }
 
-  const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2600);
+  const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 3600);
   checkSavedViewRefresh(resolver, resolverSlice, resolverId, kindLabel);
+  checkMutationLifecycle(resolver, resolverSlice, resolverId, kindLabel);
   const isEntityAction = [...kinds].some((kind) => kind.includes('action'));
   if (isEntityAction && !resolverUsesHostActionParams(resolverSlice)) {
     findings.push({
@@ -1147,8 +1219,9 @@ for (const [actionId, kinds] of collectionRuntimeResolvers) {
     continue;
   }
 
-  const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2400);
+  const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 3600);
   checkSavedViewRefresh(resolver, resolverSlice, actionId, kindLabel);
+  checkMutationLifecycle(resolver, resolverSlice, actionId, kindLabel);
   if (!resolverUsesHostActionParams(resolverSlice)) {
     findings.push({
       filePath: resolver.filePath,
@@ -1176,6 +1249,24 @@ for (const [filePath, content] of contents) {
       match.index,
       'AP-07',
       'items.update receives collectionId first and one item object containing _id second. Do not pass the record ID as the first argument.',
+    );
+  }
+
+  for (const match of content.matchAll(
+    /\bitems\s*\.\s*update\s*\(\s*[^,\n]+,\s*(\{[\s\S]{0,1400}?\})\s*(?:,|\))/g,
+  )) {
+    const replacement = match[1];
+    const hasIdentity = /\b_id\b/.test(replacement);
+    const spreadsCanonicalRecord = /\.\.\.\s*(?:actionParams\s*\.\s*(?:item|entity)|item|entity|record|current|existing|canonical|submitted(?:Item)?|items\s*\[\s*0\s*\])/i.test(
+      replacement,
+    );
+    if (!hasIdentity || spreadsCanonicalRecord) continue;
+    addFinding(
+      filePath,
+      content,
+      match.index,
+      'AP-20',
+      'items.update replaces the complete CMS item, but this call constructs a partial object literal. Read or retain the canonical record, merge the transition fields into it, and persist the full replacement so unrelated fields are not erased.',
     );
   }
 }

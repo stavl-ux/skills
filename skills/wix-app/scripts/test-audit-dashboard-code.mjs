@@ -34,6 +34,7 @@ const goodAnalyticsPermissionRoot = path.join(root, 'good-analytics-permission')
 const autoRoot = path.join(root, 'auto');
 const hybridRoot = path.join(root, 'hybrid');
 const codegen50Root = path.join(root, 'codegen-50-regression');
+const codegen55Root = path.join(root, 'codegen-55-regression');
 fs.mkdirSync(badRoot);
 fs.mkdirSync(badAutoRoot);
 fs.mkdirSync(badAnalyticsRoot);
@@ -59,6 +60,7 @@ fs.mkdirSync(goodAnalyticsPermissionRoot);
 fs.mkdirSync(autoRoot);
 fs.mkdirSync(hybridRoot);
 fs.mkdirSync(codegen50Root);
+fs.mkdirSync(codegen55Root);
 
 function write(directory, fileName, content) {
   fs.writeFileSync(path.join(directory, fileName), content);
@@ -722,7 +724,7 @@ export default {
           verify: {
             visibleResult: 'Review state reloads',
             postconditions: ['isReviewed is persisted'],
-            refresh: ['collection'],
+            refresh: ['collection', 'detail'],
           },
         },
         implementation: {
@@ -765,7 +767,7 @@ export default {
       verify: {
         visibleResult: 'Approved item leaves pending review',
         postconditions: ['approved status is persisted'],
-        refresh: ['collection'],
+        refresh: ['collection', 'detail'],
       },
     },
     implementation: {
@@ -1133,12 +1135,188 @@ export const markReviewed = ({ actionParams, sdk }) => ({
         setTimeout(() => sdk.refreshCollection(), 0);
         return updated;
       },
+      successToast: 'Item reviewed',
+      errorToast: (_error, { retry }) => ({
+        message: 'Could not review item',
+        action: { text: 'Retry', onClick: retry },
+      }),
     },
   ),
 });
 export default function OrderExceptions() {
   return <AutoPatternsApp />;
 }`,
+  );
+
+  writeNested(
+    codegen55Root,
+    'src/extensions/backend/data-collections/content-submissions.ts',
+    `export default {
+  idSuffix: 'content-submissions',
+  fields: [
+    { key: 'title', type: 'TEXT' },
+    { key: 'status', type: 'TEXT' },
+    { key: 'needsAttention', type: 'BOOLEAN' },
+  ],
+  dataPermissions: {
+    itemRead: 'CMS_EDITOR',
+    itemInsert: 'CMS_EDITOR',
+    itemUpdate: 'CMS_EDITOR',
+    itemRemove: 'CMS_EDITOR',
+  },
+};`,
+  );
+  writeNested(
+    codegen55Root,
+    'src/extensions/dashboard/pages/content-review/patterns.json',
+    JSON.stringify({
+      pages: [
+        {
+          id: 'content-review',
+          type: 'collectionPage',
+          collectionPage: {
+            components: [{
+              type: 'collection',
+              entityPageId: 'content-detail',
+              collection: {
+                collectionId: 'app-id/content-submissions',
+                entityTypeSource: 'cms',
+              },
+              filters: { items: [{ id: 'status', fieldId: 'status' }] },
+              views: {
+                enabled: true,
+                presets: {
+                  type: 'views',
+                  views: [{
+                    id: 'pending',
+                    label: 'Pending Review',
+                    isDefaultView: true,
+                    filters: {
+                      status: {
+                        filterType: 'enum',
+                        value: [{ id: 'pending', name: 'Pending' }],
+                      },
+                    },
+                  }],
+                },
+              },
+              actionCell: {
+                primaryAction: {
+                  item: {
+                    id: 'approve',
+                    type: 'custom',
+                    label: 'Approve',
+                    biName: 'approve-action',
+                  },
+                },
+              },
+            }],
+          },
+        },
+        {
+          id: 'content-detail',
+          type: 'entityPage',
+          entityPage: {
+            mode: 'view',
+            parentPageId: 'content-review',
+            collectionId: 'app-id/content-submissions',
+            entityTypeSource: 'cms',
+            route: { path: '/submission/:entityId', params: { id: 'entityId' } },
+            actions: {
+              primaryActions: {
+                type: 'action',
+                action: {
+                  item: {
+                    id: 'approveEntity',
+                    type: 'custom',
+                    label: 'Approve',
+                    biName: 'approve-entity-action',
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    }),
+  );
+  writeNested(
+    codegen55Root,
+    'src/extensions/dashboard/pages/content-review/dashboard-contract.json',
+    JSON.stringify({
+      dataFoundation: { capabilities: { read: true, insert: true, update: true, remove: true } },
+      workflow: {
+        journey: {
+          outcome: { actorRole: 'reviewer', desiredOutcome: 'approve pending submissions' },
+          understand: { questions: ['What needs review?'], signals: ['status'] },
+          focus: { defaultWorkset: 'Pending Review', controls: ['status'] },
+          investigate: {
+            questions: ['Is this ready?'],
+            evidenceFields: ['title', 'status'],
+            contextPriority: 'high',
+          },
+          act: { actions: [{
+            id: 'approveEntity',
+            kind: 'mutation',
+            operation: 'transition',
+            target: 'content-submissions collection',
+            surfaces: ['row', 'detail'],
+            decisionInputFields: [],
+            transitionFields: ['status', 'needsAttention'],
+            authoritativeEditableFields: [],
+          }] },
+          verify: {
+            visibleResult: 'Approved item leaves Pending Review',
+            postconditions: ['status is persisted', 'title remains populated'],
+            refresh: ['collection', 'views', 'detail'],
+          },
+        },
+        implementation: {
+          investigationSurface: 'entity-page',
+          surfaceReason: 'Review requires full content evidence',
+          preserveCollectionContext: false,
+          evidenceMode: 'read-only',
+          identityField: '_id',
+        },
+      },
+    }),
+  );
+  writeNested(
+    codegen55Root,
+    'src/extensions/dashboard/pages/content-review/actions.tsx',
+    `export const approve = ({ actionParams, sdk }) => ({
+  label: 'Approve',
+  biName: 'approve-action',
+  onClick: () => sdk.getOptimisticActions(sdk.collectionId).updateOne(
+    { ...actionParams.item, status: 'approved', needsAttention: false },
+    {
+      submit: async () => {
+        await items.update('content-submissions', {
+          _id: actionParams.item._id,
+          status: 'approved',
+          needsAttention: false,
+        });
+        setTimeout(() => sdk.refreshCollection(), 0);
+      },
+      successToast: 'Submission approved',
+      errorToast: (_error, { retry }) => ({ message: 'Failed', action: { text: 'Retry', onClick: retry } }),
+    },
+  ),
+});
+export const approveEntity = ({ actionParams, sdk }) => ({
+  label: 'Approve',
+  biName: 'approve-entity-action',
+  disabled: !actionParams.entity?._id,
+  onClick: async () => {
+    if (!actionParams.entity?._id) return;
+    await items.update('content-submissions', {
+      _id: actionParams.entity._id,
+      status: 'approved',
+      needsAttention: false,
+    });
+    setTimeout(() => sdk.refreshCollection(), 0);
+  },
+});`,
   );
 
   writeNested(
@@ -1692,6 +1870,28 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
+  const codegen55Dashboard = path.join(
+    codegen55Root,
+    'src/extensions/dashboard/pages/content-review',
+  );
+  const codegen55 = spawnSync(
+    process.execPath,
+    [auditPath, codegen55Dashboard],
+    { encoding: 'utf8' },
+  );
+  const codegen55Output = `${codegen55.stdout}\n${codegen55.stderr}`;
+  const missedCodegen55Rules = ['AP-18', 'AP-19', 'AP-20'].filter(
+    (rule) => !codegen55Output.includes(rule),
+  );
+  if (codegen55.status === 0 || missedCodegen55Rules.length) {
+    console.error('Dashboard audit self-test accepted the destructive Codegen 55 action lifecycle.');
+    if (missedCodegen55Rules.length) {
+      console.error(`Missing rules: ${missedCodegen55Rules.join(', ')}`);
+    }
+    console.error(codegen55Output.trim());
+    process.exit(1);
+  }
+
   const badRemoveDashboard = path.join(
     badRemoveRoot,
     'src/extensions/dashboard-pages/order-exceptions',
@@ -1808,7 +2008,7 @@ export default function SubscriptionHealth() {
     process.exit(1);
   }
 
-  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, unverified permissions, generic permission failures, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, mismatched decision/edit surfaces, missing declared editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; verified scoped and no-scope, viewer, decision, custom, Auto Patterns, and hybrid fixtures accepted.');
+  console.log('Dashboard audit self-test passed: bad routes, incompatible host APIs, unverified permissions, generic permission failures, speculative page-list fallbacks, fabricated public URLs, swallowed load errors, chart-only table fallbacks, unsafe modal state, broken action wiring, destructive replacement mutations, incomplete row/detail lifecycles, invalid Saved View enums, mismatched decision/edit surfaces, missing declared editor/delete surfaces, native panel controls, and unnecessary custom analytics tables rejected; verified scoped and no-scope, viewer, decision, custom, Auto Patterns, and hybrid fixtures accepted.');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

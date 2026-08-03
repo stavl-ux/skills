@@ -43,8 +43,9 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-15:** App-owned editor collections default `itemRemove` to `CMS_EDITOR`, confirmed row/detail Delete, and useful bulk Delete. Restrict only for an explicit recorded ownership or safety reason. Process source queues with transitions; app-owned exception records remain deletable.
 - **AP-16:** Name the workflow-defining action first. It is primary for row, requested bulk selection, and detail. Row navigation or `entityPageId` handles inspection; Edit supports and Delete remains destructive.
 - **AP-17:** A custom transition that changes a field used by a Saved View or active filter must map that filter to the mutated record field for immediate optimistic membership feedback, persist every defining field, and refresh canonical data only after the optimistic submit settles. The item must leave any workset it no longer matches without a manual reload, enter the matching destination once, update counts and supplemental metrics, and clear stale selection. A synchronous `refreshCollection()` inside optimistic `submit` is not sufficient.
-- **AP-18:** Every Saved View filter key must resolve to a declaration in `filters.items`, and every declared `fieldId` must exist in the collection schema. Workflow Views must include every maintained field that defines membership.
-- **AP-19:** Keep the journey and implementation coherent. A read-only decision workflow must not resolve only to a generic edit page; every row action must remain available on detail with its exact resolver wired.
+- **AP-18:** Every Saved View filter key must resolve to a declaration in `filters.items`, and every declared `fieldId` must exist in the collection schema. Enum Views require matching `enumConfig.options`, including every selected value. Workflow Views must include every maintained field that defines membership.
+- **AP-19:** Keep the journey and implementation coherent. A read-only decision workflow must not resolve only to a generic edit page. Preserve one logical action across every declared surface, and map different runtime resolver IDs through `workflow.implementation.actionBindings`.
+- **AP-20:** Treat mutations as a complete lifecycle. Replacement writes preserve the canonical record, optimistic submits consume and return the submitted item, row and detail adapters share one transition operation, success and retryable failure remain visible, and every declared collection/detail workset reconciles after persistence.
 
 ### Extension Choice
 
@@ -369,7 +370,7 @@ cat > /tmp/auto-patterns-input.json << 'EOF'
       "verify": {
         "visibleResult": "<visible confirmation of success>",
         "postconditions": ["<persisted postcondition>"],
-        "refresh": ["collection", "views", "selection"]
+        "refresh": ["collection", "views", "detail", "selection"]
       }
     },
     "implementation": {
@@ -377,7 +378,13 @@ cat > /tmp/auto-patterns-input.json << 'EOF'
       "surfaceReason": "<why depth and context justify this surface>",
       "preserveCollectionContext": true,
       "evidenceMode": "<read-only | editable | mixed>",
-      "identityField": "_id"
+      "identityField": "_id",
+      "actionBindings": {
+        "<action-id>": {
+          "row": "<row-resolver-id>",
+          "detail": "<detail-resolver-id>"
+        }
+      }
     }
   }
 }

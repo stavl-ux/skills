@@ -78,6 +78,7 @@ interface PresetView {
 - **IF** setting filters **THEN** keys MUST match defined filter IDs.
 - **IF** a View represents workflow state **THEN** include every maintained field that defines membership.
 - **IF** a CMS filter appears in the filter panel **THEN** declare it in `filters.items`; do not rely on an automatically exposed field that lacks an Auto Patterns field mapping.
+- **IF** a Saved View uses `filterType: 'enum'` **THEN** its matching `filters.items` entry MUST provide `enumConfig.options`, and every selected View value MUST match an option `value` exactly.
 
 ### Implementation Rules
 - **MUST** set `enabled: true` to activate.
@@ -92,6 +93,18 @@ Views and panel filters share the collection query but have different entry beha
 ```typescript
 filters: {
   items: [
+    {
+      id: 'status',
+      fieldId: 'status',
+      enumConfig: {
+        options: [
+          { value: 'pending', label: 'Pending' },
+          { value: 'approved', label: 'Approved' }
+        ],
+        selectionMode: 'single',
+        optionType: 'radio'
+      }
+    },
     { id: 'isReviewed', fieldId: 'isReviewed' },
     { id: 'needsAttention', fieldId: 'needsAttention' }
   ]
@@ -101,6 +114,13 @@ views: {
   presets: {
     type: 'views',
     views: [
+      {
+        id: 'pending',
+        label: 'Pending',
+        filters: {
+          status: { filterType: 'enum', value: [{ id: 'pending', name: 'Pending' }] }
+        }
+      },
       {
         id: 'needs-attention',
         label: 'Needs Attention',
@@ -129,6 +149,7 @@ A workflow action may move a record between operational worksets, such as `Needs
 - Update every maintained field used by the source and destination View predicates.
 - For a field changed by an optimistic transition, set its filter `id` equal to its `fieldId`, or configure a documented optimistic-actions `predicate` override that maps the filter ID to that record field. Without this mapping the optimistic row can repaint while remaining in a View it no longer matches.
 - Persist first, let the optimistic submit return, then refresh the collection in the next task so Auto Patterns can settle its optimistic patch before re-running filters, counts, and selection against canonical data. With the documented void-returning optimistic actions API, schedule `sdk.refreshCollection()` with `setTimeout(..., 0)` after the write succeeds; a synchronous refresh inside `submit` is too early.
+- Treat `submit(items)` as the persistence source of truth. Persist and return the submitted full record (`items[0]` or the equivalent schema action result); never ignore it and reconstruct `{ _id, changedField }`, because Wix Data update replaces omitted fields.
 - Apply the same transition and refresh behavior to row, bulk, and detail actions.
 - Verify the record disappears immediately from Views and active filters it no longer matches without navigation or manual reload, appears once in the destination View, updates counts and supplemental metrics, and cannot remain selected while absent.
 - Keep operational filter declarations when adding display filters; replacing `filters.items` can invalidate every View that references them.

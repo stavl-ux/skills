@@ -74,13 +74,21 @@ Define `workflow` before the data-foundation contract, JSX, Auto Patterns config
       "surfaceReason": "The reviewer benefits from preserving queue context while reading and deciding",
       "preserveCollectionContext": true,
       "evidenceMode": "read-only",
-      "identityField": "_id"
+      "identityField": "_id",
+      "actionBindings": {
+        "request-changes": {
+          "row": "requestChanges",
+          "detail": "requestChangesEntity"
+        }
+      }
     }
   }
 }
 ```
 
 Keep `journey` solution-independent. Add `implementation` after routing. Store it in `.dashboard-route.json` or `dashboard-contract.json`. Runtime behavior must match it.
+
+An action `id` is the stable logical outcome. If every surface registers that same resolver ID, omit `implementation.actionBindings`. When row, bulk, and detail surfaces require different runtime resolver names, declare every mapping there after routing. Never rename the journey action merely to make one surface pass validation; all bound resolvers must adapt to one shared domain operation.
 
 ## Understand and Focus
 
@@ -114,6 +122,8 @@ Keep sets disjoint. Decision and transition fields never imply general editing. 
 
 Every action must persist, navigate to a verified owner, or start a real flow. Preserve row actions after drill-in; never replace decisions with generic Save/Cancel or render placeholder handlers.
 
+For a mutation exposed on multiple surfaces, implement one shared transition operation and keep surface resolvers thin. The row and detail adapters may differ in presentation, but must share target identity, decision inputs, persisted field changes, permission handling, and success postconditions.
+
 ## Verify
 
 Make verification part of the action:
@@ -127,6 +137,8 @@ Make verification part of the action:
 7. Confirm the declared visible result and postconditions in rendered state.
 8. Display success feedback only after success is known.
 
+For replacement-style data APIs, verification starts with mutation safety: preserve the canonical record and change only the declared transition fields. A successful response that erased unrelated fields is a failed workflow.
+
 Never optimistically remove a record without reconciling canonical data. Retry recovers a failure; it does not verify success.
 
 ## Route-Independent Rules
@@ -138,3 +150,4 @@ Never optimistically remove a record without reconciling canonical data. Retry r
 - **WF-05:** Apply the journey equally to Auto Patterns and custom WDS routes. Routing never weakens the workflow.
 - **WF-06:** Keep decision, transition, and authoritative fields disjoint. Only authoritative editing permits a general editor; preserve row actions on detail.
 - **WF-07:** Generate creation only for an explicit `create` operation. Insert permission alone is insufficient.
+- **WF-08:** Treat one user outcome as one logical action across row, bulk, and detail. Bind surface-specific resolver IDs in implementation and route them through one shared mutation lifecycle.

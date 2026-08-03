@@ -396,6 +396,7 @@ const schema = sdk.getSchema(sdk.collectionId);
 optimisticActions.updateOne(item, {
   submit: async (items) => {
     if (!schema) throw new Error('Schema not found');
+    // items[0] is the full optimistic replacement. Do not rebuild a partial object.
     const updatedItem = await schema.actions.update(items[0]);
     // updateOne returns void. Refresh in the next task, after its submit settles.
     setTimeout(() => sdk.refreshCollection(), 0);
