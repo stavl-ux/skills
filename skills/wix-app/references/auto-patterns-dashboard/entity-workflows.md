@@ -85,8 +85,10 @@ type EntityPageHeaderBadges = (entity: any) => {
 - **MUST** use paired `view` + `edit` pages when an operational transition must remain a primary detail action while general field editing is also required. The view page owns the transition and links to edit; the edit page owns Save/Cancel.
 - **MUST** allow a `view` entity page or SidePanel to persist named workflow transitions or feedback when the audience has update permission but authoritative content editing is not part of the job.
 - **MUST** keep relevant single-record transitions available on the entity surface when equivalent row or bulk actions exist. Collection actions do not propagate automatically.
+- **MUST** preserve the complete `presentation.actionPresentation.actionIds` set on the entity surface. A valid layout adaptation cannot silently leave only one of several promised actions.
 - **MUST** bind surface-specific resolver IDs back to one logical workflow action and call the same shared transition operation used by row and bulk adapters.
 - **MUST** keep the workflow-defining transition primary on the view page, editing supporting, and confirmed Delete destructive in `moreActions` when `itemRemove` is available.
+- **MUST** keep immediate operational actions visible in the first composition of a view page, near the evidence used to decide. Prefer header/primary/secondary placement and a main-evidence/sidebar-action composition over burying workflow actions in `moreActions` or below long content.
 - **MUST** render evidence for comprehension. Use formatted rich content for review; do not expose raw markup in a generic field editor unless editing that source is intended.
 - **MUST** treat business-field editing and workflow transitions as separate capabilities. A custom transition such as **Mark as Reviewed** neither requires nor replaces general editing.
 - **NEVER** infer edit intent from update or delete permission alone. Infer it from the actor's job and declared authoritative editable fields.

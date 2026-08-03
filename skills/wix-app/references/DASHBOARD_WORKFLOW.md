@@ -116,7 +116,7 @@ Classify fields before selecting entity mode:
 - `transitionFields` are changed by the workflow action;
 - `authoritativeEditableFields` are source content the actor is responsible for editing generally.
 
-Keep sets disjoint. Decision and transition fields never imply general editing. Generate edit mode only for `authoritativeEditableFields`, and creation only for an explicit `create` operation.
+Decision inputs and transition fields may overlap when the bounded value a user supplies is the value persisted by the action—for example, assigning an `owner` or updating a `nextStep`. Keep `authoritativeEditableFields` separate from those bounded action fields. Decision and transition fields never imply general editing. Generate edit mode only for `authoritativeEditableFields`, and creation only for an explicit `create` operation.
 
 Every action must persist, navigate to a verified owner, or start a real flow. Preserve row actions after drill-in; never replace decisions with generic Save/Cancel or render placeholder handlers.
 
@@ -146,6 +146,6 @@ Never optimistically remove a record without reconciling canonical data. Retry r
 - **WF-03:** Show selection only when a real bulk operation consumes selected stable IDs.
 - **WF-04:** Await mutations and reconcile canonical collection data, Views, counts, detail, and selection. Confirm visible success without manual reload.
 - **WF-05:** Apply the journey and accepted presentation equally to Auto Patterns and custom WDS routes. Routing never weakens the workflow or silently substitutes a different interaction model.
-- **WF-06:** Keep decision, transition, and authoritative fields disjoint. Only authoritative editing permits a general editor; preserve row actions on detail.
+- **WF-06:** Keep authoritative editing separate from bounded action inputs and transitions. Decision inputs may also be transition fields when the entered value is the persisted change. Only authoritative editing permits a general editor; preserve every named row action on detail.
 - **WF-07:** Generate creation only for an explicit `create` operation. Insert permission alone is insufficient.
 - **WF-08:** Treat one user outcome as one logical action across row, bulk, and detail. Bind surface-specific resolver IDs in implementation and route them through one shared mutation lifecycle.

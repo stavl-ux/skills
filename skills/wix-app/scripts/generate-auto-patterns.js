@@ -142,6 +142,11 @@ Input JSON shape:
         "understand": ["string"], "focus": ["string"], "investigate": ["string"],
         "act": ["string"], "verify": ["string"]
       },
+      "actionPresentation": {
+        "actionIds": ["logicalActionId"],
+        "prominence": "immediate | contextual | progressive",
+        "relationshipToEvidence": "adjacent | same-surface | separate-step"
+      },
       "consistency": ["string"]
     }
   }

@@ -40,6 +40,11 @@ Record the presentation decision after completing [DASHBOARD_WORKFLOW.md](DASHBO
       "act": ["assign owner", "update next step", "complete follow-up"],
       "verify": ["updated metrics", "updated queue membership"]
     },
+    "actionPresentation": {
+      "actionIds": ["assign-owner", "update-next-step", "complete-follow-up"],
+      "prominence": "immediate",
+      "relationshipToEvidence": "adjacent"
+    },
     "consistency": ["filters", "views", "metrics", "selected record", "detail"]
   }
 }
@@ -77,6 +82,10 @@ Choose the smallest interface that provides enough context and room to investiga
 
 Consider information depth, task duration, validation complexity, repetition across a queue, need for collection context, destructive consequences, and deep-linking needs together. Record why the selected interface fits those signals.
 
+Repeated inspect-and-act work across a queue usually benefits from a SidePanel when the evidence and bounded actions fit comfortably beside the collection. This lets the user compare, inspect, decide, and advance without repeatedly leaving the workset. An entity page remains a strong fit for deep history, broad related data, long-form work, complex validation, or deep linking.
+
+When an entity page is the better fit, compose its first visible region around the operational job. Keep the investigation evidence and named actions perceptually adjacent—for example, evidence on the left and an action region on the right, or visible actions in the header. Actions that define the requested outcome should not be discoverable only after scrolling or through a generic overflow menu.
+
 ## Compose The Workflow
 
 Express Understand → Focus → Investigate → Act → Verify through hierarchy rather than treating each stage as a required screen.
@@ -86,6 +95,7 @@ Express Understand → Focus → Investigate → Act → Verify through hierarch
 - Reveal investigation evidence progressively and preserve the user's place when repeated decisions benefit from context.
 - Distinguish evidence from action inputs. Prefer readable evidence and clearly identifiable workflow actions when maintaining the source record is not the user's main job.
 - Give named operational outcomes such as approve, assign, escalate, resolve, or complete greater prominence than generic editing controls when those outcomes define the task.
+- Preserve every named workflow action through drill-in. `actionPresentation.actionIds` identifies the actions the selected interface must expose; do not silently reduce that set while adapting the layout.
 - Keep editable inputs proportional to the action. A bounded update may need one or two inputs without turning the surrounding record into a general editor.
 - Show confirmation where the user will look next: the selected record, active workset, counts, summaries, history, or owning destination.
 
@@ -110,5 +120,6 @@ Use these questions before implementation and again during runtime validation:
 5. Are editable inputs limited to what the chosen action or authoritative editing responsibility requires?
 6. Do layout, actions, empty states, and feedback remain coherent across the five workflow stages?
 7. After a change, do summaries, records, filters, views, and detail tell the same story?
+8. Is every promised action available where the user has enough evidence to take it, with a label that matches its actual destination or effect?
 
 Presentation success is achieved when the user can understand the situation, focus on the right work, investigate confidently, complete the intended task, and recognize the confirmed result through an interface suited to that work.

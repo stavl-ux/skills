@@ -418,6 +418,11 @@ try {
         act: ['manage product'],
         verify: ['correct owning product opens'],
       },
+      actionPresentation: {
+        actionIds: ['manage-product'],
+        prominence: 'immediate',
+        relationshipToEvidence: 'adjacent',
+      },
       consistency: ['filters', 'selected record', 'owning destination'],
     },
   }));

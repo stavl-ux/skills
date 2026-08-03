@@ -46,6 +46,7 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-18:** Every Saved View filter key must resolve to a declaration in `filters.items`, and every declared `fieldId` must exist in the collection schema. Enum Views require matching `enumConfig.options`, including every selected value. Workflow Views must include every maintained field that defines membership.
 - **AP-19:** Keep the journey and implementation coherent. A read-only decision workflow must not resolve only to a generic edit page. Preserve one logical action across every declared surface, and map different runtime resolver IDs through `workflow.implementation.actionBindings`.
 - **AP-20:** Treat mutations as a complete lifecycle. Replacement writes preserve the canonical record, optimistic submits consume and return the submitted item, row and detail adapters share one transition operation, success and retryable failure remain visible, and every declared collection/detail workset reconciles after persistence.
+- **AP-21:** Keep action semantics truthful. A built-in update/Edit action targets an actual edit-mode page; inspection navigation targets a view surface. Preserve every `presentation.actionPresentation.actionIds` action at the promised prominence after drill-in rather than replacing the set with a generic Edit or only one surviving transition.
 
 ### Extension Choice
 
@@ -67,6 +68,8 @@ These route defaults implement the presentation contract; they do not replace it
 - Separate read-only evidence, bounded decision inputs, transition fields, and authoritative editable fields. `itemUpdate` permits mutations; it does not imply a general editor.
 - Mirror a primary bulk transition as the primary row action unless inherently bulk-only.
 - If row click or `entityPageId` opens details, omit redundant custom View.
+- Use a SidePanel for repeated queue investigation and bounded actions when it can preserve the active collection context. If depth requires an entity page, keep named actions in its first visible composition and near the evidence needed to take them.
+- Treat `type: 'update'` as editing, not generic navigation. Its target page uses edit mode and its label describes that effect; inspection opens the view surface without an Edit label.
 - Default app-owned editor deletion as AP-15 specifies.
 - Keep the defining single-record transition available on the investigation surface. When transition and authoritative editing both matter, pair view/edit pages: view owns the transition; edit owns field persistence.
 
@@ -405,6 +408,11 @@ cat > /tmp/auto-patterns-input.json << 'EOF'
       "investigate": ["<evidence needed to decide>"],
       "act": ["<named workflow action>"],
       "verify": ["<visible confirmed result>"]
+    },
+    "actionPresentation": {
+      "actionIds": ["<action-id>"],
+      "prominence": "<immediate | contextual | progressive>",
+      "relationshipToEvidence": "<adjacent | same-surface | separate-step>"
     },
     "consistency": ["filters", "views", "records", "detail"]
   }

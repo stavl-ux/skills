@@ -171,6 +171,7 @@ const collectionRuntimeResolvers = new Map();
 const entityRuntimeResolvers = new Map();
 const entityPages = new Map();
 const collectionEntityLinks = [];
+const collectionUpdateLinks = [];
 const restrictedRemoveCollections = new Map();
 const managedCollectionSuffixes = new Set();
 const collectionFieldsBySuffix = new Map();
@@ -279,16 +280,22 @@ for (const document of patternDocuments) {
       }
       registerEntityRuntimeResolver(page.entityPage.title?.badges?.id, 'badge override');
       registerEntityRuntimeResolver(page.entityPage.subtitle?.id, 'subtitle override');
-      walkJson(page.entityPage.actions, (value) => {
-        if (
-          value
-          && typeof value === 'object'
-          && !Array.isArray(value)
-          && value.type === 'custom'
-        ) {
-          registerEntityRuntimeResolver(value.id, 'entity action');
-        }
-      });
+      for (const [group, kind] of [
+        [page.entityPage.actions?.primaryActions, 'entity primary action'],
+        [page.entityPage.actions?.secondaryActions, 'entity secondary action'],
+        [page.entityPage.actions?.moreActions, 'entity more action'],
+      ]) {
+        walkJson(group, (value) => {
+          if (
+            value
+            && typeof value === 'object'
+            && !Array.isArray(value)
+            && value.type === 'custom'
+          ) {
+            registerEntityRuntimeResolver(value.id, kind);
+          }
+        });
+      }
       continue;
     }
 
@@ -399,6 +406,21 @@ for (const document of patternDocuments) {
       for (const action of customActions(value.actionCell)) {
         registerCollectionRuntimeResolver(action.id, 'row action');
       }
+      walkJson(value.actionCell, (action) => {
+        if (
+          !action
+          || typeof action !== 'object'
+          || Array.isArray(action)
+          || action.type !== 'update'
+          || typeof action.update?.page?.id !== 'string'
+          || !action.update.page.id.trim()
+        ) return;
+        collectionUpdateLinks.push({
+          path: document.path,
+          label: action.label ?? action.id ?? 'Edit',
+          entityPageId: action.update.page.id.trim(),
+        });
+      });
       for (const action of customActions({
         bulkActionToolbar: value.bulkActionToolbar,
         tableBulkActionToolbar: value.table?.bulkActionToolbar,
@@ -488,6 +510,17 @@ for (const link of collectionEntityLinks) {
   }
 }
 
+for (const link of collectionUpdateLinks) {
+  const entityPage = entityPages.get(link.entityPageId);
+  if (entityPage?.mode === 'edit') continue;
+  findings.push({
+    filePath: link.path,
+    line: 1,
+    rule: 'AP-21',
+    message: `Collection update action "${link.label}" targets ${entityPage ? 'view-only' : 'missing'} entity page "${link.entityPageId}". Use row/detail navigation for inspection, or target a real edit-mode page and keep the Edit label truthful.`,
+  });
+}
+
 for (const contract of dashboardContracts) {
   const workflow = contract.value?.workflow;
   const implementation = workflow?.implementation;
@@ -521,6 +554,27 @@ for (const contract of dashboardContracts) {
         message: `Dashboard presentation contract is incomplete or diverges from implementation: ${presentationErrors.join('; ')}.`,
       });
       continue;
+    }
+  }
+
+  const actionPresentation = contract.value?.presentation?.actionPresentation;
+  if (
+    actionPresentation?.prominence === 'immediate'
+    && contract.value.presentation?.drillIn?.interface === 'entity-page'
+  ) {
+    for (const actionId of actionPresentation.actionIds ?? []) {
+      const action = actions.find((candidate) => candidate.id === actionId);
+      if (!action?.surfaces?.includes('detail')) continue;
+      const resolverId = implementation.actionBindings?.[actionId]?.detail ?? actionId;
+      const kinds = entityRuntimeResolvers.get(resolverId) ?? new Set();
+      if (kinds.has('entity primary action') || kinds.has('entity secondary action')) continue;
+      if (!kinds.has('entity more action')) continue;
+      findings.push({
+        filePath: contract.path,
+        line: 1,
+        rule: 'PS-02',
+        message: `Immediate workflow action "${actionId}" is available on entity detail only through moreActions. Keep it visible in the first composition near the evidence needed to take it.`,
+      });
     }
   }
 

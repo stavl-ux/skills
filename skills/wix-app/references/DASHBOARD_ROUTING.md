@@ -125,6 +125,7 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
       "preservesContext": true
     },
     "stageEmphasis": { "understand": ["upcoming appointment scope"], "focus": ["appointments needing attention"], "investigate": ["appointment, client, and service context"], "act": ["manage appointment"], "verify": ["correct owning record opens"] },
+    "actionPresentation": { "actionIds": ["manage-appointment"], "prominence": "immediate", "relationshipToEvidence": "adjacent" },
     "consistency": ["filters", "selected record", "detail"]
   }
 }

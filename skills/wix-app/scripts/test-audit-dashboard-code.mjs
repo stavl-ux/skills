@@ -882,6 +882,7 @@ export default function ContentReview() { return <AutoPatternsApp />; }`,
         collectionPage: {
           components: [{
             type: 'collection',
+            entityPageId: 'order-detail',
             collection: {
               collectionId: 'app-id/order-exceptions',
               entityTypeSource: 'cms',
@@ -894,6 +895,15 @@ export default function ContentReview() { return <AutoPatternsApp />; }`,
                   label: 'View',
                   biName: 'view-order',
                 },
+              },
+              secondaryActions: {
+                items: [{
+                  id: 'edit-order',
+                  type: 'update',
+                  label: 'Edit',
+                  biName: 'edit-order',
+                  update: { mode: 'page', page: { id: 'order-detail' } },
+                }],
               },
             },
             table: {
@@ -912,6 +922,15 @@ export default function ContentReview() { return <AutoPatternsApp />; }`,
               },
             },
           }],
+        },
+      }, {
+        id: 'order-detail',
+        type: 'entityPage',
+        entityPage: {
+          mode: 'view',
+          parentPageId: 'orders',
+          collectionId: 'app-id/order-exceptions',
+          route: { path: '/order/:entityId', params: { id: 'entityId' } },
         },
       }],
     }),
@@ -1223,17 +1242,12 @@ export default function OrderExceptions() {
             entityTypeSource: 'cms',
             route: { path: '/submission/:entityId', params: { id: 'entityId' } },
             actions: {
-              primaryActions: {
-                type: 'action',
-                action: {
-                  item: {
-                    id: 'approveEntity',
-                    type: 'custom',
-                    label: 'Approve',
-                    biName: 'approve-entity-action',
-                  },
-                },
-              },
+              moreActions: [{
+                id: 'approveEntity',
+                type: 'custom',
+                label: 'Approve',
+                biName: 'approve-entity-action',
+              }],
             },
           },
         },
@@ -1278,6 +1292,31 @@ export default function OrderExceptions() {
           evidenceMode: 'read-only',
           identityField: '_id',
         },
+      },
+      presentation: {
+        primaryRepresentation: {
+          type: 'table',
+          reason: 'Submissions must be compared across status and age',
+        },
+        supportingRepresentations: [],
+        drillIn: {
+          interface: 'entity-page',
+          reason: 'Full content evidence requires a deep detail surface',
+          preservesContext: false,
+        },
+        stageEmphasis: {
+          understand: ['pending submission scope'],
+          focus: ['pending review queue'],
+          investigate: ['content and status evidence'],
+          act: ['approve submission'],
+          verify: ['updated queue membership'],
+        },
+        actionPresentation: {
+          actionIds: ['approveEntity'],
+          prominence: 'immediate',
+          relationshipToEvidence: 'adjacent',
+        },
+        consistency: ['views', 'record', 'detail'],
       },
     }),
   );
@@ -1787,7 +1826,7 @@ export default function SubscriptionHealth() {
     { encoding: 'utf8' },
   );
   const badActionsOutput = `${badActions.stdout}\n${badActions.stderr}`;
-  const missedActionRules = ['AP-07', 'AP-16'].filter(
+  const missedActionRules = ['AP-07', 'AP-16', 'AP-21'].filter(
     (rule) => !badActionsOutput.includes(rule),
   );
   if (badActions.status === 0 || missedActionRules.length) {
@@ -1880,7 +1919,7 @@ export default function SubscriptionHealth() {
     { encoding: 'utf8' },
   );
   const codegen55Output = `${codegen55.stdout}\n${codegen55.stderr}`;
-  const missedCodegen55Rules = ['AP-18', 'AP-19', 'AP-20'].filter(
+  const missedCodegen55Rules = ['AP-18', 'AP-19', 'AP-20', 'PS-02'].filter(
     (rule) => !codegen55Output.includes(rule),
   );
   if (codegen55.status === 0 || missedCodegen55Rules.length) {

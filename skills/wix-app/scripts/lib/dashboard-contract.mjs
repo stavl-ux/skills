@@ -22,6 +22,8 @@ const PRESENTATION_DRILL_INS = new Set([
   'owning-app-navigation',
 ]);
 const WORKFLOW_STAGES = ['understand', 'focus', 'investigate', 'act', 'verify'];
+const ACTION_PROMINENCE = new Set(['immediate', 'contextual', 'progressive']);
+const ACTION_EVIDENCE_RELATIONSHIPS = new Set(['adjacent', 'same-surface', 'separate-step']);
 
 function isText(value) {
   return typeof value === 'string' && Boolean(value.trim());
@@ -33,13 +35,14 @@ function isTextArray(value, { allowEmpty = true } = {}) {
     && value.every(isText);
 }
 
-function duplicateFields(action) {
-  const fields = [
+function authoritativeFieldOverlap(action) {
+  const boundedActionFields = new Set([
     ...(action.decisionInputFields ?? []),
     ...(action.transitionFields ?? []),
-    ...(action.authoritativeEditableFields ?? []),
-  ];
-  return fields.filter((field, index) => fields.indexOf(field) !== index);
+  ]);
+  return (action.authoritativeEditableFields ?? []).filter(
+    (field) => boundedActionFields.has(field),
+  );
 }
 
 function validateActionBindings(actions, implementation, errors) {
@@ -138,6 +141,30 @@ export function validatePresentationContract(presentation, { workflow } = {}) {
     errors.push('presentation.consistency must name the states and representations that should remain coherent');
   }
 
+  const actionPresentation = presentation.actionPresentation;
+  if (!actionPresentation
+      || typeof actionPresentation !== 'object'
+      || !isTextArray(actionPresentation.actionIds, { allowEmpty: false })
+      || !ACTION_PROMINENCE.has(actionPresentation.prominence)
+      || !ACTION_EVIDENCE_RELATIONSHIPS.has(actionPresentation.relationshipToEvidence)) {
+    errors.push('presentation.actionPresentation must declare actionIds, prominence, and relationshipToEvidence');
+  } else if (workflow) {
+    const workflowActionIds = new Set(workflowActions(workflow).map((action) => action.id));
+    const presentedActionIds = new Set(actionPresentation.actionIds);
+    const missingActionIds = actionPresentation.actionIds.filter(
+      (actionId) => !workflowActionIds.has(actionId),
+    );
+    const omittedActionIds = [...workflowActionIds].filter(
+      (actionId) => !presentedActionIds.has(actionId),
+    );
+    if (missingActionIds.length) {
+      errors.push(`presentation.actionPresentation references actions missing from the workflow: ${missingActionIds.join(', ')}`);
+    }
+    if (omittedActionIds.length) {
+      errors.push(`presentation.actionPresentation omits workflow actions: ${omittedActionIds.join(', ')}`);
+    }
+  }
+
   const implementation = workflow?.implementation;
   const adaptationReason = drillIn?.adaptationReason;
   if (implementation && drillIn) {
@@ -206,8 +233,8 @@ export function validateWorkflowContract(
         errors.push(`${prefix}.${fieldGroup} must be an array of field IDs`);
       }
     }
-    if (duplicateFields(action).length) {
-      errors.push(`${prefix} must keep decision, transition, and authoritative fields disjoint`);
+    if (authoritativeFieldOverlap(action).length) {
+      errors.push(`${prefix} must keep authoritative editing separate from bounded action inputs and mutated fields`);
     }
     if (action?.surfaces?.includes('row') && !action.surfaces.includes('detail')) {
       errors.push(`${prefix} appears on a row but is missing from detail`);

@@ -221,6 +221,7 @@ type CustomActionCollectionPageActionOnRowClickResolver = (params: {
 - **MUST** decide row, bulk, detail, and edit actions together before generation. Table actions do not automatically propagate to a linked entity page.
 - **MUST** map audience permissions and product intent separately. `itemUpdate: CMS_EDITOR` allows named transitions, feedback writes, or authoritative field editing; it does not choose among them. Use an edit entity page only when authoritative field editing belongs to the actor's job. Use a read-only decision surface for evidence-led transitions, and pair view/edit when both decision and general editing are intentional.
 - **MUST** keep the first workflow-defining single-record action available on the chosen investigation surface. A review or resolution drill-in cannot end at generic Save/Cancel while omitting its decision actions.
+- **MUST** preserve every action named in `presentation.actionPresentation.actionIds` on the investigation surface at the declared prominence. Do not discard assign/update/request actions merely to satisfy a narrower component configuration.
 - **NEVER** mix `create` logic with `custom` action types.
 - **NEVER** assume `schema` or `optimisticActions` exist without checking.
 
@@ -336,6 +337,7 @@ type CustomActionCellSecondaryActionResolver = (params: {
 
 ### Validation Logic
 - **IF** `type: 'update'` **THEN** `update` config with `page.id` is **REQUIRED**.
+- **IF** `type: 'update'` **THEN** `page.id` resolves to an edit-mode entity page. A view-mode destination is inspection, not update.
 - **IF** `type: 'delete'` **THEN** `delete.mode: 'modal'` is **REQUIRED**.
 - **IF** `type: 'custom'` **THEN** resolver implementation is **REQUIRED**.
 - **IF** `type: 'custom'` **THEN** its `id` MUST exactly match the registered resolver export key; do not mix kebab-case configuration IDs with camelCase exports.
@@ -347,7 +349,7 @@ type CustomActionCellSecondaryActionResolver = (params: {
 - **MUST** place `actionCell` at component level (sibling to `collection`), NOT inside `table`/`grid`.
 - **MUST** implement custom resolvers using `CustomActionCellPrimaryActionResolver` (for primary actions) or `CustomActionCellSecondaryActionResolver` (for secondary actions).
 - **MUST** use the documented resolver `sdk`, `getOptimisticActions()`, and `errorToast` path for collection mutations. Use explicit `try/catch` only for supported calls outside optimistic actions; `AutoPatternsSDK` does not expose a generic `errorHandler`.
-- **MUST** label the primary action for its user outcome. Use `View` for inspection, `Edit` for editing, and the actual workflow verb for a transition; do not default to generic `Update`.
+- **MUST** align the primary label, action type, and destination: use `View` for inspection, `Edit` for a real edit-mode page, and the workflow verb for a transition; never label read-only navigation `Edit` or default to generic `Update`.
 - **MUST** make the workflow-defining transition the primary row action. If the same transition is a primary bulk action, its normalized label and outcome must match the row primary action unless it is inherently bulk-only.
 - **MUST** use row click or `entityPageId` for inspection when already configured; do not add a custom View action whose handler is empty or duplicates that navigation.
 - **MUST** keep row, detail-surface, and bulk actions coherent. Editing is supporting when a stronger operational transition defines the dashboard; do not make fields editable merely because the transition needs update permission.

@@ -84,6 +84,11 @@ function reviewPresentation() {
       act: ['approve or request changes'],
       verify: ['updated queue membership and counts'],
     },
+    actionPresentation: {
+      actionIds: ['request-changes'],
+      prominence: 'immediate',
+      relationshipToEvidence: 'adjacent',
+    },
     consistency: ['filters', 'views', 'counts', 'selected record', 'detail'],
   };
 }
@@ -103,7 +108,15 @@ const overlappingFields = reviewWorkflow();
 overlappingFields.journey.act.actions[0].authoritativeEditableFields = ['reviewerNotes'];
 assert.match(
   validateWorkflowContract(overlappingFields, { capabilities }).join('\n'),
-  /must keep decision, transition, and authoritative fields disjoint/,
+  /must keep authoritative editing separate from bounded action inputs and mutated fields/,
+);
+
+const boundedPersistedInput = reviewWorkflow();
+boundedPersistedInput.journey.act.actions[0].decisionInputFields = ['owner'];
+boundedPersistedInput.journey.act.actions[0].transitionFields = ['owner'];
+assert.deepEqual(
+  validateWorkflowContract(boundedPersistedInput, { capabilities }),
+  [],
 );
 
 const undeclaredPermission = reviewWorkflow();
@@ -155,6 +168,68 @@ unexplainedSurfaceChange.drillIn.adaptationReason = 'Installed route supports a 
 assert.deepEqual(
   validatePresentationContract(unexplainedSurfaceChange, { workflow }),
   [],
+);
+
+const renewalWorkflow = reviewWorkflow();
+renewalWorkflow.journey.act.actions = [
+  {
+    id: 'assign-owner',
+    kind: 'mutation',
+    operation: 'update',
+    target: 'renewal accounts collection',
+    surfaces: ['row', 'detail'],
+    decisionInputFields: ['owner'],
+    transitionFields: ['owner'],
+    authoritativeEditableFields: [],
+  },
+  {
+    id: 'update-next-step',
+    kind: 'mutation',
+    operation: 'update',
+    target: 'renewal accounts collection',
+    surfaces: ['row', 'detail'],
+    decisionInputFields: ['nextStep'],
+    transitionFields: ['nextStep'],
+    authoritativeEditableFields: [],
+  },
+  {
+    id: 'complete-follow-up',
+    kind: 'mutation',
+    operation: 'transition',
+    target: 'renewal accounts collection',
+    surfaces: ['row', 'detail'],
+    decisionInputFields: [],
+    transitionFields: ['followUpCompleted'],
+    authoritativeEditableFields: [],
+  },
+];
+renewalWorkflow.implementation.actionBindings = {
+  'assign-owner': { row: 'assignOwner', detail: 'assignOwnerDetail' },
+  'update-next-step': { row: 'updateNextStep', detail: 'updateNextStepDetail' },
+  'complete-follow-up': { row: 'completeFollowUp', detail: 'completeFollowUpDetail' },
+};
+const renewalPresentation = reviewPresentation();
+renewalPresentation.actionPresentation.actionIds = [
+  'assign-owner',
+  'update-next-step',
+  'complete-follow-up',
+];
+assert.deepEqual(validateWorkflowContract(renewalWorkflow, { capabilities }), []);
+assert.deepEqual(
+  validatePresentationContract(renewalPresentation, { workflow: renewalWorkflow }),
+  [],
+);
+
+const reducedRenewalWorkflow = structuredClone(renewalWorkflow);
+reducedRenewalWorkflow.journey.act.actions = [
+  reducedRenewalWorkflow.journey.act.actions[2],
+];
+assert.match(
+  validatePresentationContract(
+    renewalPresentation,
+    { workflow: reducedRenewalWorkflow },
+  ).join('\n'),
+  /actions missing from the workflow: assign-owner, update-next-step/,
 );
 
 console.log('Dashboard contract tests passed: journey, presentation, field responsibility, operations, and capability gates.');
