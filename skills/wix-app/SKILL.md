@@ -11,23 +11,24 @@ The Wix CLI owns scaffolding. This skill classifies the request, selects one exe
 
 ## Core Workflow
 
-1. Classify the extension, then resolve each requested data system through [DATA_FOUNDATION.md](references/DATA_FOUNDATION.md) before interpreting workflow complexity. Count the CMS collection interfaces that the dashboard will actually manage, not API calls or query branches.
-2. Read one selected extension guide. Do not open a general dashboard guide before checking the dashboard fast path below.
-3. Scaffold with the CLI. Custom and hybrid dashboards then save `.dashboard-route.json` and pass the route-only audit before loading WDS documentation or implementing UI. Standard Auto Patterns pages use `patterns.json`; they do not create a route record or run route-only audit.
-4. Read only the exact API/component documentation named by the accepted route. Before importing an SDK or host module, identify its execution host, confirm the method supports that host, and verify every required app scope is granted. Call an available permission tool as soon as scopes are known and before writing permission evidence; `recorded` requests setup but does not prove the app or installation grants access. `auth.elevate()` changes identity; it never grants a missing scope. TypeScript compatibility is not runtime evidence. Then implement only in generated files.
-5. Validate with the checks available in the current environment before reporting completion.
+1. Classify the extension. For every record-oriented dashboard, read [DASHBOARD_WORKFLOW.md](references/DASHBOARD_WORKFLOW.md) first and translate the prompt through its five-WHAT journey gate. Define the outcome, understanding, investigation, actions, and visible success before resolving data, choosing a route, or naming a component.
+2. Resolve each requested data system through [DATA_FOUNDATION.md](references/DATA_FOUNDATION.md). Count the CMS collection interfaces that the dashboard will actually manage, not API calls or query branches. Reconcile unavailable capabilities with the journey explicitly; never silently weaken the required workflow.
+3. Choose one route from the dashboard fast path below, then read one selected extension guide. The route must consume the completed journey and data-foundation contracts rather than reinterpret the prompt.
+4. Scaffold with the CLI. Custom and hybrid dashboards then save `.dashboard-route.json` and pass the route-only audit before loading WDS documentation or implementing UI. Standard Auto Patterns pages use `patterns.json`; they do not create a route record or run route-only audit.
+5. Read only the exact API/component documentation named by the accepted route. Before importing an SDK or host module, identify its execution host, confirm the method supports that host, and verify every required app scope is granted. Call an available permission tool as soon as scopes are known and before writing permission evidence; `recorded` requests setup but does not prove the app or installation grants access. `auth.elevate()` changes identity; it never grants a missing scope. TypeScript compatibility is not runtime evidence. Then implement only in generated files.
+6. Validate with the checks available in the current environment before reporting completion.
 
-For non-dashboard extensions, read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. Every record-oriented dashboard also follows [DASHBOARD_WORKFLOW.md](references/DASHBOARD_WORKFLOW.md): Understand establishes context, then the operational experience must support Focus, Investigate, Act, and Verify. Do not claim completion after a build alone.
+For non-dashboard extensions, read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. For dashboards, treat the five WHATs as problem interpretation and Understand → Focus → Investigate → Act → Verify as the implemented operational journey. Do not claim completion after a build alone.
 
 ## Dashboard Route
 
-Use this fast path before opening any dashboard reference:
+Use this fast path only after completing the workflow and data-foundation contracts:
 
 - Existing page with `patterns.json`, or a new manager backed by exactly one resolved CMS collection interface: read [AUTO_PATTERNS_DASHBOARD.md](references/AUTO_PATTERNS_DASHBOARD.md) directly. The collection may be native CMS, a Wix App Collection, an external database collection exposed by an adaptor, or an app-owned collection. A filtered queue, exception list, review workset, saved subset, bulk transition, or contextual record surface over that collection is still a one-collection manager.
 - Multiple resolved collections, a true join, a primarily analytical page without a record collection, or a genuinely unsupported non-table region: read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md). An API response is not permission to bypass collection resolution or rebuild a one-source table.
 - Ambiguous source count or page ownership: inspect the project and data model first, then choose one of the two routes above.
 
-The Auto Patterns guide routes to its focused capability references. Read only the capability reference needed by the requested workflow. The selected route owns behavior and acceptance criteria; exact extension, SDK, Auto Patterns, and WDS references own APIs.
+For Auto Patterns, read [configuration.md](references/auto-patterns-dashboard/configuration.md) for base page configuration, [collection-workflows.md](references/auto-patterns-dashboard/collection-workflows.md) for Focus and collection actions, [entity-workflows.md](references/auto-patterns-dashboard/entity-workflows.md) for investigation and editing surfaces, and [extensions.md](references/auto-patterns-dashboard/extensions.md) only for supplemental overrides and SDK utilities. Read only the capabilities required by the completed journey. The selected route owns behavior and acceptance criteria; exact extension, SDK, Auto Patterns, and WDS references own APIs.
 
 ## Auto Patterns Extension And Fallback Gate
 

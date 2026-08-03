@@ -49,7 +49,7 @@ const compactReferences = [
   },
   {
     file: 'DASHBOARD_WORKFLOW.md',
-    required: ['## Contents', '## Workflow Contract', '## Investigate', '## Verify', '**WF-01:**'],
+    required: ['## Contents', '## Five-WHAT Gate', '## Workflow Contract', '## Investigate', '## Verify', '**WF-01:**'],
   },
 ];
 
@@ -195,10 +195,16 @@ if (!frontmatter) {
   if (unsupported.length) fail(`SKILL.md has unsupported frontmatter keys: ${unsupported.join(', ')}`);
 }
 
-for (const reference of [...consolidatedReferences.slice(0, 2), ...compactReferences]) {
+for (const reference of [...consolidatedReferences, ...compactReferences]) {
   if (!skillContent.includes(`references/${reference.file}`)) {
     fail(`SKILL.md does not directly advertise ${reference.file}`);
   }
+}
+
+const workflowLinkIndex = skillContent.indexOf('references/DASHBOARD_WORKFLOW.md');
+const foundationLinkIndex = skillContent.indexOf('references/DATA_FOUNDATION.md');
+if (workflowLinkIndex < 0 || foundationLinkIndex < 0 || workflowLinkIndex > foundationLinkIndex) {
+  fail('SKILL.md must place the five-WHAT workflow gate before data-foundation and route selection');
 }
 
 const autoPatternsPath = path.join(referencesRoot, 'AUTO_PATTERNS_DASHBOARD.md');
@@ -241,10 +247,46 @@ for (const requiredGeneratorContract of [
   'dataFoundation',
   'workflow',
   'dashboard-contract.json',
+  'validateWorkflowContract',
+  'authoritativeEditableFields',
+  "workflowHasOperation(workflow, 'create')",
   "mode: offersGeneralEditing ? 'edit' : 'view'",
 ]) {
   if (!generatorContent.includes(requiredGeneratorContract)) {
     fail(`Auto Patterns generator is missing ${requiredGeneratorContract}`);
+  }
+}
+
+const contractValidatorPath = path.join(scriptDirectory, 'lib', 'dashboard-contract.mjs');
+if (!fs.existsSync(contractValidatorPath)) {
+  fail('missing shared five-WHAT dashboard contract validator');
+}
+try {
+  execFileSync(process.execPath, [path.join(scriptDirectory, 'test-dashboard-contract.mjs')], {
+    stdio: 'pipe',
+  });
+} catch (error) {
+  fail(`five-WHAT dashboard contract tests failed: ${error.stderr?.toString().trim() || error.message}`);
+}
+try {
+  execFileSync(process.execPath, [path.join(scriptDirectory, 'test-audit-dashboard-code.mjs')], {
+    stdio: 'pipe',
+  });
+} catch (error) {
+  fail(`dashboard audit regression tests failed: ${error.stderr?.toString().trim() || error.message}`);
+}
+
+const extensionsContent = fs.readFileSync(
+  path.join(referencesRoot, 'auto-patterns-dashboard', 'extensions.md'),
+  'utf8',
+);
+if (/type CustomActionResolver\s*=/.test(extensionsContent)) {
+  fail('extensions.md defines a universal custom-action resolver instead of delegating to the owning workflow reference');
+}
+for (const reference of consolidatedReferences.slice(2)) {
+  const focusedContent = fs.readFileSync(path.join(referencesRoot, reference.file), 'utf8');
+  if (/\b(?:use|rules?:) `errorHandler`\b/.test(focusedContent)) {
+    fail(`${reference.file} references an AutoPatternsSDK errorHandler that does not exist`);
   }
 }
 
@@ -310,35 +352,47 @@ try {
       collectionId: 'Stores/Products',
       schemaStatus: 'verified',
       freshness: 'source-managed',
-      capabilities: { read: true, insert: false, update: false, remove: false },
+      capabilities: { read: true, insert: true, update: true, remove: true },
     },
     workflow: {
-      intent: {
-        actorRole: 'catalog operator',
-        primaryJob: 'inspect product issues and open the owning product manager',
+      journey: {
+        outcome: {
+          actorRole: 'catalog operator',
+          desiredOutcome: 'inspect product issues and open the owning product manager',
+        },
+        understand: {
+          questions: ['Which products need attention?'],
+          signals: ['name'],
+        },
+        focus: { defaultWorkset: 'Products needing attention', controls: ['issue filter'] },
+        investigate: {
+          questions: ['What is wrong with this product?'],
+          evidenceFields: ['name'],
+          contextPriority: 'low',
+        },
+        act: { actions: [{
+          id: 'manage-product',
+          kind: 'owning-app-navigation',
+          operation: 'navigate',
+          target: 'verified product manager',
+          surfaces: ['row', 'detail'],
+          decisionInputFields: [],
+          transitionFields: [],
+          authoritativeEditableFields: [],
+        }] },
+        verify: {
+          visibleResult: 'The selected product opens in its owning manager',
+          postconditions: ['destination identity matches the selected product'],
+          refresh: ['collection'],
+        },
       },
-      focus: { defaultWorkset: 'Products needing attention', controls: ['issue filter'] },
-      investigate: {
-        required: true,
-        surface: 'entity-page',
+      implementation: {
+        investigationSurface: 'entity-page',
         surfaceReason: 'The owning manager provides deep product detail',
         preserveCollectionContext: false,
         evidenceMode: 'read-only',
         identityField: '_id',
       },
-      editing: {
-        required: false,
-        editableFields: [],
-        transitionFields: [],
-        reason: 'Source product editing remains in the owning application',
-      },
-      actions: [{
-        id: 'manage-product',
-        kind: 'owning-app-navigation',
-        target: 'verified product manager',
-        surfaces: ['row', 'detail'],
-      }],
-      verify: { postcondition: 'Product state is reloaded', refresh: ['collection'] },
     },
   }));
   execFileSync(
@@ -360,7 +414,7 @@ try {
   );
   const generatedText = JSON.stringify(generatedPatterns);
   if (generatedText.includes('bulkDelete') || generatedText.includes('type":"delete"') || generatedText.includes('type":"create"')) {
-    fail('read-only Wix App Collection generator fixture exposes unsupported create/delete actions');
+    fail('read-only journey exposes create/delete actions that capability alone cannot justify');
   }
   const generatedEntityPage = generatedPatterns.pages.find((page) => page.type === 'entityPage');
   if (generatedEntityPage?.entityPage?.mode !== 'view') {

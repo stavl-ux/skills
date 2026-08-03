@@ -38,13 +38,9 @@ interface ResolvedAction {
   disabled?: boolean;
   hidden?: boolean;
 }
-
-// Action Resolver Signature
-type CustomActionResolver = (params: {
-  item: any;
-  selectedItems?: any[];
-}) => ResolvedAction;
 ```
+
+This section owns override registration and shared resolved-action output only. There is no universal custom-action input signature. Use the exact host contract from [Collection workflows](collection-workflows.md) for collection-page, row, row-click, and bulk actions. Use [Entity workflows](entity-workflows.md) for entity view/edit actions. Never adapt one host's parameters to another.
 
 ### Configuration Schema
 ```json
@@ -61,32 +57,25 @@ type CustomActionResolver = (params: {
 ### Validation Logic
 - **IF** `type` is `"custom"` **THEN** `id` MUST match key in `actions` override.
 - **IF** action is async **THEN** `onClick` SHOULD return a Promise.
-- **IF** action requires selection **THEN** check `selectedItems`.
+- **IF** action requires selection **THEN** use the bulk resolver's documented `actionParams.selectedValues` contract from Collection workflows.
 
 ### Implementation Rules
 - **MUST** be placed in `components/actions/` folder.
 - **MUST** use `.tsx` extension if the file contains JSX (icons, React elements). Use `.ts` only for pure logic files.
 - **MUST** export `useActions` hook from `components/actions/index.tsx`.
 - **MUST** return `ResolvedAction` object.
-- **MUST** handle errors (use `try/catch` or `errorHandler` for Wix APIs).
-- **APPLIES TO** all custom action types: actionCell, collectionPageActions, onRowClick, bulkActions.
+- **MUST** handle failures through the exact host SDK contract. Use optimistic-action `errorToast` for collection mutations and explicit `try/catch` only where the documented host API requires it.
+- **MUST** preserve the exact resolver signature from the owning workflow reference; do not destructure `item` or `selectedItems` from a generic wrapper.
 - **NEVER** place action resolvers directly in page.tsx or overrides.tsx - always use components/actions/ folder.
 
 ### Canonical Example
 ```tsx
-// components/actions/myAction.tsx (use .tsx when file contains JSX like icons)
-export const myAction = ({ item }) => ({
-  label: 'Approve',
-  icon: <Check />,
-  onClick: async () => {
-    await approveItem(item.id);
-  }
-});
-
 // components/actions/index.tsx
-import { myAction } from './myAction';
-export const useActions = () => ({ myAction });
+import { approveSubmission } from './approveSubmission';
+export const useActions = () => ({ approveSubmission });
 ```
+
+Implement `approveSubmission` with the exact collection or entity resolver type from the owning workflow reference. Registration never changes its input shape.
 
 ## Custom Columns
 

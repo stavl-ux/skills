@@ -40,14 +40,7 @@
  *     "freshness": "source-managed",
  *     "capabilities": { "read": true, "insert": true, "update": true, "remove": true }
  *   },
- *   "workflow": {
- *     "intent": { "actorRole": "...", "primaryJob": "..." },
- *     "focus": {...},
- *     "investigate": { "surface": "...", "surfaceReason": "...", "preserveCollectionContext": true, "evidenceMode": "read-only", ... },
- *     "editing": { "required": false, "editableFields": [], "transitionFields": ["status"], "reason": "..." },
- *     "actions": [{ "id": "...", "kind": "mutation", "target": "...", "surfaces": ["row", "detail"] }],
- *     "verify": {...}
- *   }
+ *   "workflow": { "journey": { ...five WHATs... }, "implementation": { ...surface decision... } }
  * }
  *
  * Output:
@@ -61,6 +54,12 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { basename, join, resolve } from 'path';
+import {
+  authoritativeEditableFields,
+  validateWorkflowContract,
+  workflowActions,
+  workflowHasOperation,
+} from './lib/dashboard-contract.mjs';
 
 // --- Argument parsing ---
 
@@ -110,29 +109,25 @@ Input JSON shape:
       "capabilities": { "read": true, "insert": false, "update": false, "remove": false }
     },
     "workflow": {
-      "intent": { "actorRole": "string", "primaryJob": "string" },
-      "focus": { "defaultWorkset": "string", "controls": [] },
-      "investigate": {
-        "required": true,
-        "surface": "side-panel | modal | entity-page | owning-app-navigation",
-        "surfaceReason": "string",
-        "preserveCollectionContext": true,
-        "evidenceMode": "read-only | editable | mixed",
-        "identityField": "string"
+      "journey": {
+        "outcome": { "actorRole": "string", "desiredOutcome": "string" },
+        "understand": { "questions": ["string"], "signals": ["fieldId"] },
+        "focus": { "defaultWorkset": "string", "controls": [] },
+        "investigate": { "questions": ["string"], "evidenceFields": ["fieldId"], "contextPriority": "high | medium | low" },
+        "act": { "actions": [{
+          "id": "string", "kind": "mutation | owning-app-navigation",
+          "operation": "create | update | transition | delete | navigate | execute",
+          "target": "string", "surfaces": ["row", "detail"],
+          "decisionInputFields": [], "transitionFields": ["status"],
+          "authoritativeEditableFields": []
+        }] },
+        "verify": { "visibleResult": "string", "postconditions": ["string"], "refresh": ["collection"] }
       },
-      "editing": {
-        "required": false,
-        "editableFields": [],
-        "transitionFields": ["status"],
-        "reason": "string"
-      },
-      "actions": [{
-        "id": "string",
-        "kind": "mutation | owning-app-navigation",
-        "target": "string",
-        "surfaces": ["row", "detail"]
-      }],
-      "verify": { "postcondition": "string", "refresh": ["collection"] }
+      "implementation": {
+        "investigationSurface": "side-panel | modal | entity-page | owning-app-navigation",
+        "surfaceReason": "string", "preserveCollectionContext": true,
+        "evidenceMode": "read-only | editable | mixed", "identityField": "string"
+      }
     }
   }
 
@@ -312,54 +307,13 @@ if (invalidFoundation) {
   process.exit(1);
 }
 
-const invalidWorkflow =
-  !workflow
-  || typeof workflow.intent?.actorRole !== 'string'
-  || !workflow.intent.actorRole.trim()
-  || typeof workflow.intent?.primaryJob !== 'string'
-  || !workflow.intent.primaryJob.trim()
-  || typeof workflow.focus?.defaultWorkset !== 'string'
-  || workflow.investigate?.required !== true
-  || typeof workflow.investigate?.surface !== 'string'
-  || !['side-panel', 'modal', 'entity-page', 'owning-app-navigation'].includes(workflow.investigate.surface)
-  || typeof workflow.investigate?.surfaceReason !== 'string'
-  || !workflow.investigate.surfaceReason.trim()
-  || typeof workflow.investigate?.preserveCollectionContext !== 'boolean'
-  || !['read-only', 'editable', 'mixed'].includes(workflow.investigate?.evidenceMode)
-  || typeof workflow.investigate?.identityField !== 'string'
-  || typeof workflow.editing?.required !== 'boolean'
-  || !Array.isArray(workflow.editing?.editableFields)
-  || !Array.isArray(workflow.editing?.transitionFields)
-  || workflow.editing.editableFields.some((field) => typeof field !== 'string' || !field.trim())
-  || workflow.editing.transitionFields.some((field) => typeof field !== 'string' || !field.trim())
-  || typeof workflow.editing?.reason !== 'string'
-  || !workflow.editing.reason.trim()
-  || (workflow.editing.required && !capabilities.update)
-  || (workflow.editing.required && workflow.editing.editableFields.length === 0)
-  || (!workflow.editing.required && workflow.editing.editableFields.length > 0)
-  || (!workflow.editing.required && workflow.investigate.evidenceMode === 'editable')
-  || (workflow.editing.transitionFields.length > 0 && !capabilities.update)
-  || !Array.isArray(workflow.actions)
-  || workflow.actions.length === 0
-  || workflow.actions.some(
-    (action) =>
-      typeof action?.id !== 'string'
-      || !['mutation', 'owning-app-navigation'].includes(action?.kind)
-      || typeof action?.target !== 'string'
-      || !action.target.trim()
-      || !Array.isArray(action?.surfaces)
-      || action.surfaces.length === 0
-      || action.surfaces.some((surface) => !['row', 'bulk', 'detail', 'edit'].includes(surface))
-      || (action.surfaces.includes('row') && !action.surfaces.includes('detail')),
-  )
-  || !workflow.actions[0].surfaces.includes('detail')
-  || typeof workflow.verify?.postcondition !== 'string'
-  || !Array.isArray(workflow.verify?.refresh)
-  || !workflow.verify.refresh.includes('collection');
-if (invalidWorkflow) {
-  console.error(
-    'Error: Input must declare actor/job intent, Focus, Investigation rationale and evidence mode, editing policy, at least one real action whose primary action remains on detail, and Verify with a collection refresh.',
-  );
+const workflowErrors = validateWorkflowContract(workflow, {
+  capabilities,
+  requireCollectionRefresh: true,
+});
+if (workflowErrors.length) {
+  console.error('Error: Invalid five-WHAT workflow contract:');
+  workflowErrors.forEach((error) => console.error(`- ${error}`));
   process.exit(1);
 }
 
@@ -371,8 +325,13 @@ function generatePatternsConfig(collection, schema) {
   const canInsert = capabilities.insert;
   const canUpdate = capabilities.update;
   const canRemove = capabilities.remove;
-  const offersGeneralEditing = canUpdate && workflow.editing.required;
-  const offersCreate = canInsert && workflow.editing.required;
+  const actions = workflowActions(workflow);
+  const offersGeneralEditing = canUpdate && authoritativeEditableFields(workflow).length > 0;
+  const offersCreate = canInsert && workflowHasOperation(workflow, 'create');
+  const offersDelete = canRemove && workflowHasOperation(workflow, 'delete');
+  const offersBulkDelete = offersDelete && actions.some(
+    (action) => action.operation === 'delete' && action.surfaces.includes('bulk'),
+  );
 
   // Build field map
   const fieldMap = new Map();
@@ -577,7 +536,7 @@ function generatePatternsConfig(collection, schema) {
                   text: schema.content.emptyStateButtonText,
                 } } : {}),
               },
-              ...((offersGeneralEditing || canRemove) ? { actionCell: {
+              ...((offersGeneralEditing || offersDelete) ? { actionCell: {
                 ...(offersGeneralEditing ? {
                 primaryAction: {
                   item: {
@@ -589,7 +548,7 @@ function generatePatternsConfig(collection, schema) {
                     },
                   },
                 } } : {}),
-                ...(canRemove ? {
+                ...(offersDelete ? {
                 secondaryActions: {
                   items: [
                     {
@@ -619,7 +578,7 @@ function generatePatternsConfig(collection, schema) {
                   ],
                 } } : {}),
               } } : {}),
-              ...(canRemove ? { bulkActionToolbar: {
+              ...(offersBulkDelete ? { bulkActionToolbar: {
                 primaryActions: [
                   {
                     type: 'action',

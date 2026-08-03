@@ -1,125 +1,140 @@
 # Dashboard Operational Workflow
 
-Every record dashboard must move the user from signal to confirmed outcome. “Understand” supplies context; the operational loop is **Focus → Investigate → Act → Verify**. These needs may share screens.
+Interpret every record-dashboard request before data resolution or routing. The five WHATs define **Understand → Focus → Investigate → Act → Verify**.
 
 ## Contents
 
+- [Five-WHAT gate](#five-what-gate)
 - [Workflow contract](#workflow-contract)
-- [Focus](#focus)
+- [Understand and Focus](#understand-and-focus)
 - [Investigate](#investigate)
 - [Act](#act)
 - [Verify](#verify)
 - [Route-independent rules](#route-independent-rules)
 
+## Five-WHAT Gate
+
+Answer these before naming data, routes, or components:
+
+1. What outcome is the actor trying to achieve?
+2. What must the actor understand before acting?
+3. What requires deeper investigation?
+4. Which real actions must be available?
+5. What visible result will confirm success?
+
+Treat answers as requirements, not UI selections. Record uncertainty. Surface capability conflicts; never substitute placeholder behavior.
+
 ## Workflow Contract
 
-Define the contract before JSX or Auto Patterns overrides:
+Define `workflow` before the data-foundation contract, JSX, Auto Patterns configuration, or route selection:
 
 ```json
 {
   "workflow": {
-    "intent": {
-      "actorRole": "catalog operator",
-      "primaryJob": "resolve product issues without editing source product content"
-    },
-    "focus": {
-      "defaultWorkset": "Products needing attention",
-      "controls": ["issue filter", "search", "sort"]
-    },
-    "investigate": {
-      "required": true,
-      "surface": "entity-page",
-      "surfaceReason": "The owning product manager provides the deep source-of-truth record",
-      "preserveCollectionContext": false,
-      "evidenceMode": "read-only",
-      "identityField": "_id",
-      "fields": ["name", "issues", "inventory", "media"]
-    },
-    "editing": {
-      "required": false,
-      "editableFields": [],
-      "transitionFields": [],
-      "reason": "Product editing remains in the owning Wix application"
-    },
-    "actions": [
-      {
-        "id": "manage-product",
-        "kind": "owning-app-navigation",
-        "target": "verified product management route",
-        "surfaces": ["row", "detail"]
+    "journey": {
+      "outcome": {
+        "actorRole": "content reviewer",
+        "desiredOutcome": "decide whether submitted content can be published"
+      },
+      "understand": {
+        "questions": ["What needs review first?"],
+        "signals": ["status", "risk", "overdue"]
+      },
+      "focus": {
+        "defaultWorkset": "Pending submissions",
+        "controls": ["risk filter", "search", "sort"]
+      },
+      "investigate": {
+        "questions": ["Is this submission safe and publication-ready?"],
+        "evidenceFields": ["body", "riskReasons", "author", "reviewHistory"],
+        "contextPriority": "high"
+      },
+      "act": {
+        "actions": [
+          {
+            "id": "request-changes",
+            "kind": "mutation",
+            "operation": "transition",
+            "target": "submission collection",
+            "surfaces": ["row", "detail"],
+            "decisionInputFields": ["reviewerNotes", "changesRequested"],
+            "transitionFields": ["status"],
+            "authoritativeEditableFields": []
+          }
+        ]
+      },
+      "verify": {
+        "visibleResult": "The reviewed submission leaves the pending queue",
+        "postconditions": ["status is persisted", "pending count decreases"],
+        "refresh": ["collection", "views", "counts", "detail", "selection"]
       }
-    ],
-    "verify": {
-      "postcondition": "Updated product no longer appears in unresolved worksets",
-      "refresh": ["collection", "views", "counts", "detail", "selection"]
+    },
+    "implementation": {
+      "investigationSurface": "side-panel",
+      "surfaceReason": "The reviewer benefits from preserving queue context while reading and deciding",
+      "preserveCollectionContext": true,
+      "evidenceMode": "read-only",
+      "identityField": "_id"
     }
   }
 }
 ```
 
-Custom and hybrid routes store this under `workflow` in `.dashboard-route.json`. Standard Auto Patterns pages express the same contract through page configuration, entity/action resolvers, and generator input. Static declarations are not enough; implementation and runtime evidence must match them.
+Keep `journey` solution-independent. Add `implementation` after routing. Store it in `.dashboard-route.json` or `dashboard-contract.json`. Runtime behavior must match it.
 
-## Focus
+## Understand and Focus
 
-Start with a meaningful workset rather than an undifferentiated dump:
+Show the smallest useful signals and a meaningful workset:
 
-- default to records that need attention when the product goal is operational;
+- default to records that require action when the outcome is operational;
 - preserve an honest path to all records when appropriate;
 - provide only useful search, filters, sorting, and Saved Views;
-- show the active scope, result count, freshness, and relevant loading state;
+- show scope, count, freshness, and loading state;
 - distinguish empty source, no matching results, permission failure, synchronization failure, and transient error.
 
-Focus controls must use stored values and maintained fields. Filter complexity does not justify replacing a one-collection Auto Patterns table.
+Use stored, maintained fields. Filter complexity does not justify replacing Auto Patterns.
 
 ## Investigate
 
-Every actionable record table needs a real drill-in. Valid surfaces are:
+Every actionable table needs real drill-in. Choose a surface after defining questions, evidence, depth, and context needs. Valid surfaces are an entity view, documented SidePanel, Dashboard Modal, or verified owning-record navigation.
 
-- an Auto Patterns entity page;
-- a contextual WDS SidePanel mounted through the documented extension path;
-- a bounded Dashboard Modal when the task is short and blocking;
-- verified navigation to the owning Wix management record.
+Prefer SidePanel for bounded decisions needing queue context and a view entity page for deep or linkable inspection. Use edit mode only for authoritative editing. Record the reason; these are heuristics.
 
-The surface must receive a stable record identity and show enough context to explain the signal and decide what to do next. A toast, console log, selected-row highlight, or repeated table values is not investigation. Row click and the visible action must open the same destination.
-
-Choose investigation mode from the actor's job, not collection permission. Separate evidence, bounded decision inputs, transition fields, and authoritative editable fields. `itemUpdate` permits allowed mutations; it does not require a general editor.
-
-Prefer SidePanel for moderate inspection and bounded decisions that benefit from queue context; prefer a view entity page for deep, long, multi-section, or linkable inspection; use edit mode only when authoritative editing belongs to the job. These are heuristics, not component rules. Record the reason, context need, evidence mode, and editing policy.
+Use stable identity and sufficient evidence. Toasts, selection, logs, or repeated row values are not investigation. Row click and its action open the same destination.
 
 ## Act
 
-An action must cause a real, permission-valid outcome:
+Classify fields before selecting entity mode:
 
-- persist a mutation through the owning collection or supported API;
-- launch a documented editor or management route for the exact record;
-- start a real assignment, resolution, export, or communication flow.
+- `decisionInputFields` collect bounded information needed to complete an action;
+- `transitionFields` are changed by the workflow action;
+- `authoritativeEditableFields` are source content the actor is responsible for editing generally.
 
-Do not render actions whose only effect is a toast, console output, empty callback, or local state unrelated to a real surface. Do not label a control View, Inspect, Details, Edit, Fix, Resolve, or Delete unless its implementation performs that operation. If the source is read-only, navigate to the owning manager or explain that no action is available; do not simulate success.
+Keep sets disjoint. Decision and transition fields never imply general editing. Generate edit mode only for `authoritativeEditableFields`, and creation only for an explicit `create` operation.
 
-The investigation surface must continue the same operational job. Keep the primary action and every workflow action offered on a row available after drill-in; do not replace decisions such as Approve or Request Changes with generic Save/Cancel. When a transition needs an explanation, collect that bounded input before persistence. Render evidence for comprehension; do not expose rich content as raw markup unless source editing is intended.
-
-Selection is actionable state. Show selection controls only when at least one real bulk action consumes the selected stable IDs.
+Every action must persist, navigate to a verified owner, or start a real flow. Preserve row actions after drill-in; never replace decisions with generic Save/Cancel or render placeholder handlers.
 
 ## Verify
 
-Verification is part of the action, not a later manual refresh:
+Make verification part of the action:
 
 1. Await persistence or navigation handoff.
 2. Handle permission, validation, conflict, and transient failures separately.
 3. Re-fetch canonical data after a mutation.
 4. Call `refreshCollection()` when Auto Patterns owns the collection.
-5. Refresh affected Views, counts, metrics, detail content, and selected IDs.
-6. When a transition changes active filter or View membership, remove the record from every non-matching workset immediately after success without navigation or manual reload.
-7. Confirm the intended postcondition in the rendered state and its destination workset.
-8. Display a success toast only after success is known.
+5. Refresh every declared View, count, metric, detail surface, and selected ID.
+6. Remove a transitioned record from every non-matching active workset immediately after confirmed success.
+7. Confirm the declared visible result and postconditions in rendered state.
+8. Display success feedback only after success is known.
 
-Never optimistically remove a record from a workset without reconciling against canonical data. A Retry button is recovery from failure, not verification of an action.
+Never optimistically remove a record without reconciling canonical data. Retry recovers a failure; it does not verify success.
 
 ## Route-Independent Rules
 
-- **WF-01:** Every populated record table must provide a real investigation surface. A custom route must declare and implement `detailSurface`; Auto Patterns must configure an entity page, row action, or documented supplemental detail surface.
-- **WF-02:** A visible action must have a real effect. Reject toast-only, console-only, empty, unresolved-target, and static-state handlers. Toasts are feedback only.
-- **WF-03:** Selection controls require at least one real bulk operation that consumes selected stable IDs. Otherwise remove selection.
-- **WF-04:** A mutation must be awaited and followed by canonical refresh of every affected workflow surface. Membership-changing transitions must also re-evaluate the active View immediately and reconcile without a manual reload. Success feedback occurs afterward.
-- **WF-05:** Investigation, action, and verification requirements apply to Auto Patterns and custom WDS implementations equally.
-- **WF-06:** Investigation mode must match the declared actor, field policy, and primary job. Update permission alone never requires general editing; a decision surface keeps the defining actions available, while an edit surface appears only when authoritative field editing is declared.
+- **WF-01:** Complete all five WHATs before data or route selection. Every actionable table then provides stable-identity investigation with evidence that answers them.
+- **WF-02:** Every visible action has a real, permission-valid effect. Reject toast-only, console-only, empty, unresolved-target, and static-state handlers.
+- **WF-03:** Show selection only when a real bulk operation consumes selected stable IDs.
+- **WF-04:** Await mutations and reconcile canonical collection data, Views, counts, detail, and selection. Confirm visible success without manual reload.
+- **WF-05:** Apply the journey equally to Auto Patterns and custom WDS routes. Routing never weakens the workflow.
+- **WF-06:** Keep decision, transition, and authoritative fields disjoint. Only authoritative editing permits a general editor; preserve row actions on detail.
+- **WF-07:** Generate creation only for an explicit `create` operation. Insert permission alone is insufficient.

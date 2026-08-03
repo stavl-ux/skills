@@ -10,7 +10,7 @@ Use this guide for new and existing one-collection management surfaces. It owns 
 
 ## Route And Workflow Contract
 
-Use this route for every new management surface backed by exactly one resolved CMS collection interface. The collection may be native CMS, a Wix App Collection, an external database collection exposed by an adaptor, or app-owned storage. Resolve it through [DATA_FOUNDATION.md](DATA_FOUNDATION.md), then apply [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md).
+Use this route for every new management surface backed by exactly one resolved CMS collection interface. Receive the completed journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) and the resolved source from [DATA_FOUNDATION.md](DATA_FOUNDATION.md); do not reinterpret either contract while choosing components.
 
 ### Capability References
 
@@ -20,7 +20,7 @@ This file owns route evaluation, standard generation, permissions, and validatio
 | --- | --- |
 | AppConfig, pages, collection structure, or Table/Grid configuration | [Configuration](auto-patterns-dashboard/configuration.md) |
 | Saved Views, row actions, or bulk actions | [Collection workflows](auto-patterns-dashboard/collection-workflows.md) |
-| Custom row action resolver | [Extensions](auto-patterns-dashboard/extensions.md) and, when selection is involved, [Collection workflows](auto-patterns-dashboard/collection-workflows.md) |
+| Custom row or bulk action resolver | [Collection workflows](auto-patterns-dashboard/collection-workflows.md); read [Extensions](auto-patterns-dashboard/extensions.md) only for shared SDK utilities |
 | Custom displayed field, column, section, or slot | [Extensions](auto-patterns-dashboard/extensions.md) |
 | Entity page, entity form, or entity header | [Entity workflows](auto-patterns-dashboard/entity-workflows.md) |
 | KPI or chart supplemental region | Check the custom header, section, slot, and child-component references above; then read [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) only for that region's WDS/chart contract |
@@ -44,7 +44,7 @@ This file owns route evaluation, standard generation, permissions, and validatio
 - **AP-16:** Name the workflow-defining action first. It is primary for row, requested bulk selection, and detail. Row navigation or `entityPageId` handles inspection; Edit supports and Delete remains destructive.
 - **AP-17:** A custom transition that changes a field used by a Saved View or active filter must map that filter to the mutated record field for immediate optimistic membership feedback, persist every defining field, and refresh canonical data only after the optimistic submit settles. The item must leave any workset it no longer matches without a manual reload, enter the matching destination once, update counts and supplemental metrics, and clear stale selection. A synchronous `refreshCollection()` inside optimistic `submit` is not sufficient.
 - **AP-18:** Every Saved View filter key must resolve to a declaration in `filters.items`, and every declared `fieldId` must exist in the collection schema. Workflow Views must include every maintained field that defines membership.
-- **AP-19:** Keep declared investigation intent, evidence mode, editing policy, and action placement coherent. A read-only decision workflow must not resolve only to a generic edit page; the primary action and every workflow action offered on a row must remain available on the detail surface.
+- **AP-19:** Keep the journey and implementation coherent. A read-only decision workflow must not resolve only to a generic edit page; every row action must remain available on detail with its exact resolver wired.
 
 ### Extension Choice
 
@@ -62,38 +62,25 @@ These are best-practice defaults, not intent-to-component rules: viewing and edi
 ### Action Coherence
 
 - Treat inspect, edit, workflow transition, create, and delete as different intents.
-- Identify the actor's role and primary job before choosing entity mode or detail surface.
+- Consume the completed outcome and investigation requirements before choosing entity mode or detail surface.
 - Separate read-only evidence, bounded decision inputs, transition fields, and authoritative editable fields. `itemUpdate` permits mutations; it does not imply a general editor.
 - Mirror a primary bulk transition as the primary row action unless inherently bulk-only.
 - If row click or `entityPageId` opens details, omit redundant custom View.
 - Default app-owned editor deletion as AP-15 specifies.
 - Keep the defining single-record transition available on the investigation surface. When transition and authoritative editing both matter, pair view/edit pages: view owns the transition; edit owns field persistence.
 
-Before generation, make one compact workflow decision table:
-
-| Decision | Required answer |
-| --- | --- |
-| Data foundation | Original system, access mechanism, exact resolved collection ID, schema status, identity, capabilities, permissions, freshness, and write owner |
-| Audience capabilities | `itemRead`, `itemInsert`, `itemUpdate`, and `itemRemove` available to the intended user |
-| Actor and job | The intended actor's role and the outcome they are trying to achieve |
-| Primary job | The one action that resolves or advances the user's main operational task |
-| Field policy | Which fields are read-only evidence, bounded decision inputs, transition fields, and authoritative editable fields |
-| Context need | Whether keeping the collection workset, selection, and scroll position visible materially helps the task |
-| Detail mode | SidePanel, Modal, view entity page, edit entity page, paired view/edit, or owning-app navigation, with one contextual reason |
-| Action surfaces | Row, bulk, detail, and edit actions that must remain coherent |
-| Field semantics | Which fields are identity, operational status, metric, date, or descriptive text, and how each stays recognizable across list and detail |
-
-Resolve each permission before choosing entity mode, then decide what the actor should actually change. Default `itemRemove` to `CMS_EDITOR` only when removal belongs to the lifecycle. A review, approval, triage, or resolution workflow may update status and feedback while keeping source content read-only. Configure required actions on each surface because collection actions do not propagate.
+Do not create a second workflow decision table in this route. Consume the canonical `workflow.journey`, resolved `dataFoundation`, and derived `workflow.implementation`. Configure required actions on every declared surface because collection actions do not propagate automatically.
 
 ### Build Contract
 
-1. Resolve a verified native, Wix App, external-adaptor, or app-owned collection through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
-2. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
-3. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
-4. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
-5. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
-6. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
-7. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
+1. Preserve the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md); route and component choices may implement it but must not redefine it.
+2. Resolve a verified native, Wix App, external-adaptor, or app-owned collection through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
+3. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
+4. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
+5. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
+6. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
+7. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
+8. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
 
 ### Acceptance
 
@@ -223,9 +210,9 @@ You must produce the input JSON for the generator script. Top-level keys: `colle
 
 **`relevantCollectionId`** (top-level, sibling to `collection` and `schema`) — full scoped collection ID (e.g., `@namespace/my-collection`)
 
-**`dataFoundation`** — the verified source-resolution contract from [DATA_FOUNDATION.md](DATA_FOUNDATION.md). `collectionId` must equal `relevantCollectionId`; `mechanism` is `native-cms`, `wix-app-collection`, `external-database-adaptor`, or `data-collection-extension`; `schemaStatus` is `verified`; and `capabilities` explicitly declares boolean `read`, `insert`, `update`, and `remove`. The generator suppresses create, edit, delete, and bulk-delete UI that the collection cannot perform.
+**`dataFoundation`** — the verified source-resolution contract from [DATA_FOUNDATION.md](DATA_FOUNDATION.md). `collectionId` must equal `relevantCollectionId`; `mechanism` and schema must be verified; and `capabilities` declares boolean `read`, `insert`, `update`, and `remove`. Capabilities are necessary but never sufficient: the generator exposes create, edit, delete, or bulk-delete only when the journey explicitly declares the corresponding operation.
 
-**`workflow`** — the [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) contract. It must define a Focus workset, required Investigation surface and identity field, at least one real `mutation` or `owning-app-navigation` action, and Verify with a canonical `collection` refresh. Add the documented action override for owning-app navigation; do not replace it with a toast.
+**`workflow`** — the [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) contract. `journey` must answer all five WHATs without UI choices; `implementation` then records the selected investigation surface and identity. Every action classifies decision inputs, transition fields, and authoritative editable fields. At least one real action must remain available on detail, and Verify must include canonical `collection` refresh. Add the documented resolver for custom actions; do not replace it with a toast.
 
 **`schema.content`** — 20 string fields you generate:
 
@@ -354,32 +341,44 @@ cat > /tmp/auto-patterns-input.json << 'EOF'
     "capabilities": { "read": true, "insert": false, "update": false, "remove": false }
   },
   "workflow": {
-    "intent": {
-      "actorRole": "<intended actor>",
-      "primaryJob": "<outcome the actor is trying to achieve>"
+    "journey": {
+      "outcome": {
+        "actorRole": "<intended actor>",
+        "desiredOutcome": "<outcome the actor is trying to achieve>"
+      },
+      "understand": {
+        "questions": ["<what must the actor understand?>"],
+        "signals": ["<signal-field>"]
+      },
+      "focus": { "defaultWorkset": "<default workset>", "controls": ["search", "filter"] },
+      "investigate": {
+        "questions": ["<what requires deeper investigation?>"],
+        "evidenceFields": ["<evidence-field>"],
+        "contextPriority": "<high | medium | low>"
+      },
+      "act": { "actions": [{
+        "id": "<action-id>",
+        "kind": "mutation",
+        "operation": "transition",
+        "target": "<verified collection or record target>",
+        "surfaces": ["row", "detail"],
+        "decisionInputFields": ["<bounded-feedback-field>"],
+        "transitionFields": ["<status-field>"],
+        "authoritativeEditableFields": []
+      }] },
+      "verify": {
+        "visibleResult": "<visible confirmation of success>",
+        "postconditions": ["<persisted postcondition>"],
+        "refresh": ["collection", "views", "selection"]
+      }
     },
-    "focus": { "defaultWorkset": "<default workset>", "controls": ["search", "filter"] },
-    "investigate": {
-      "required": true,
-      "surface": "<side-panel | modal | entity-page | owning-app-navigation>",
+    "implementation": {
+      "investigationSurface": "<side-panel | modal | entity-page | owning-app-navigation>",
       "surfaceReason": "<why depth and context justify this surface>",
       "preserveCollectionContext": true,
       "evidenceMode": "<read-only | editable | mixed>",
       "identityField": "_id"
-    },
-    "editing": {
-      "required": false,
-      "editableFields": [],
-      "transitionFields": ["<status-or-feedback-field>"],
-      "reason": "<why authoritative field editing is or is not part of this job>"
-    },
-    "actions": [{
-      "id": "<action-id>",
-      "kind": "owning-app-navigation",
-      "target": "<verified record target>",
-      "surfaces": ["row", "detail"]
-    }],
-    "verify": { "postcondition": "<observable result>", "refresh": ["collection", "views", "selection"] }
+    }
   }
 }
 EOF

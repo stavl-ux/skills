@@ -694,63 +694,87 @@ export default {
     'src/extensions/dashboard-pages/order-exceptions/dashboard-contract.json',
     JSON.stringify({
       workflow: {
-        intent: {
-          actorRole: 'order exception editor',
-          primaryJob: 'correct authoritative order exception fields',
+        journey: {
+          outcome: {
+            actorRole: 'order exception editor',
+            desiredOutcome: 'correct authoritative order exception fields',
+          },
+          understand: {
+            questions: ['Which exceptions require correction?'],
+            signals: ['reason', 'isReviewed'],
+          },
+          focus: { defaultWorkset: 'Open exceptions', controls: ['status'] },
+          investigate: {
+            questions: ['Which source field is incorrect?'],
+            evidenceFields: ['reason', 'isReviewed'],
+            contextPriority: 'low',
+          },
+          act: { actions: [{
+            id: 'reviewOrder',
+            kind: 'mutation',
+            operation: 'update',
+            target: 'persist review state',
+            surfaces: ['row', 'detail', 'edit'],
+            decisionInputFields: [],
+            transitionFields: ['isReviewed'],
+            authoritativeEditableFields: ['reason'],
+          }] },
+          verify: {
+            visibleResult: 'Review state reloads',
+            postconditions: ['isReviewed is persisted'],
+            refresh: ['collection'],
+          },
         },
-        focus: { defaultWorkset: 'Open exceptions', controls: ['status'] },
-        investigate: {
-          required: true,
-          surface: 'entity-page',
+        implementation: {
+          investigationSurface: 'entity-page',
           surfaceReason: 'Field correction requires a structured record surface',
           preserveCollectionContext: false,
           evidenceMode: 'editable',
           identityField: '_id',
         },
-        editing: {
-          required: true,
-          editableFields: ['reason'],
-          transitionFields: ['isReviewed'],
-          reason: 'The operator owns correction of the exception record',
-        },
-        actions: [{
-          id: 'reviewOrder',
-          kind: 'mutation',
-          target: 'persist review state',
-          surfaces: ['row', 'detail'],
-        }],
-        verify: { postcondition: 'Review state reloads', refresh: ['collection'] },
       },
     }),
   );
 
   const decisionWorkflow = {
-    intent: {
-      actorRole: 'content reviewer',
-      primaryJob: 'inspect submitted content and approve it or request changes',
+    journey: {
+      outcome: {
+        actorRole: 'content reviewer',
+        desiredOutcome: 'inspect submitted content and approve it or request changes',
+      },
+      understand: {
+        questions: ['Which submissions need review?'],
+        signals: ['risk', 'status'],
+      },
+      focus: { defaultWorkset: 'Pending review', controls: ['risk', 'status'] },
+      investigate: {
+        questions: ['Is this submission publication-ready?'],
+        evidenceFields: ['content', 'risk', 'reviewerNotes'],
+        contextPriority: 'medium',
+      },
+      act: { actions: [{
+        id: 'approveSubmission',
+        kind: 'mutation',
+        operation: 'transition',
+        target: 'set status to approved',
+        surfaces: ['row', 'detail'],
+        decisionInputFields: ['reviewerNotes'],
+        transitionFields: ['status'],
+        authoritativeEditableFields: [],
+      }] },
+      verify: {
+        visibleResult: 'Approved item leaves pending review',
+        postconditions: ['approved status is persisted'],
+        refresh: ['collection'],
+      },
     },
-    focus: { defaultWorkset: 'Pending review', controls: ['risk', 'status'] },
-    investigate: {
-      required: true,
-      surface: 'entity-page',
+    implementation: {
+      investigationSurface: 'entity-page',
       surfaceReason: 'The submission is deep enough for a dedicated read-only detail view',
       preserveCollectionContext: false,
       evidenceMode: 'read-only',
       identityField: '_id',
     },
-    editing: {
-      required: false,
-      editableFields: [],
-      transitionFields: ['status', 'reviewerNotes'],
-      reason: 'The reviewer decides; the submitter owns source content changes',
-    },
-    actions: [{
-      id: 'approveSubmission',
-      kind: 'mutation',
-      target: 'set status to approved',
-      surfaces: ['row', 'detail'],
-    }],
-    verify: { postcondition: 'Approved item leaves pending review', refresh: ['collection'] },
   };
 
   for (const [fixtureRoot, entityMode] of [
@@ -1279,37 +1303,44 @@ export default function SubscriptionHealth() {
       ],
       fallbackCategory: 'multi-source',
       secondary: 'SidePanel detail via row action',
-      detailSurface: 'side-panel',
-      detailSurfaceReason: 'Moderate detail while preserving table context',
       workflow: {
-        intent: {
-          actorRole: 'operations manager',
-          primaryJob: 'inspect orders and assign them without editing source order content',
+        journey: {
+          outcome: {
+            actorRole: 'operations manager',
+            desiredOutcome: 'inspect orders and assign them without editing source order content',
+          },
+          understand: {
+            questions: ['Which orders require assignment?'],
+            signals: ['status', 'assigneeId'],
+          },
+          focus: { defaultWorkset: 'Orders requiring assignment', controls: ['search', 'status'] },
+          investigate: {
+            questions: ['Who should own this order?'],
+            evidenceFields: ['status', 'customer', 'assigneeId'],
+            contextPriority: 'high',
+          },
+          act: { actions: [{
+            id: 'assign-orders',
+            kind: 'mutation',
+            operation: 'transition',
+            target: 'bulkAssign',
+            surfaces: ['row', 'detail', 'bulk'],
+            decisionInputFields: [],
+            transitionFields: ['assigneeId'],
+            authoritativeEditableFields: [],
+          }] },
+          verify: {
+            visibleResult: 'Assigned orders reload with their new owner',
+            postconditions: ['assigneeId is persisted'],
+            refresh: ['table', 'detail', 'selection'],
+          },
         },
-        focus: { defaultWorkset: 'Orders requiring assignment', controls: ['search', 'status'] },
-        investigate: {
-          required: true,
-          surface: 'side-panel',
+        implementation: {
+          investigationSurface: 'side-panel',
           surfaceReason: 'Moderate evidence and quick assignment benefit from retaining table context',
           preserveCollectionContext: true,
           evidenceMode: 'read-only',
           identityField: 'id',
-        },
-        editing: {
-          required: false,
-          editableFields: [],
-          transitionFields: ['assigneeId'],
-          reason: 'Assignment is a bounded workflow transition, not source-order editing',
-        },
-        actions: [{
-          id: 'assign-orders',
-          kind: 'mutation',
-          target: 'bulkAssign',
-          surfaces: ['row', 'detail', 'bulk'],
-        }],
-        verify: {
-          postcondition: 'Assigned orders are reloaded from the collection',
-          refresh: ['table', 'detail', 'selection'],
         },
       },
     }),
@@ -1509,7 +1540,7 @@ export default function SubscriptionHealth() {
 
   const bad = spawnSync(process.execPath, [auditPath, badRoot], { encoding: 'utf8' });
   const badOutput = `${bad.stdout}\n${bad.stderr}`;
-  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'WF-06', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
+  const expectedRules = ['RT-02', 'RT-04', 'RT-05', 'WF-01', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
   const missedRules = expectedRules.filter((rule) => !badOutput.includes(rule));
   if (bad.status === 0 || missedRules.length) {
     console.error('Dashboard audit self-test failed to reject the bad fixture.');
@@ -1687,7 +1718,7 @@ export default function SubscriptionHealth() {
 
   const codegen50 = spawnSync(process.execPath, [auditPath, codegen50Root], { encoding: 'utf8' });
   const codegen50Output = `${codegen50.stdout}\n${codegen50.stderr}`;
-  const missedCodegen50Rules = ['DF-01', 'DF-03', 'DF-04', 'WF-01', 'WF-02', 'WF-03', 'WF-04'].filter(
+  const missedCodegen50Rules = ['DF-01', 'DF-03', 'DF-04', 'WF-01', 'WF-02', 'WF-03'].filter(
     (rule) => !codegen50Output.includes(rule),
   );
   if (codegen50.status === 0 || missedCodegen50Rules.length) {

@@ -178,7 +178,7 @@ type CustomEntityPageActionResolver = (params: {
 - **MUST** place all custom actions in `moreActions` array for Edit Mode.
 - **MUST** include `biName` for every action.
 - **MUST** return a valid `ResolvedAction` object (see resolved_action.md).
-- **MUST** use `errorHandler` for Wix API calls.
+- **MUST** use the documented resolver SDK and optimistic-action error path for mutations; `AutoPatternsSDK` has no generic `errorHandler`.
 - **MUST** tolerate an absent or partial `entity` during route loading. Return a disabled action until required identity and fields exist; guard again inside `onClick`.
 - **NEVER** use `primaryActions` or `secondaryActions` in Edit Mode.
 
@@ -248,7 +248,7 @@ type CustomEntityPageActionResolver = (params: {
 - **MUST** use `primaryActions` for main workflow (e.g. Create).
 - **MUST** use `secondaryActions` for supporting workflows.
 - **MUST** use `moreActions` for less common/admin tasks.
-- **MUST** check error handling rules: `errorHandler` for Wix APIs, none for external/SDK.
+- **MUST** use optimistic-action `errorToast` for collection mutations and explicit `try/catch` for other documented calls; never invent `sdk.errorHandler`.
 - **MUST** tolerate an absent or partial `entity` during route loading. Entity-dependent actions start disabled and their click handlers reject missing identity.
 - **NEVER** manually add "Edit" action; it's automatic if an Edit Mode page exists.
 

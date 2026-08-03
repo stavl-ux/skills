@@ -1,6 +1,6 @@
 # Dashboard Workflows
 
-Use this guide after resolving data through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Every record-oriented route also implements [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md). Read only the exact installed API and component documentation named by the selected route.
+Use this guide only after completing the five-WHAT journey in [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) and resolving data through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Consume those contracts without reinterpreting the prompt. Read only the exact installed API and component documentation named by the selected route.
 
 ## Contents
 
@@ -77,37 +77,44 @@ For custom WDS and hybrid routes, scaffold the Dashboard Page first. Then save `
     "chart": null,
     "detail": "wds-side-panel"
   },
-  "detailSurface": "side-panel",
-  "detailSurfaceReason": "Moderate record detail; preserve table context",
   "dataAdaptation": "Resolve client display fields by appointment reference",
   "fallbackCategory": "multi-source",
   "workflow": {
-    "intent": {
-      "actorRole": "appointments operator",
-      "primaryJob": "inspect an appointment and open its owning management record"
+    "journey": {
+      "outcome": {
+        "actorRole": "appointments operator",
+        "desiredOutcome": "inspect an appointment and open its owning management record"
+      },
+      "understand": { "questions": ["Which appointments need attention?"], "signals": ["time", "status", "client"] },
+      "focus": { "defaultWorkset": "Upcoming appointments", "controls": ["search", "status filter"] },
+      "investigate": {
+        "questions": ["Does this appointment require management?"],
+        "evidenceFields": ["time", "status", "client", "service"],
+        "contextPriority": "high"
+      },
+      "act": { "actions": [{
+        "id": "manage-appointment",
+        "kind": "owning-app-navigation",
+        "operation": "navigate",
+        "target": "verified appointment route",
+        "surfaces": ["row", "detail"],
+        "decisionInputFields": [],
+        "transitionFields": [],
+        "authoritativeEditableFields": []
+      }] },
+      "verify": {
+        "visibleResult": "The owning appointment record opens",
+        "postconditions": ["the destination identity matches the selected appointment"],
+        "refresh": ["table", "detail", "selection"]
+      }
     },
-    "focus": { "defaultWorkset": "Upcoming appointments", "controls": ["search", "status filter"] },
-    "investigate": {
-      "required": true,
-      "surface": "side-panel",
+    "implementation": {
+      "investigationSurface": "side-panel",
       "surfaceReason": "Moderate appointment context should remain beside the workset",
       "preserveCollectionContext": true,
       "evidenceMode": "read-only",
       "identityField": "id"
-    },
-    "editing": {
-      "required": false,
-      "editableFields": [],
-      "transitionFields": [],
-      "reason": "Appointment editing remains in the owning manager"
-    },
-    "actions": [{
-      "id": "manage-appointment",
-      "kind": "owning-app-navigation",
-      "target": "verified appointment route",
-      "surfaces": ["row", "detail"]
-    }],
-    "verify": { "postcondition": "The updated appointment is reloaded", "refresh": ["table", "detail", "selection"] }
+    }
   }
 }
 ```
@@ -118,7 +125,7 @@ For multi-region pages, `regionOwners` records which implementation owns `collec
 
 When `regionOwners.metrics` is non-null, also record `metricSurface`, `metricCheckedExample`, `metricContainmentOwner`, and `metricLayoutOwner`. `metricSurface` must name the installed composition actually rendered (`AnalyticsSummary` or `StatisticsWidget`). Copy containment from that exact installed example; do not infer that a component either needs or forbids an external Card.
 
-When record detail exists, set `detailSurface` to `side-panel`, `modal`, or `entity-page` and explain the choice in `detailSurfaceReason`. This records a design decision; it does not make one surface mandatory for viewing or editing.
+When record detail exists, declare it once in `workflow.implementation.investigationSurface` and explain it in `surfaceReason`. Do not duplicate the decision in route-level `detailSurface` fields.
 
 Do not proceed with custom or hybrid implementation without this record. Standard generated Auto Patterns pages use `patterns.json` and their registered wrapper as ownership evidence and do not need a route record. Update a custom route record if evidence changes the route.
 

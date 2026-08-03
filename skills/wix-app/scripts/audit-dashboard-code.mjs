@@ -2,6 +2,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  authoritativeEditableFields,
+  validateWorkflowContract,
+  workflowActions,
+} from './lib/dashboard-contract.mjs';
 
 const args = process.argv.slice(2);
 const routeOnly = args.includes('--route-only');
@@ -455,69 +460,32 @@ for (const link of collectionEntityLinks) {
 
 for (const contract of dashboardContracts) {
   const workflow = contract.value?.workflow;
-  const investigation = workflow?.investigate;
-  const editing = workflow?.editing;
-  const primaryAction = workflow?.actions?.[0];
-  const invalidIntent =
-    typeof workflow?.intent?.actorRole !== 'string'
-    || !workflow.intent.actorRole.trim()
-    || typeof workflow?.intent?.primaryJob !== 'string'
-    || !workflow.intent.primaryJob.trim()
-    || investigation?.required !== true
-    || typeof investigation?.surface !== 'string'
-    || !['side-panel', 'modal', 'entity-page', 'owning-app-navigation'].includes(investigation.surface)
-    || typeof investigation?.surfaceReason !== 'string'
-    || !investigation.surfaceReason.trim()
-    || typeof investigation?.preserveCollectionContext !== 'boolean'
-    || !['read-only', 'editable', 'mixed'].includes(investigation?.evidenceMode)
-    || typeof editing?.required !== 'boolean'
-    || !Array.isArray(editing?.editableFields)
-    || !Array.isArray(editing?.transitionFields)
-    || editing.editableFields.some((field) => typeof field !== 'string' || !field.trim())
-    || editing.transitionFields.some((field) => typeof field !== 'string' || !field.trim())
-    || typeof editing?.reason !== 'string'
-    || !editing.reason.trim()
-    || (editing.required && editing.editableFields.length === 0)
-    || (!editing.required && editing.editableFields.length > 0)
-    || (!editing.required && investigation.evidenceMode === 'editable');
+  const implementation = workflow?.implementation;
+  const actions = workflowActions(workflow);
+  const editableFields = authoritativeEditableFields(workflow);
+  const workflowErrors = validateWorkflowContract(workflow, {
+    capabilities: contract.value?.dataFoundation?.capabilities,
+    requireCollectionRefresh: true,
+  });
 
-  if (invalidIntent) {
+  if (workflowErrors.length) {
     findings.push({
       filePath: contract.path,
       line: 1,
       rule: 'AP-19',
-      message: 'Dashboard contract must declare actor/job intent, investigation rationale and evidence mode, context preservation, and a separate authoritative-editing policy.',
+      message: `Dashboard contract does not complete the five-WHAT journey: ${workflowErrors.join('; ')}.`,
     });
     continue;
-  }
-
-  if (!Array.isArray(primaryAction?.surfaces) || !primaryAction.surfaces.includes('detail')) {
-    findings.push({
-      filePath: contract.path,
-      line: 1,
-      rule: 'AP-19',
-      message: 'The first workflow-defining action must declare detail placement so users can act after investigation instead of returning to the collection.',
-    });
-  }
-  if (workflow?.actions?.some((action) =>
-    action?.surfaces?.includes('row') && !action.surfaces.includes('detail')
-  )) {
-    findings.push({
-      filePath: contract.path,
-      line: 1,
-      rule: 'AP-19',
-      message: 'Every workflow action offered on a row must remain available after drill-in; add detail placement or remove the row placement.',
-    });
   }
 
   const editEntityPages = [...entityPages.values()].filter((page) => page.mode === 'edit');
   const viewEntityPages = [...entityPages.values()].filter((page) => page.mode === 'view');
   const hasDeclaredEditSurface =
     editEntityPages.length > 0
-    || (investigation.surface === 'side-panel' && projectHasSidePanel)
-    || (investigation.surface === 'modal' && dashboardModalFiles.length > 0);
+    || (implementation.investigationSurface === 'side-panel' && projectHasSidePanel)
+    || (implementation.investigationSurface === 'modal' && dashboardModalFiles.length > 0);
 
-  if (editing.required && !hasDeclaredEditSurface) {
+  if (editableFields.length > 0 && !hasDeclaredEditSurface) {
     findings.push({
       filePath: contract.path,
       line: 1,
@@ -527,9 +495,9 @@ for (const contract of dashboardContracts) {
   }
 
   if (
-    !editing.required
-    && investigation.evidenceMode === 'read-only'
-    && investigation.surface === 'entity-page'
+    editableFields.length === 0
+    && implementation.evidenceMode === 'read-only'
+    && implementation.investigationSurface === 'entity-page'
     && editEntityPages.length > 0
     && viewEntityPages.length === 0
   ) {
@@ -541,12 +509,28 @@ for (const contract of dashboardContracts) {
     });
   }
 
-  if (investigation.surface === 'side-panel' && !projectHasSidePanel) {
+  if (implementation.investigationSurface === 'side-panel' && !projectHasSidePanel) {
     findings.push({
       filePath: contract.path,
       line: 1,
       rule: 'AP-19',
       message: 'The workflow selects a SidePanel to preserve collection context, but no SidePanel implementation exists in the audited dashboard.',
+    });
+  }
+
+  const declaredDetailActionIds = actions
+    .filter((action) => action.surfaces.includes('detail'))
+    .map((action) => action.id);
+  if (
+    implementation.investigationSurface === 'entity-page'
+    && declaredDetailActionIds.length
+    && !declaredDetailActionIds.some((id) => entityRuntimeResolvers.has(id))
+  ) {
+    findings.push({
+      filePath: contract.path,
+      line: 1,
+      rule: 'AP-19',
+      message: `The journey declares detail actions (${declaredDetailActionIds.join(', ')}), but no matching entity action resolver is registered. Preserve the operational decisions after drill-in.`,
     });
   }
 }
@@ -661,96 +645,13 @@ for (const recordPath of routeRecordPaths) {
       });
     }
 
-    const workflow = record.workflow;
-    const invalidInvestigation =
-      typeof workflow?.focus?.defaultWorkset !== 'string'
-      || workflow?.investigate?.required !== true
-      || typeof workflow?.investigate?.surface !== 'string'
-      || typeof workflow?.investigate?.identityField !== 'string';
-    if (invalidInvestigation) {
+    const workflowErrors = validateWorkflowContract(record.workflow);
+    if (workflowErrors.length) {
       findings.push({
         filePath: recordPath,
         line: 1,
         rule: 'WF-01',
-        message: 'Custom record tables must declare a Focus workset and required Investigation surface with stable identity in workflow.',
-      });
-    }
-
-    const invalidWorkflowIntent =
-      typeof workflow?.intent?.actorRole !== 'string'
-      || !workflow.intent.actorRole.trim()
-      || typeof workflow?.intent?.primaryJob !== 'string'
-      || !workflow.intent.primaryJob.trim()
-      || !['side-panel', 'modal', 'entity-page', 'owning-app-navigation'].includes(workflow?.investigate?.surface)
-      || typeof workflow?.investigate?.surfaceReason !== 'string'
-      || !workflow.investigate.surfaceReason.trim()
-      || typeof workflow?.investigate?.preserveCollectionContext !== 'boolean'
-      || !['read-only', 'editable', 'mixed'].includes(workflow?.investigate?.evidenceMode)
-      || typeof workflow?.editing?.required !== 'boolean'
-      || !Array.isArray(workflow?.editing?.editableFields)
-      || !Array.isArray(workflow?.editing?.transitionFields)
-      || workflow.editing.editableFields.some((field) => typeof field !== 'string' || !field.trim())
-      || workflow.editing.transitionFields.some((field) => typeof field !== 'string' || !field.trim())
-      || typeof workflow?.editing?.reason !== 'string'
-      || !workflow.editing.reason.trim()
-      || (workflow.editing.required && workflow.editing.editableFields.length === 0)
-      || (!workflow.editing.required && workflow.editing.editableFields.length > 0)
-      || (!workflow.editing.required && workflow.investigate.evidenceMode === 'editable');
-    if (invalidWorkflowIntent) {
-      findings.push({
-        filePath: recordPath,
-        line: 1,
-        rule: 'WF-06',
-        message: 'Record dashboards must declare actor/job intent, investigation rationale and evidence mode, context preservation, and a separate authoritative-editing policy.',
-      });
-    }
-
-    const invalidActions =
-      !Array.isArray(workflow?.actions)
-      || workflow.actions.length === 0
-      || workflow.actions.some((action) =>
-        typeof action?.id !== 'string'
-        || !['mutation', 'owning-app-navigation'].includes(action?.kind)
-        || typeof action?.target !== 'string'
-        || !action.target.trim(),
-      );
-    if (invalidActions) {
-      findings.push({
-        filePath: recordPath,
-        line: 1,
-        rule: 'WF-02',
-        message: 'Custom record tables must declare at least one real mutation or owning-app navigation action. Toasts and local-only callbacks are not actions.',
-      });
-    }
-    if (!Array.isArray(workflow?.actions?.[0]?.surfaces) || !workflow.actions[0].surfaces.includes('detail')) {
-      findings.push({
-        filePath: recordPath,
-        line: 1,
-        rule: 'WF-06',
-        message: 'The workflow-defining action must remain available on the investigation surface; declare detail in its action surfaces.',
-      });
-    }
-    if (workflow?.actions?.some((action) =>
-      action?.surfaces?.includes('row') && !action.surfaces.includes('detail')
-    )) {
-      findings.push({
-        filePath: recordPath,
-        line: 1,
-        rule: 'WF-06',
-        message: 'Every workflow action offered on a row must remain available after drill-in.',
-      });
-    }
-
-    if (
-      typeof workflow?.verify?.postcondition !== 'string'
-      || !Array.isArray(workflow?.verify?.refresh)
-      || workflow.verify.refresh.length === 0
-    ) {
-      findings.push({
-        filePath: recordPath,
-        line: 1,
-        rule: 'WF-04',
-        message: 'Custom record tables must declare an observable postcondition and every surface refreshed after action success.',
+        message: `Custom record dashboard does not complete the five-WHAT journey: ${workflowErrors.join('; ')}.`,
       });
     }
   }
@@ -1049,7 +950,8 @@ const customRecordRoute = routeRecords.find(({ record }) => {
   return owner === 'custom-wds-table';
 });
 if (customRecordRoute && /<Table\b/.test(projectSource)) {
-  const surface = customRecordRoute.record.detailSurface;
+  const surface = customRecordRoute.record.workflow?.implementation?.investigationSurface
+    ?? customRecordRoute.record.detailSurface;
   const validSurface = ['side-panel', 'modal', 'entity-page'].includes(surface);
   const surfaceExists =
     (surface === 'side-panel' && projectHasSidePanel)
@@ -1173,6 +1075,15 @@ for (const [resolverId, kinds] of entityRuntimeResolvers) {
 
   const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2600);
   checkSavedViewRefresh(resolver, resolverSlice, resolverId, kindLabel);
+  const isEntityAction = [...kinds].some((kind) => kind.includes('action'));
+  if (isEntityAction && !resolverUsesHostActionParams(resolverSlice)) {
+    findings.push({
+      filePath: resolver.filePath,
+      line: lineAt(resolver.content, resolver.index),
+      rule: 'AP-09',
+      message: `Entity ${kindLabel} "${resolverId}" does not use the entity resolver { actionParams, sdk } contract. Read the record from actionParams.entity; do not treat the wrapper as the entity.`,
+    });
+  }
   if (kinds.has('badge override')) {
     const invalidBadgeSkin = /\bskin\s*:\s*['"]destructive['"]/.exec(resolverSlice);
     if (invalidBadgeSkin) {
@@ -1217,6 +1128,12 @@ function resolverHasNoOpHandler(content) {
   );
 }
 
+function resolverUsesHostActionParams(content) {
+  const declaration = content.slice(0, 900);
+  return /\bactionParams\b/.test(declaration)
+    && !/\bparams\s*\.\s*dataItem\b/.test(declaration);
+}
+
 for (const [actionId, kinds] of collectionRuntimeResolvers) {
   const resolver = findResolver(actionId);
   const kindLabel = [...kinds].join('/');
@@ -1232,6 +1149,14 @@ for (const [actionId, kinds] of collectionRuntimeResolvers) {
 
   const resolverSlice = resolver.content.slice(resolver.index, resolver.index + 2400);
   checkSavedViewRefresh(resolver, resolverSlice, actionId, kindLabel);
+  if (!resolverUsesHostActionParams(resolverSlice)) {
+    findings.push({
+      filePath: resolver.filePath,
+      line: lineAt(resolver.content, resolver.index),
+      rule: 'AP-07',
+      message: `Custom ${kindLabel} "${actionId}" does not use the collection resolver { actionParams, sdk } contract. Read item from actionParams.item or selected IDs from actionParams.selectedValues; do not treat the wrapper as the record.`,
+    });
+  }
   if (resolverHasNoOpHandler(resolverSlice)) {
     findings.push({
       filePath: resolver.filePath,
@@ -1242,19 +1167,34 @@ for (const [actionId, kinds] of collectionRuntimeResolvers) {
   }
 }
 
+
+for (const [filePath, content] of contents) {
+  for (const match of content.matchAll(/\bitems\s*\.\s*update\s*\(\s*[^,\n]*\._id\s*,/g)) {
+    addFinding(
+      filePath,
+      content,
+      match.index,
+      'AP-07',
+      'items.update receives collectionId first and one item object containing _id second. Do not pass the record ID as the first argument.',
+    );
+  }
+}
+
 for (const { path: recordPath, record } of routeRecords) {
   const detailIntent = /\b(?:detail|view|inspect|edit|resolve)\b/i.test(String(record.secondary ?? ''));
-  if (!detailIntent && record.detailSurface == null) continue;
+  const implementation = record.workflow?.implementation;
+  const declaredSurface = implementation?.investigationSurface ?? record.detailSurface;
+  if (!detailIntent && declaredSurface == null) continue;
 
   const allowedSurfaces = new Set(['side-panel', 'modal', 'entity-page']);
-  const surface = record.detailSurface;
-  const reason = record.detailSurfaceReason;
+  const surface = declaredSurface;
+  const reason = implementation?.surfaceReason ?? record.detailSurfaceReason;
   if (!allowedSurfaces.has(surface) || typeof reason !== 'string' || !reason.trim()) {
     findings.push({
       filePath: recordPath,
       line: 1,
       rule: 'AP-08',
-      message: 'Record detail requires detailSurface (side-panel, modal, or entity-page) and a non-empty detailSurfaceReason.',
+      message: 'Record detail requires workflow.implementation investigationSurface and a non-empty surfaceReason.',
     });
     continue;
   }
@@ -1268,7 +1208,7 @@ for (const { path: recordPath, record } of routeRecords) {
       filePath: recordPath,
       line: 1,
       rule: 'AP-08',
-      message: `Route declares detailSurface "${surface}", but the generated project does not contain that surface.`,
+      message: `Workflow declares investigation surface "${surface}", but the generated project does not contain that surface.`,
     });
   }
 }

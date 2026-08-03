@@ -325,7 +325,7 @@ type CustomActionCellSecondaryActionResolver = (params: {
 - **MUST** include `biName` for every action (`{action-purpose}-action`).
 - **MUST** place `actionCell` at component level (sibling to `collection`), NOT inside `table`/`grid`.
 - **MUST** implement custom resolvers using `CustomActionCellPrimaryActionResolver` (for primary actions) or `CustomActionCellSecondaryActionResolver` (for secondary actions).
-- **MUST** use `errorHandler` for Wix API calls in resolvers.
+- **MUST** use the documented resolver `sdk`, `getOptimisticActions()`, and `errorToast` path for collection mutations. Use explicit `try/catch` only for supported calls outside optimistic actions; `AutoPatternsSDK` does not expose a generic `errorHandler`.
 - **MUST** label the primary action for its user outcome. Use `View` for inspection, `Edit` for editing, and the actual workflow verb for a transition; do not default to generic `Update`.
 - **MUST** make the workflow-defining transition the primary row action. If the same transition is a primary bulk action, its normalized label and outcome must match the row primary action unless it is inherently bulk-only.
 - **MUST** use row click or `entityPageId` for inspection when already configured; do not add a custom View action whose handler is empty or duplicates that navigation.
@@ -438,7 +438,7 @@ type CustomBulkActionsActionResolver = (params: {
 - **MUST** place toolbar configuration inside `table` or `grid` object.
 - **MUST** use `CustomBulkActionsActionResolver` type for custom logic.
 - **MUST** register custom resolvers in `AutoPatternsOverridesProvider`.
-- **MUST** use `errorHandler` for Wix API calls in resolvers.
+- **MUST** use the documented resolver SDK and optimistic-action `errorToast` path for mutations; `AutoPatternsSDK` has no generic `errorHandler`.
 - **MUST** provide a discoverable single-record equivalent for every bulk workflow transition unless the operation is inherently bulk-only. The equivalent may live in the row action, SidePanel, Modal, or entity page.
 - **MUST** mirror the primary bulk transition as the primary row action. Use the same user-facing label and state change; do not make generic View or Edit primary instead.
 - **MUST** add bulk Delete when `itemRemove` is granted, deleting the managed entity is a valid lifecycle action, and multi-record removal is useful. Keep a confirmed single-record Delete action available as well. Do not use deletion to process or dismiss a queue.

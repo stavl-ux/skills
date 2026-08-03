@@ -1,6 +1,6 @@
 # Dashboard Data Foundation
 
-Resolve data ownership before selecting a dashboard component. The goal is a CMS collection interface with a real schema, stable record identity, known permissions, and a supported source-of-truth path. A backend API response is not itself a reason to build a custom table.
+Receive the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), then resolve data ownership before selecting a route or component. The goal is a CMS collection interface with a real schema, stable record identity, known permissions, and a supported source-of-truth path. A backend API response is not itself a reason to build a custom table.
 
 ## Contents
 
@@ -12,12 +12,13 @@ Resolve data ownership before selecting a dashboard component. The goal is a CMS
 
 ## Resolution Order
 
-1. Inspect the project, enabled Wix applications, declared collections, and installed integrations.
+1. Preserve the journey's required outcome, evidence, actions, and visible success criteria while inspecting the project, enabled Wix applications, declared collections, and installed integrations.
 2. Identify the owning data system for every record type.
 3. Resolve each system to one of the supported collection surfaces below.
 4. Inspect collection metadata and a representative query before designing the UI.
 5. Count resolved collection IDs. Multiple API calls against one collection still count as one. A joined record surface backed by two collections counts as two.
-6. Exactly one resolved collection selects Auto Patterns. Two or more joined collections may select a custom table after route preflight.
+6. Record any mismatch between required actions and verified capabilities instead of weakening the journey silently.
+7. Exactly one resolved collection selects Auto Patterns. Two or more joined collections may select a custom table after route preflight.
 
 Do not create a collection merely to satisfy this gate. The collection must be the real source of truth or have the maintained projection contract described below.
 
