@@ -1743,7 +1743,10 @@ export default function QuickAction() {
           freshness: 'source-managed',
         },
       ],
-      fallbackCategory: 'multi-source',
+      fallbackCategory: 'unsupported-auto-patterns',
+      tableUnsupportedCapability: 'Cross-source reconciliation requires dynamic source columns that the checked Auto Patterns collection configuration cannot express.',
+      tableCheckedReference: 'AUTO_PATTERNS_DASHBOARD.md AP-01 through AP-05',
+      whyAutoPatternsTableCannotBeUsed: 'No maintained unified record interface can preserve the required independent source reconciliation and per-source mutation ownership.',
       secondary: 'SidePanel detail via row action',
       workflow: {
         journey: {
@@ -1983,7 +1986,7 @@ export default function SubscriptionHealth() {
 
   const bad = spawnSync(process.execPath, [auditPath, badRoot], { encoding: 'utf8' });
   const badOutput = `${bad.stdout}\n${bad.stderr}`;
-  const expectedRules = ['DD-01', 'RT-02', 'RT-04', 'RT-05', 'WF-01', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
+  const expectedRules = ['DD-01', 'RT-04', 'RT-05', 'RT-09', 'WF-01', 'CT-08', 'CT-10', 'CT-11', 'CT-12', 'TP-01', 'TP-03', 'TP-05', 'TP-08', 'TP-10', 'TP-11', 'TP-14', 'AN-11', 'AN-13', 'HC-01', 'HC-02', 'HC-03', 'HC-04', 'HC-05'];
   const missedRules = expectedRules.filter((rule) => !badOutput.includes(rule));
   if (bad.status === 0 || missedRules.length) {
     console.error('Dashboard audit self-test failed to reject the bad fixture.');

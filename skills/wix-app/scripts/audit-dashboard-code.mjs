@@ -765,12 +765,43 @@ for (const recordPath of routeRecordPaths) {
     collectionOwner === 'custom-wds-table'
     && (routeOnly || /<Table\b/.test(projectSource));
 
+  if (hasCustomRecordSurface && record.sourceCount === 0) {
+    findings.push({
+      filePath: recordPath,
+      line: 1,
+      rule: 'DF-02',
+      message: 'A dashboard record table cannot declare zero data systems. Resolve a compatible collection interface, including a maintained projection when appropriate, or mark the data foundation blocked.',
+    });
+  }
+
+  if (hasCustomRecordSurface) {
+    const requiredAutoPatternsFallbackEvidence = [
+      'tableUnsupportedCapability',
+      'tableCheckedReference',
+      'whyAutoPatternsTableCannotBeUsed',
+    ];
+    const missingAutoPatternsFallbackEvidence = requiredAutoPatternsFallbackEvidence.filter(
+      (key) => typeof record[key] !== 'string' || !record[key].trim(),
+    );
+    if (
+      record.fallbackCategory !== 'unsupported-auto-patterns'
+      || missingAutoPatternsFallbackEvidence.length
+    ) {
+      findings.push({
+        filePath: recordPath,
+        line: 1,
+        rule: 'RT-09',
+        message: `A custom WDS record table requires fallbackCategory "unsupported-auto-patterns" and table-specific Auto Patterns evidence: ${requiredAutoPatternsFallbackEvidence.join(', ')}. Source count, API origin, mock data, and neighboring analytics are not fallback evidence.`,
+      });
+    }
+  }
+
   if (hasCustomRecordSurface && record.sourceCount === 1) {
     findings.push({
       filePath: recordPath,
       line: 1,
       rule: 'DF-01',
-      message: 'A one-source record table must resolve the source to one CMS collection interface and use Auto Patterns. API origin, computed flags, filters, and neighboring analytics do not justify a custom WDS table.',
+      message: 'A one-source record table must resolve the source to a compatible collection interface and use Auto Patterns. API origin, computed flags, filters, mock data, and neighboring analytics do not justify a custom WDS table.',
     });
   }
 
@@ -882,15 +913,6 @@ for (const recordPath of routeRecordPaths) {
         message: 'Data shaping, collection actions, and supplemental detail surfaces do not justify replacing a one-collection Auto Patterns table. Stop custom implementation and return collection ownership to Auto Patterns.',
       });
     }
-  }
-
-  if (record.fallbackCategory === 'multi-source' && record.sourceCount < 2) {
-    findings.push({
-      filePath: recordPath,
-      line: 1,
-      rule: 'RT-02',
-      message: 'multi-source requires at least two physical collections or systems.',
-    });
   }
 
   const hostApiCheck = record.hostApiCheck;
@@ -1038,7 +1060,7 @@ for (const recordPath of routeRecordPaths) {
     }
   }
 
-  if (record.route === 'analytics' && record.sourceCount === 1) {
+  if (record.route === 'analytics') {
     const collectionOwner = record.regionOwners?.collection;
     const requiredTableEvidence = [
       'tableUnsupportedCapability',
@@ -1081,12 +1103,19 @@ for (const recordPath of routeRecordPaths) {
         });
       }
 
-      if (usesCustomWdsTable) {
+      if (usesCustomWdsTable && regionalOnlyTableEvidence) {
         findings.push({
           filePath: recordPath,
           line: 1,
           rule: 'RT-06',
-          message: 'A one-source analytics page may not replace its collection region with a custom WDS table. Resolve one collection and use Auto Patterns; keep custom analytics in supplemental regions.',
+          message: 'Chart, KPI, metric, summary, and other analytics-region limitations cannot justify replacing an Auto Patterns record table.',
+        });
+      } else if (usesCustomWdsTable && collectionOwner !== 'custom-wds-table') {
+        findings.push({
+          filePath: recordPath,
+          line: 1,
+          rule: 'RT-06',
+          message: 'An analytics page with a custom WDS record table must explicitly declare custom collection ownership and pass the Auto Patterns fallback gate. Do not hide a table behind an analytics route.',
         });
       }
     }

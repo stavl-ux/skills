@@ -1,6 +1,6 @@
 # Dashboard Data Foundation
 
-Receive the discovered entities and verified capabilities from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md) plus the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), then resolve data ownership before selecting a route or component. After resolution, use [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md) to express the journey through representations and interaction surfaces that fit the verified data. The goal is a CMS collection interface with a real schema, stable record identity, known permissions, and a supported source-of-truth path. A backend API response or verified domain action is not itself a reason to build a custom table.
+Receive discovered entities and capabilities from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md) plus the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), then resolve data ownership before selecting UI. After resolution, use [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md) to express the journey through representations and interaction surfaces that fit the verified data. The goal is an Auto Patterns-compatible collection interface: real schema, stable identity, permissions, and a supported source-of-truth path. Source origin—API, Wix vertical, or multiple systems—does not determine table ownership.
 
 ## Contents
 
@@ -16,11 +16,11 @@ Receive the discovered entities and verified capabilities from [DOMAIN_DISCOVERY
 2. Resolve each discovered entity to its authoritative data system and verify that identity agrees with discovery provenance.
 3. Resolve each system to one of the supported collection surfaces below.
 4. Inspect collection metadata and a representative query before designing the UI.
-5. Count resolved collection IDs. Multiple API calls against one collection still count as one. A joined record surface backed by two collections counts as two.
+5. Decide whether the user needs a standard record workspace. If so, resolve the data to one Auto Patterns-compatible collection interface; multiple upstream systems may be represented by a maintained projection only when its contract below is complete.
 6. Record any mismatch between required actions and verified capabilities instead of weakening the journey silently.
-7. Exactly one resolved collection selects Auto Patterns. Two or more joined collections may select a custom table after route preflight.
+7. Start the table/workspace on Auto Patterns. Move collection ownership to custom WDS only after [AUTO_PATTERNS_DASHBOARD.md](AUTO_PATTERNS_DASHBOARD.md) records a specific unsupported capability that a compatible record interface cannot solve.
 
-Do not create a collection merely to satisfy this gate. The collection must be the real source of truth or have the maintained projection contract described below.
+Do not create a collection merely to satisfy this gate. The collection must be the real source of truth or have the maintained projection contract described below. This preserves Auto Patterns as the presentation default without creating unowned copies of business data.
 
 ## Foundation Contract
 
@@ -87,6 +87,10 @@ Official references: [external database adaptor overview](https://dev.wix.com/do
 
 Use [DATA_COLLECTION.md](DATA_COLLECTION.md) only for records the app genuinely owns: preferences, annotations, workflow state, app configuration, or a deliberately maintained operational projection. The Data Collections Extension is not a generic database driver and must not become an unmaintained copy of Wix business data.
 
+### Multiple Source Systems
+
+Do not let the number of systems choose the table. For a unified workspace, first determine whether a maintained projection can provide the needed schema, identity, freshness, and write ownership. If it can, keep Auto Patterns. If it cannot, document the unmet requirement and evaluate the exact unsupported Auto Patterns capability; never use a static React array as an implicit data layer.
+
 ## Derived Collections
 
 A derived operational collection is allowed only when the product requires durable app-owned fields or a join that the original sources cannot expose. Define before implementation:
@@ -105,8 +109,8 @@ The dashboard must read the maintained collection, report stale or failed synchr
 
 ## Failure Rules
 
-- **DF-01:** A record table backed by one resolved collection must use Auto Patterns. A custom WDS table cannot be justified by API origin, computed flags, filters, or unsupported neighboring analytics.
-- **DF-02:** If a required business or external source has no verified collection interface, stop and report the missing foundation. Do not fabricate a driver, infer a schema, or bypass the gate with a custom table.
+- **DF-01:** A dashboard record workspace defaults to Auto Patterns. A custom WDS table cannot be justified by source count, API origin, mock data, computed flags, filters, joins that have a viable maintained projection, or unsupported neighboring analytics. Custom table ownership requires a recorded, table-specific unsupported Auto Patterns capability.
+- **DF-02:** If a required business or external source has no verified compatible collection interface, stop and report the missing foundation. Do not fabricate a driver, infer a schema, or bypass the gate with a custom table.
 - **DF-03:** Do not collapse permission, transport, schema, synchronization, and not-installed failures into one empty-data or not-installed state. Preserve the original error and map verified categories separately.
 - **DF-04:** Do not insert sample records into a live source or operational projection to hide unavailable data. Use isolated fixtures or an explicit development-only path.
 - **DF-05:** A derived collection without the complete maintenance contract is not an eligible dashboard source.

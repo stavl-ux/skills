@@ -1,6 +1,6 @@
 # Auto Patterns Dashboard
 
-Use this guide for new and existing one-collection management surfaces. It owns route evaluation, generation, updates, supported extension paths, and validation.
+Use this guide for standard dashboard record workspaces. It owns routing, generation, and validation. Resolve source systems separately; Auto Patterns owns every workspace with a compatible collection interface.
 
 ## Contents
 
@@ -10,7 +10,7 @@ Use this guide for new and existing one-collection management surfaces. It owns 
 
 ## Route And Workflow Contract
 
-Use this route for every new management surface backed by exactly one resolved CMS collection interface. Receive discovery from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md), the completed journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), the resolved source from [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and the accepted presentation from [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md); do not reinterpret those contracts while choosing components.
+Start every standard dashboard record workspace here, regardless of source origin. Receive discovery from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md), the completed journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), the compatible interface from [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and the accepted presentation from [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md); do not reinterpret them while choosing components. Leave only after recording a specific unsupported table/workspace capability.
 
 ### Capability References
 
@@ -32,10 +32,10 @@ This file owns route evaluation, standard generation, permissions, and validatio
 ### Route Contract
 
 - **AP-01:** Mark each requested capability `supported`, `supported-via-override`, or `unsupported`, with the checked documentation target.
-- **AP-02:** Use Auto Patterns for the resolved one-collection manager and every extension of its physical workflow. A contextual WDS `SidePanel` is supported-via-override when a documented row action sets the selected record and the panel is an `AutoPatternsApp` child with AppContext/refresh access. A Dashboard Modal is supported as a bounded action launched through the dashboard API. A KPI or chart may be supported-via-override when a documented header, section, slot, or child-component path owns its placement. Unsupported analytics behavior changes only that region's implementation; it does not transfer collection-table ownership. API origin and computed fields never transfer table ownership.
+- **AP-02:** Use Auto Patterns for the compatible record interface and its workflow extensions. A contextual WDS `SidePanel` is supported-via-override when a documented row action sets the selected record and the panel is an `AutoPatternsApp` child with AppContext/refresh access. A Dashboard Modal is supported as a bounded dashboard action. A KPI or chart may be supported-via-override through a documented header, section, slot, or child-component path. Unsupported analytics changes only that region; API origin, source count, mock data, and computed fields never transfer table ownership.
 - **AP-03:** A Table/Grid switch, row action, derived display, or named workset is not automatically unsupported. Check its focused reference before falling back; record that exact file in the capability decision.
 - **AP-04:** Auto Patterns documents Table and Grid. Do not promise the native CMS layout menu, List layout, custom layout labels, or a configurable initial layout unless the installed docs explicitly support them.
-- **AP-05:** Do not use a custom WDS dashboard route until this evaluation records the first `unsupported` capability. A new one-collection manager stays on this route when every requested capability is `supported` or `supported-via-override`.
+- **AP-05:** Do not use custom WDS until this evaluation records a table/workspace `unsupported` capability and why a compatible record interface or documented override cannot solve it. Stay here when every requested capability is `supported` or `supported-via-override`; multiple sources alone are not unsupported.
 - **AP-06:** Keep one resolved collection classified as one collection even when the workflow is described as an exception queue, review workset, alert list, or saved subset, or uses OR conditions, elapsed-time rules, comparisons, bulk transitions, or contextual record detail. Materialize operational state as maintained fields such as `needsAttention`, `exceptionType`, `exceptionSince`, and `isReviewed`, then configure filters/Views and documented actions against those fields. Do not rebuild the table to express query logic or attach a supplemental surface.
 - **AP-12:** Separate update permission from product intent. Require a real edit surface only when the workflow declares authoritative field editing; choose SidePanel, Modal, edit entity page, or paired view/edit flow from depth and context. A transition-only or decision workflow may use a read-only investigation surface while persisting named transition or feedback fields through `itemUpdate`.
 - **AP-13:** Preserve operational field semantics across collection and detail surfaces. When a field communicates status, risk, priority, or required attention and appears as a badge in entity detail, render that same field with a documented custom-column badge in the collection Table/Grid when it is shown there. Reuse one label-to-skin mapping. Do not badge descriptive text or ordinary categories merely for decoration.
@@ -58,7 +58,7 @@ Keep Auto Patterns as the owner of the collection table, layouts, filters, selec
 | Moderate view/edit depth where table context should remain visible | Custom row/action override opens a WDS `SidePanel` child of `AutoPatternsApp`. |
 | Short, focused, blocking view/edit task or confirmation | Launch a Dashboard Modal from a documented custom action. |
 | Extensive or multi-section view/edit flow, complex validation, deep linking, or long work | Link to an Auto Patterns `entityPage` in the appropriate mode. |
-| KPI or chart around a supported one-collection manager | Keep Auto Patterns as the table owner and mount the analytical component through a documented header, section, slot, or child-component override. |
+| KPI or chart around a supported record workspace | Keep Auto Patterns as the table owner and mount the analytical component through a documented header, section, slot, or child-component override. |
 
 These route defaults implement the presentation contract; they do not replace its task-level reasoning. Viewing and editing may use any verified surface when depth and context justify it. If the route adapts the selected drill-in, preserve the intended context and workflow and record the reason. For SidePanel or Modal, invoke the Wix Design System skill and read the exact installed component documentation before importing WDS. The supplemental surface is not evidence that the table itself should be rebuilt in WDS.
 
@@ -80,7 +80,7 @@ Do not create a second discovery, workflow, or presentation decision table in th
 
 1. Preserve the verified entities, terminology, action capabilities, and provenance from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md); do not replace missing capabilities with generated behavior.
 2. Preserve the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md); route and component choices may implement it but must not redefine it.
-3. Resolve a verified native, Wix App, external-adaptor, or app-owned collection through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
+3. Resolve a verified native, Wix App, external-adaptor, or maintained app-owned collection interface through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
 4. Preserve the representation, hierarchy, drill-in intent, and consistency expectations selected through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md). Record any verified route adaptation instead of silently substituting a different interface.
 5. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
 6. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
@@ -508,7 +508,7 @@ If adding custom overrides (actions, columns, components, slots, etc.):
 
 Do NOT use this skill when:
 
-- User needs multi-collection data display → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
+- User needs a unified multi-source record workspace → resolve a maintained compatible collection interface through [DATA_FOUNDATION.md](DATA_FOUNDATION.md) and keep Auto Patterns; return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) only after documenting an unsupported Auto Patterns requirement
 - User needs embedded script configuration → see [EMBEDDED_SCRIPT.md](EMBEDDED_SCRIPT.md)
 - User needs custom business logic or external APIs that cannot be implemented through a documented action, override, or child component → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
 - User needs contextual record detail → preserve the Auto Patterns collection page, use its documented row-action/AppContext extension, and invoke the Wix Design System skill for the exact installed `SidePanel` documentation

@@ -227,8 +227,11 @@ for (const reference of consolidatedReferences.slice(2)) {
 if (skillContent.includes('For every dashboard request, read [DASHBOARD_ROUTING.md]')) {
   fail('SKILL.md forces every dashboard through DASHBOARD_ROUTING.md instead of using progressive disclosure');
 }
-if (!skillContent.includes('exactly one resolved CMS collection interface')) {
-  fail('SKILL.md is missing the resolved one-collection Auto Patterns fast path');
+if (!skillContent.includes('Auto Patterns is the default for every dashboard record workspace')) {
+  fail('SKILL.md is missing the source-independent Auto Patterns default');
+}
+if (!skillContent.includes('Multiple source systems, a true join, an API response, mock data')) {
+  fail('SKILL.md does not prevent source origin or mock data from bypassing Auto Patterns');
 }
 if (!skillContent.includes('DASHBOARD_PRESENTATION.md')) {
   fail('SKILL.md is missing the presentation-success decision layer');
