@@ -1,8 +1,132 @@
-# Auto Patterns Dashboard Page
+# Auto Patterns Dashboard
+
+Use this guide for standard dashboard record workspaces. It owns routing, generation, and validation. Resolve source systems separately; Auto Patterns owns every workspace with a compatible collection interface.
+
+## Contents
+
+- [Route and workflow contract](#route-and-workflow-contract)
+- [Change workflow](#change-workflow)
+- [Generation and configuration](#generation-and-configuration)
+
+## Route And Workflow Contract
+
+Start every standard dashboard record workspace here, regardless of source origin. Receive discovery from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md), the completed journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md), the compatible interface from [DATA_FOUNDATION.md](DATA_FOUNDATION.md), and the accepted presentation from [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md); do not reinterpret them while choosing components. Leave only after recording a specific unsupported table/workspace capability.
+
+### Capability References
+
+This file owns route evaluation, standard generation, permissions, and validation. A basic new collection manager can be generated from this file without reading a capability reference. Read only the narrowest matching capability reference when the request needs the capability in that row. Do not load custom WDS guidance unless the required capability has no documented Auto Patterns path.
+
+| Requested capability | Exact Auto Patterns reference |
+| --- | --- |
+| AppConfig, pages, collection structure, or Table/Grid configuration | [Configuration](auto-patterns-dashboard/configuration.md) |
+| Saved Views, row actions, or bulk actions | [Collection workflows](auto-patterns-dashboard/collection-workflows.md) |
+| Custom row or bulk action resolver | [Collection workflows](auto-patterns-dashboard/collection-workflows.md); read [Extensions](auto-patterns-dashboard/extensions.md) only for shared SDK utilities |
+| Custom displayed field, column, section, or slot | [Extensions](auto-patterns-dashboard/extensions.md) |
+| Entity page, entity form, or entity header | [Entity workflows](auto-patterns-dashboard/entity-workflows.md) |
+| KPI or chart supplemental region | Check the custom header, section, slot, and child-component references above; then read [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) only for that region's WDS/chart contract |
+| External child component needs collection data or refresh | [Extensions](auto-patterns-dashboard/extensions.md) |
+| Record detail, viewing, or editing beyond the collection row | [Collection workflows](auto-patterns-dashboard/collection-workflows.md) and [Extensions](auto-patterns-dashboard/extensions.md); use the surface guidance below |
+| Deep or multi-section record flow | [Entity workflows](auto-patterns-dashboard/entity-workflows.md) |
+| Short focused or blocking record flow | a documented Auto Patterns action plus [DASHBOARD_MODAL.md](DASHBOARD_MODAL.md) |
+
+### Route Contract
+
+- **AP-01:** Mark each requested capability `supported`, `supported-via-override`, or `unsupported`, with the checked documentation target.
+- **AP-02:** Use Auto Patterns for the compatible record interface and its workflow extensions. A contextual WDS `SidePanel` is supported-via-override when a documented row action sets the selected record and the panel is an `AutoPatternsApp` child with AppContext/refresh access. A Dashboard Modal is supported as a bounded dashboard action. A KPI or chart may be supported-via-override through a documented header, section, slot, or child-component path. Unsupported analytics changes only that region; API origin, source count, mock data, and computed fields never transfer table ownership.
+- **AP-03:** A Table/Grid switch, row action, derived display, or named workset is not automatically unsupported. Check its focused reference before falling back; record that exact file in the capability decision.
+- **AP-04:** Auto Patterns documents Table and Grid. Do not promise the native CMS layout menu, List layout, custom layout labels, or a configurable initial layout unless the installed docs explicitly support them.
+- **AP-05:** Do not use custom WDS until this evaluation records a table/workspace `unsupported` capability and why a compatible record interface or documented override cannot solve it. Stay here when every requested capability is `supported` or `supported-via-override`; multiple sources alone are not unsupported.
+- **AP-06:** Keep one resolved collection classified as one collection even when the workflow is described as an exception queue, review workset, alert list, or saved subset, or uses OR conditions, elapsed-time rules, comparisons, bulk transitions, or contextual record detail. Materialize operational state as maintained fields such as `needsAttention`, `exceptionType`, `exceptionSince`, and `isReviewed`, then configure filters/Views and documented actions against those fields. Do not rebuild the table to express query logic or attach a supplemental surface.
+- **AP-12:** Separate update permission from product intent. Require a real edit surface only when the workflow declares authoritative field editing; choose SidePanel, Modal, edit entity page, or paired view/edit flow from depth and context. A transition-only or decision workflow may use a read-only investigation surface while persisting named transition or feedback fields through `itemUpdate`.
+- **AP-13:** Preserve operational field semantics across collection and detail surfaces. When a field communicates status, risk, priority, or required attention and appears as a badge in entity detail, render that same field with a documented custom-column badge in the collection Table/Grid when it is shown there. Reuse one label-to-skin mapping. Do not badge descriptive text or ordinary categories merely for decoration.
+- **AP-14:** Model bounded values before generating the collection. Use `TEXT` for one controlled value, `ARRAY_STRING` for zero-to-many controlled values, and `BOOLEAN` for binary state; use references instead when the options are managed records. Reuse one canonical value contract across schema, sample data, filters, forms, validation, and badges.
+- **AP-15:** App-owned editor collections default `itemRemove` to `CMS_EDITOR`, confirmed row/detail Delete, and useful bulk Delete. Restrict only for an explicit recorded ownership or safety reason. Process source queues with transitions; app-owned exception records remain deletable.
+- **AP-16:** Name the workflow-defining action first. It is primary for row, requested bulk selection, and detail. Row navigation or `entityPageId` handles inspection; Edit supports and Delete remains destructive.
+- **AP-17:** A custom transition that changes a field used by a Saved View or active filter must map that filter to the mutated record field for immediate optimistic membership feedback, persist every defining field, and refresh canonical data only after the optimistic submit settles. The item must leave any workset it no longer matches without a manual reload, enter the matching destination once, update counts and supplemental metrics, and clear stale selection. A synchronous `refreshCollection()` inside optimistic `submit` is not sufficient.
+- **AP-18:** Every Saved View filter key must resolve to a declaration in `filters.items`, and every declared `fieldId` must exist in the collection schema. Enum Views require matching `enumConfig.options`, including every selected value. Workflow Views must include every maintained field that defines membership.
+- **AP-19:** Keep the journey and implementation coherent. A read-only decision workflow must not resolve only to a generic edit page. Preserve one logical action across every declared surface, and map different runtime resolver IDs through `workflow.implementation.actionBindings`.
+- **AP-20:** Treat mutations as a complete lifecycle. Replacement writes preserve the canonical record, optimistic submits consume and return the submitted item, row and detail adapters share one transition operation, success and retryable failure remain visible, and every declared collection/detail workset reconciles after persistence.
+- **AP-21:** Keep action semantics truthful. A built-in update/Edit action targets an actual edit-mode page; inspection navigation targets a view surface. Preserve every `presentation.actionPresentation.actionIds` action at the promised prominence after drill-in rather than replacing the set with a generic Edit or only one surviving transition.
+- **AP-22:** `active-workset` metrics consume Auto Patterns AppContext items. Independent queries require visibly global `entire-collection` scope.
+
+### Extension Choice
+
+Keep Auto Patterns as the owner of the collection table, layouts, filters, selection, CRUD, and refresh lifecycle. Add only the narrow supplemental surface required by the workflow:
+
+| Workflow shape | Recommended extension |
+| --- | --- |
+| Moderate view/edit depth where table context should remain visible | Custom row/action override opens a WDS `SidePanel` child of `AutoPatternsApp`. |
+| Short, focused, blocking view/edit task or confirmation | Launch a Dashboard Modal from a documented custom action. |
+| Extensive or multi-section view/edit flow, complex validation, deep linking, or long work | Link to an Auto Patterns `entityPage` in the appropriate mode. |
+| KPI or chart around a supported record workspace | Keep Auto Patterns as the table owner and mount the analytical component through a documented header, section, slot, or child-component override. |
+
+These route defaults implement the presentation contract; they do not replace its task-level reasoning. Viewing and editing may use any verified surface when depth and context justify it. If the route adapts the selected drill-in, preserve the intended context and workflow and record the reason. For SidePanel or Modal, invoke the Wix Design System skill and read the exact installed component documentation before importing WDS. The supplemental surface is not evidence that the table itself should be rebuilt in WDS.
+
+### Action Coherence
+
+- Treat inspect, edit, workflow transition, create, and delete as different intents.
+- Consume the completed outcome and investigation requirements before choosing entity mode or detail surface.
+- Separate read-only evidence, bounded decision inputs, transition fields, and authoritative editable fields. `itemUpdate` permits mutations; it does not imply a general editor.
+- Mirror a primary bulk transition as the primary row action unless inherently bulk-only.
+- If row click or `entityPageId` opens details, omit redundant custom View.
+- Use a SidePanel for repeated queue investigation and bounded actions when it can preserve the active collection context. If depth requires an entity page, keep named actions in its first visible composition and near the evidence needed to take them.
+- Treat `type: 'update'` as editing, not generic navigation. Its target page uses edit mode and its label describes that effect; inspection opens the view surface without an Edit label.
+- Default app-owned editor deletion as AP-15 specifies.
+- Keep the defining single-record transition available on the investigation surface. When transition and authoritative editing both matter, pair view/edit pages: view owns the transition; edit owns field persistence.
+
+Do not create a second discovery, workflow, or presentation decision table in this route. Consume the canonical `discovery`, `workflow.journey`, resolved `dataFoundation`, accepted `presentation`, and derived `workflow.implementation`. Configure required actions on every declared surface because collection actions do not propagate automatically.
+
+### Build Contract
+
+1. Preserve the verified entities, terminology, action capabilities, and provenance from [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md); do not replace missing capabilities with generated behavior.
+2. Preserve the completed five-WHAT journey from [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md); route and component choices may implement it but must not redefine it.
+3. Resolve a verified native, Wix App, external-adaptor, or maintained app-owned collection interface through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). Do not create an app-owned copy merely to populate a table.
+4. Preserve the representation, hierarchy, drill-in intent, and consistency expectations selected through [DASHBOARD_PRESENTATION.md](DASHBOARD_PRESENTATION.md). Record any verified route adaptation instead of silently substituting a different interface.
+5. Define schema, permissions, references, operational derived fields, indexes, identity, freshness, write owner, and missing-reference behavior before page generation.
+6. Scaffold with the Wix CLI and run the bundled Auto Patterns generator exactly as documented.
+7. Keep the generated page component thin. Put configuration in `patterns.json` and every override in its documented separate file. Standard Auto Patterns pages do not create `.dashboard-route.json` or run route-only audit.
+8. Use representative fixtures only in an explicit development/test path. Never insert sample records into a live Wix App Collection, external collection, or operational projection to hide unavailable data.
+9. Before adding any custom dashboard JSX, verify `patterns.json` exists and the generated Auto Patterns wrapper is registered by the CLI-scaffolded extension. Put supplemental UI only in a documented override or child-component path.
+10. For a multi-region page, record `regionOwners`. A custom analytical region must not replace the generated Auto Patterns collection page unless the table itself has documented unsupported-capability evidence.
+
+### Acceptance
+
+- The collection, schema, permissions, and representative records exist as planned.
+- The generated page uses `patterns.json` and the documented page lifecycle.
+- Table/Grid, Saved Views, actions, create/edit/delete flows, and overrides behave as requested.
+- Focus, Investigate, Act, and Verify form one coherent workflow and follow the managed entity lifecycle. Every record has real drill-in; every visible action has a real effect; every mutation refreshes canonical state before success feedback.
+- Loading, empty, no-results, error, and populated states are intentional.
+- Browser, console, network, and persistence checks pass.
+- The registered dashboard page opens, its loader settles, and a build-only success is not reported as runtime success.
+
+## Change Workflow
+
+Use this route when the existing Dashboard Page directory contains `patterns.json`.
+
+### Required Documentation
+
+Read the existing `patterns.json`, then read only the matching consolidated capability reference listed above.
+
+### Change Contract
+
+- **APC-01:** Treat `patterns.json` as ownership evidence. Inspect configuration and registered overrides before editing.
+- **APC-02:** Change content, layouts, columns, actions, and page configuration in `patterns.json` when supported.
+- **APC-03:** Put action, column, component, header, section, and slot overrides in their documented separate files and register them through the existing page component. Keep the Auto Patterns collection page as owner when adding a contextual SidePanel child, Dashboard Modal action, or linked entity-page input flow.
+- **APC-04:** Do not hand-write UI in the generated page component or create a second page component.
+- **APC-05:** If no documented configuration, slot, or override supports the requested capability, record the missing path and move the entire physical page to a custom Dashboard Page or split the workflow. Do not partially replace the generated lifecycle.
+
+### Acceptance
+
+- Existing collection/entity navigation and CRUD behavior remain intact.
+- The change uses the narrowest documented configuration or override.
+- No generated lifecycle logic is duplicated in custom React.
+- The changed workflow passes browser, console, network, and persistence checks.
+
+## Generation And Configuration
 
 Generates declarative `patterns.json` + a thin page component (`<page-name>.tsx`) for simple CRUD dashboard pages using `@wix/auto-patterns`. Supports both creating new pages and updating existing ones.
 
-## Quick Start Checklist
+### Quick Start Checklist
 
 - [ ] **Step 1:** Determine if this is a new page or update to existing
 - [ ] **Step 2:** For new pages — scaffold via `wix generate`, generate schema, run generator script
@@ -10,9 +134,7 @@ Generates declarative `patterns.json` + a thin page component (`<page-name>.tsx`
 - [ ] **Step 3:** Install dependencies (`@wix/auto-patterns`, `@wix/patterns`)
 - [ ] **Step 4:** Verify per [APP_VALIDATION.md](APP_VALIDATION.md)
 
----
-
-## Required App Permissions
+### Required App Permissions
 
 Auto-patterns calls `@wix/data` at runtime to CRUD the collection. The app must declare these scopes in the Wix Dev Center — they are NOT added automatically:
 
@@ -23,52 +145,48 @@ Add them at: `https://manage.wix.com/apps/{app-id}/dev-center-permissions` (repl
 
 Without these scopes, the dashboard page renders but all data operations fail.
 
----
+### Core Rules
 
-## Core Rules
-
-### Configuration Generation
+#### Configuration Generation
 
 1. **Analyze** schema requirements.
 2. **Select** fields based on data types (max 3 initially).
 3. **Validate** against the constraints below.
 
-### Enum Handling
+#### Enum Handling
 
-- **IF** `enumConfig` is required (implicit or explicit):
-  - **THEN** ASK user for possible option values.
-  - **THEN** Derive `label` from `value` (e.g., "dog" -> "Dog") unless specified.
-  - **NEVER** guess or invent enum values.
+- Decide cardinality before creating the field: one controlled value uses `TEXT`; zero-to-many controlled values use `ARRAY_STRING`.
+- Use values stated in the request. If a required controlled set is missing and cannot be derived safely from an existing schema, ask for it rather than inventing values.
+- Derive labels from stable stored values only when labels are not specified.
+- Reuse the same values for `enumConfig`, entity inputs, sample data, validation, and badge rendering. `enumConfig` configures filtering; it does not turn an `ARRAY_STRING` entity field into a multi-select automatically.
 
-### Structural Limits
+#### Structural Limits
 
 - **MUST** have exactly 2 pages in `pages` array (`collectionPage` + `entityPage`).
 - **MUST** have exactly 1 component with `layout` array in `collectionPage`.
 - **MUST** use TypeScript for configuration.
 
-### Field Selection
+#### Field Selection
 
 - **MAX** 3 columns initially for `collectionPage`.
 - **IF** the workflow allows users to create the managed entity **THEN** include a `create` action in `collectionPage` navigating to `entityPage`.
 - **IF** the page represents a derived queue, alert set, or processing workset **THEN** do not add create/delete actions unless they belong to the underlying entity lifecycle.
 - **NEVER** fill optional fields unless explicitly requested.
 
-### Type Binding
+#### Type Binding
 
 - **IF** `type: 'collectionPage'` **THEN** only `collectionPage` field allowed.
 - **IF** `type: 'entityPage'` **THEN** only `entityPage` field allowed.
 - **NEVER** mix types in single page config.
 
-### Validation
+#### Validation
 
 - **MUST** align with `AppConfig` structure.
 - **MUST** remove unsupported configuration entries.
 
----
+### Part A: Creating a New Auto-Patterns Page
 
-## Part A: Creating a New Auto-Patterns Page
-
-### Step 1: Scaffold the Dashboard Page
+#### Step 1: Scaffold the Dashboard Page
 
 An auto-patterns page is a dashboard page — scaffold it with the Wix CLI:
 
@@ -82,14 +200,17 @@ The CLI generates the page folder, the component stub `<page-name>.tsx`, the bui
 src/extensions/dashboard/pages/<page-name>/
 ├── <page-name>.extension.ts   # Builder file (generated — registration + UUID, component → <page-name>.tsx)
 ├── <page-name>.tsx            # CLI component stub (overwritten in Step 3)
-└── patterns.json              # Declarative AppConfig — added in Step 3, edit this to iterate
+├── patterns.json              # Declarative AppConfig — added in Step 3, edit this to iterate
+└── dashboard-contract.json    # Discovery, data, workflow, and presentation contracts
 ```
 
 > **Why this matters for Step 3:** the generator writes the auto-patterns wrapper to `<page-name>.tsx` — the SAME file the builder already registers — so it overwrites the stub and is wired up automatically. Do NOT let it produce a separate `page.tsx`; that would leave the wrapper unregistered next to the empty stub, and the dashboard would render blank.
 
-### Step 2: Generate the Schema
+#### Step 2: Generate the Schema
 
-You must produce the input JSON for the generator script. Top-level keys: `collection`, `schema`, `relevantCollectionId`, `extensionName`.
+You must produce the input JSON for the generator script. Top-level keys: `collection`, `schema`, `relevantCollectionId`, `extensionName`, `discovery`, `dataFoundation`, `workflow`, and `presentation`.
+
+**`discovery`** — the completed [DOMAIN_DISCOVERY.md](DOMAIN_DISCOVERY.md) contract. Every managed entity has verified identity provenance; every workflow action references a `support: verified` capability whose permission is `verified` or `not-required`; blocking and material uncertainty is resolved.
 
 **`collection`** (from the data collection you scaffolded):
 
@@ -97,6 +218,10 @@ You must produce the input JSON for the generator script. Top-level keys: `colle
 - `fields` — array of `{ key, displayName, type }` (types: TEXT, NUMBER, BOOLEAN, DATE, IMAGE, URL, RICH_TEXT, etc.)
 
 **`relevantCollectionId`** (top-level, sibling to `collection` and `schema`) — full scoped collection ID (e.g., `@namespace/my-collection`)
+
+**`dataFoundation`** — the verified source-resolution contract from [DATA_FOUNDATION.md](DATA_FOUNDATION.md). `discoveryEntityId` must reference the managed discovery entity; `collectionId` must equal `relevantCollectionId`; `mechanism` and schema must be verified; and `capabilities` declares boolean `read`, `insert`, `update`, and `remove`. Capabilities are necessary but never sufficient: the generator exposes create, edit, delete, or bulk-delete only when the journey explicitly declares the corresponding operation.
+
+**`workflow`** — the [DASHBOARD_WORKFLOW.md](DASHBOARD_WORKFLOW.md) contract. `journey` must answer all five WHATs without UI choices; `implementation` then records the selected investigation surface and identity. Every action references its discovery `capabilityId` and classifies decision inputs, transition fields, and authoritative editable fields. At least one real action must remain available on detail, and Verify must include canonical `collection` refresh. Add the documented resolver for custom actions; do not replace it with a toast.
 
 **`schema.content`** — 20 string fields you generate:
 
@@ -160,7 +285,7 @@ Include ALL fields, primary identifiers first. Display names target ≤10 charac
 
 > **🛑 Nesting is required.** Content, layout, columns, and gridItem are **not** top-level keys and **not** flat siblings under `schema`. The generator rejects flat shapes like `"schema": { "collectionRouteId": "...", "main": [...] }`. Always nest as `"schema": { "content": {...}, "layout": {...}, "columns": [...], "gridItem": null }`.
 
-### Step 3: Run the Generator Script
+#### Step 3: Run the Generator Script
 
 The generator script is bundled with this skill at `<SKILL_ROOT>/scripts/generate-auto-patterns.js` — it is **not** copied into the user's app repo. Run it from the project directory using the skill's absolute path (`<SKILL_ROOT>` is the folder containing this skill's `SKILL.md`).
 
@@ -215,7 +340,86 @@ cat > /tmp/auto-patterns-input.json << 'EOF'
     "gridItem": null
   },
   "relevantCollectionId": "@<namespace>/<collection-id>",
-  "extensionName": "<Extension Name>"
+  "extensionName": "<Extension Name>",
+  "dataFoundation": {
+    "system": "<native CMS, Wix business app, external database, or app-owned>",
+    "mechanism": "<native-cms | wix-app-collection | external-database-adaptor | data-collection-extension>",
+    "collectionId": "@<namespace>/<collection-id>",
+    "schemaStatus": "verified",
+    "freshness": "<verified freshness>",
+    "capabilities": { "read": true, "insert": false, "update": false, "remove": false }
+  },
+  "workflow": {
+    "journey": {
+      "outcome": {
+        "actorRole": "<intended actor>",
+        "desiredOutcome": "<outcome the actor is trying to achieve>"
+      },
+      "understand": {
+        "questions": ["<what must the actor understand?>"],
+        "signals": ["<signal-field>"]
+      },
+      "focus": { "defaultWorkset": "<default workset>", "controls": ["search", "filter"] },
+      "investigate": {
+        "questions": ["<what requires deeper investigation?>"],
+        "evidenceFields": ["<evidence-field>"],
+        "contextPriority": "<high | medium | low>"
+      },
+      "act": { "actions": [{
+        "id": "<action-id>",
+        "kind": "mutation",
+        "operation": "transition",
+        "target": "<verified collection or record target>",
+        "surfaces": ["row", "detail"],
+        "decisionInputFields": ["<bounded-feedback-field>"],
+        "transitionFields": ["<status-field>"],
+        "authoritativeEditableFields": []
+      }] },
+      "verify": {
+        "visibleResult": "<visible confirmation of success>",
+        "postconditions": ["<persisted postcondition>"],
+        "refresh": ["collection", "views", "detail", "selection"]
+      }
+    },
+    "implementation": {
+      "investigationSurface": "<side-panel | modal | entity-page | owning-app-navigation>",
+      "surfaceReason": "<why depth and context justify this surface>",
+      "preserveCollectionContext": true,
+      "evidenceMode": "<read-only | editable | mixed>",
+      "identityField": "_id",
+      "actionBindings": {
+        "<action-id>": {
+          "row": "<row-resolver-id>",
+          "detail": "<detail-resolver-id>"
+        }
+      }
+    }
+  },
+  "presentation": {
+    "primaryRepresentation": {
+      "type": "table",
+      "reason": "<why this representation supports the primary task>"
+    },
+    "supportingRepresentations": [],
+    "drillIn": {
+      "interface": "<inline | side-panel | modal | entity-page | owning-app-navigation>",
+      "reason": "<why this interface fits the depth and context needs>",
+      "preservesContext": true
+    },
+    "stageEmphasis": {
+      "understand": ["<summary or health signal>"],
+      "focus": ["<active workset or attention cue>"],
+      "investigate": ["<evidence needed to decide>"],
+      "act": ["<named workflow action>"],
+      "verify": ["<visible confirmed result>"]
+    },
+    "actionPresentation": {
+      "actionIds": ["<action-id>"],
+      "prominence": "<immediate | contextual | progressive>",
+      "relationshipToEvidence": "<adjacent | same-surface | separate-step>"
+    },
+    "consistency": ["filters", "views", "records", "detail"]
+  }
 }
 EOF
 
@@ -228,11 +432,12 @@ The `--output` directory MUST be the exact folder the CLI scaffolded in Step 1 �
 The script produces:
 
 - `patterns.json` — The declarative AppConfig
+- `dashboard-contract.json` — The data-foundation, presentation, and Focus → Investigate → Act → Verify contracts used by the audit
 - `<page-name>.tsx` — Thin React wrapper component, written to the SAME filename the CLI scaffolded and the builder already registers (overwrites the stub)
 
 The builder file (`<page-name>.extension.ts`) and `src/extensions.ts` registration from Step 1 stay as-is — no manual registration edit, and no stray `page.tsx`.
 
-### Step 4: Install Dependencies
+#### Step 4: Install Dependencies
 
 The CLI template pins `@wix/auto-patterns` and `@wix/patterns` to exact versions — keep it that way. Check `package.json` first: if both are already in `dependencies`, **skip this step**.
 
@@ -242,52 +447,41 @@ If one is missing, install only that package:
 npm install --save-exact <missing-package>
 ```
 
-### Step 5: Validate
+#### Step 5: Validate
 
-Run validation per [APP_VALIDATION.md](APP_VALIDATION.md) to verify TypeScript compilation and build.
+Run the lightweight generated-code audit before compilation:
 
----
+```bash
+node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>
+```
 
-## Part B: Updating an Existing Auto-Patterns Page
+Fix every named Auto Patterns rule, then run [APP_VALIDATION.md](APP_VALIDATION.md) to verify TypeScript compilation and build. Compilation alone does not prove that entity callbacks are safe during route loading.
+
+### Part B: Updating an Existing Auto-Patterns Page
 
 > **🛑 STOP — UI changes go through overrides, NOT page-component edits.**
-> If you're adding a banner, custom header, action, slot, custom column rendering, or row sectioning to an auto-patterns page, you MUST use the matching `custom-*-override.md` reference (see the topic index in Step 2). Do NOT add the UI by hand-writing JSX in the page component (`<page-name>.tsx`) — that bypasses the override registration and breaks the iteration model.
+> If you're adding a banner, custom header, action, slot, custom column rendering, or row sectioning to an auto-patterns page, use the matching override documented in the capability references below. Do NOT add the UI by hand-writing JSX in the page component (`<page-name>.tsx`) — that bypasses the override registration and breaks the iteration model.
 
 When `patterns.json` already exists in a page directory, edit it directly. **This is the iteration model**: changes to layout, columns, actions, and content are made by editing JSON — the page component (`<page-name>.tsx`) only changes to register new overrides. No React rewrite, no rebuild of CRUD logic.
 
-> **Component filename:** the page component is `<page-name>.tsx` (the file the CLI scaffolded and the `<page-name>.extension.ts` builder registers). The override reference files below say "`page.tsx`" as shorthand for this component — edit the existing `<page-name>.tsx`; **never create a new `page.tsx`**, or it will sit unregistered next to the real component.
+> **Component filename:** the page component is `<page-name>.tsx` (the file the CLI scaffolded and the `<page-name>.extension.ts` builder registers). References may use "`page.tsx`" as shorthand for this component — edit the existing `<page-name>.tsx`; **never create a new `page.tsx`**, or it will sit unregistered next to the real component.
 
-### Step 1: Read the Existing Config
+#### Step 1: Read the Existing Config
 
 Read the current `patterns.json` to understand the configuration structure.
 
-### Step 2: Consult Reference Documentation
+#### Step 2: Consult Reference Documentation
 
-Use the topic index below to find the right reference file for your change:
+Choose the smallest capability reference that covers the requested change:
 
-| Topic                                                                            | Keywords                                                                            | Reference File                                                                         |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| AppConfig structure, page types, component types, page.tsx template              | AppConfig, PageConfig, CollectionPageConfig, EntityPageConfig                       | [app-config-structure.md](auto-patterns-dashboard/app-config-structure.md)             |
-| Page setup, relationships, routing, URL configuration, sticky columns            | page relationships, routing, entityPageId, parentPageId, route parameters           | [pages-configuration.md](auto-patterns-dashboard/pages-configuration.md)               |
-| Collection page components, Table/Grid layouts, table configuration               | layouts, layout switcher, columns, customColumns, sticky columns                     | [collection-page.md](auto-patterns-dashboard/collection-page.md)                       |
-| Saved Views configuration, presets, categories, filters integration               | saved views, presets, categories, columnPreferences, filters, default saved view    | [views.md](auto-patterns-dashboard/views.md)                                           |
-| Page-level actions, create actions, custom collection actions, row click actions | primaryActions, secondaryActions, onRowClick, action menus                          | [collection-page-actions.md](auto-patterns-dashboard/collection-page-actions.md)       |
-| Row-level actions, update/delete actions, custom row actions                     | actionCell, edit, delete, inline actions, custom resolver                           | [action-cell.md](auto-patterns-dashboard/action-cell.md)                               |
-| Bulk operations, bulk delete, bulk action toolbar                                | bulk delete, multi-select actions, bulkActionToolbar                                | [bulk-actions.md](auto-patterns-dashboard/bulk-actions.md)                             |
-| Entity page layout, grid system, field layout, containers                        | entity page layout, grid system, column spans, main/sidebar, 12-column grid         | [entity-page.md](auto-patterns-dashboard/entity-page.md)                               |
-| Entity page edit mode actions, moreActions, custom entity actions                | edit mode actions, moreActions, duplicate, clone                                    | [entity-page-actions.md](auto-patterns-dashboard/entity-page-actions.md)               |
-| Entity page view mode actions, primaryActions, secondaryActions                  | view mode actions, read-only entity actions, navigation actions                     | [entity-page-view-actions.md](auto-patterns-dashboard/entity-page-view-actions.md)     |
-| ResolvedAction interface, common return type for custom actions                  | ResolvedAction, label, icon, onClick, disabled, hidden, tooltip, skin               | [resolved-action.md](auto-patterns-dashboard/resolved-action.md)                       |
-| AppContext hook, shared collection data, refresh functionality, panel child       | useAppContext, items, refreshCollection, SidePanel                                  | [app-context.md](auto-patterns-dashboard/app-context.md)                               |
-| SDK utilities, optimistic actions, schema access                                 | AutoPatternsSDK, optimisticActions, getSchema, createOne, updateOne, deleteOne      | [sdk-utilities.md](auto-patterns-dashboard/sdk-utilities.md)                           |
-| Custom action resolvers, action overrides, useActions hook                       | custom actions, action resolver, useActions, ResolvedAction                         | [custom-actions-override.md](auto-patterns-dashboard/custom-actions-override.md)       |
-| Column rendering overrides, IColumnValue, custom column display                  | column override, IColumnValue, useColumns, custom rendering                         | [custom-columns-override.md](auto-patterns-dashboard/custom-columns-override.md)       |
-| Custom form components, useController, entity page customization                 | custom components, useComponents, useController, form, entity                       | [custom-components-override.md](auto-patterns-dashboard/custom-components-override.md) |
-| Entity page header, dynamic subtitle, dynamic badges                             | header override, subtitle, badges, entityPageHeaderSubtitle, entityPageHeaderBadges | [custom-header-override.md](auto-patterns-dashboard/custom-header-override.md)         |
-| Table row grouping, section headers, section renderer                            | sections, grouping, useSections, section renderer, row grouping                     | [custom-sections-override.md](auto-patterns-dashboard/custom-sections-override.md)     |
-| Custom slot components, page slots, banners, informational sections              | slots, useSlots, banner, custom content, top section                                | [custom-slots-override.md](auto-patterns-dashboard/custom-slots-override.md)           |
+| Capability | Use for | Reference |
+| --- | --- | --- |
+| Configuration | AppConfig, page relationships, routing, Table/Grid structure, sticky columns | [configuration.md](auto-patterns-dashboard/configuration.md) |
+| Collection workflows | Saved Views, collection and row actions, selection, bulk operations, `ResolvedAction` | [collection-workflows.md](auto-patterns-dashboard/collection-workflows.md) |
+| Entity workflows | Entity layout, view/edit actions, forms, custom components, dynamic headers | [entity-workflows.md](auto-patterns-dashboard/entity-workflows.md) |
+| Extensions | Custom actions, columns, sections, slots, AppContext, SDK utilities | [extensions.md](auto-patterns-dashboard/extensions.md) |
 
-### Step 3: Make Targeted Edits
+#### Step 3: Make Targeted Edits
 
 Edit `patterns.json` based on the user's request. Key constraints:
 
@@ -297,7 +491,7 @@ Edit `patterns.json` based on the user's request. Key constraints:
 - **`biName` is mandatory** for every action (kebab-case: `{action-purpose}-action`)
 - **`customColumns.enabled: true`** when > 5 columns
 - **Grid item only if IMAGE fields exist**
-- **Named worksets require Saved Views**: when the request names recurring subsets or saved filters, read `views.md` and configure Saved Views in addition to the Table/Grid layout switcher
+- **Named worksets require Saved Views**: when the request names recurring subsets or saved filters, read [collection-workflows.md](auto-patterns-dashboard/collection-workflows.md) and configure Saved Views in addition to the Table/Grid layout switcher
 - **Layout boundary**: Auto Patterns documents only `Table` and `Grid`, with an automatic built-in layout switcher when both exist. It does not document the native CMS `Choose layout` menu, `List`, or a configurable initial layout
 - **Route format**: entity page must be `/[segment]/:entityId`
 - **Exactly 1 `appMainPage: true`** across all pages
@@ -306,26 +500,22 @@ If adding custom overrides (actions, columns, components, slots, etc.):
 
 1. Create the override files in the appropriate `components/` subfolder
 2. Update the page component (`<page-name>.tsx`) to register overrides via `PatternsWizardOverridesProvider`
-3. See the `custom-*-override.md` reference files for implementation patterns
+3. Use the relevant consolidated capability reference above for the exact override pattern
 
 > **🛑 Overrides ALWAYS go in their own file under `components/<type>/`** (e.g. `components/columns/status.tsx`) with a `use*` hook — **regardless of size, even for a single small override.** This is structural, required by the override-registration model. **Never inline override render logic in the page component** (`<page-name>.tsx`), and do NOT apply the general ~300-line "split only if large" rule here — it does not override this requirement.
 
----
-
-## Non-Matching Intents
+### Non-Matching Intents
 
 Do NOT use this skill when:
 
-- User needs multi-collection data display → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
+- User needs a unified multi-source record workspace → resolve a maintained compatible collection interface through [DATA_FOUNDATION.md](DATA_FOUNDATION.md) and keep Auto Patterns; return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) only after documenting an unsupported Auto Patterns requirement
 - User needs embedded script configuration → see [EMBEDDED_SCRIPT.md](EMBEDDED_SCRIPT.md)
 - User needs custom business logic or external APIs that cannot be implemented through a documented action, override, or child component → return to [DASHBOARD_ROUTING.md](DASHBOARD_ROUTING.md) and choose the custom-dashboard route
-- User needs contextual record detail → preserve the Auto Patterns collection page and use its documented row-action/AppContext extension with the WDS SidePanel primitive in [OVERLAYS.md](OVERLAYS.md)
+- User needs contextual record detail → preserve the Auto Patterns collection page, use its documented row-action/AppContext extension, and invoke the Wix Design System skill for the exact installed `SidePanel` documentation
 - User needs structured inputs → use the linked Auto Patterns entity page before considering an overlay
-- User needs a focused blocking confirmation or isolated input → see [OVERLAYS.md](OVERLAYS.md) and use the documented Dashboard Modal action path
+- User needs a focused blocking confirmation or isolated input → use the documented custom action path and [DASHBOARD_MODAL.md](DASHBOARD_MODAL.md), including its single-owner sizing and scroll contract
 - User needs backend endpoints → see [BACKEND_API.md](BACKEND_API.md)
 
----
-
-## Example patterns.json
+### Example patterns.json
 
 See [auto-patterns-dashboard/example-patterns.json](auto-patterns-dashboard/example-patterns.json) for a complete working example.

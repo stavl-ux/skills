@@ -63,12 +63,13 @@ Inside the modal, subscribe via `dashboard.observeState()` to access whatever wa
 import { dashboard } from "@wix/dashboard";
 
 dashboard.observeState((state) => {
+  if (!state?.userId) return;
   // state contains the keys you passed in `openModal({ params: { ... } })`
-  console.log(state.userId, state.itemData);
+  console.log(state.userId);
 });
 ```
 
-Call it inside a `useEffect` if you want to set local React state from the params.
+Call it inside a `useEffect` if you want to set local React state from the params. The observer may run before required params are available, so guard the params object and required identity before dereferencing. Keep `CustomModalLayout` mounted with a deliberate loading or error body while data resolves.
 
 ## Closing Modal
 
@@ -84,7 +85,7 @@ The argument must be cloneable via the [structured clone algorithm](https://deve
 
 ## Customizing Modal
 
-Edit `<modal>.config.ts` (generated alongside the modal) to change the title and dimensions. The generated `.tsx` already imports and uses it.
+Edit `<modal>.config.ts` (generated alongside the modal) to change the title and outer Dashboard Modal frame dimensions. The generated extension registration consumes these values. Do not mirror the same numeric width or height onto the inner `CustomModalLayout`; the frame and the WDS layout are separate geometry owners.
 
 ```typescript
 // <modal>.config.ts
@@ -95,6 +96,32 @@ export default {
 };
 ```
 
+## Sizing and Scroll Ownership
+
+The Dashboard Modal frame owns the outer width and height. `CustomModalLayout` owns header, content, footer, and any necessary content scrolling. The extension document itself must never become a second scroll container.
+
+Add a plain stylesheet imported by the modal entry component. Reset the exact generated React mount root (commonly `#root`):
+
+```css
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+```
+
+For short content, omit `width`, `height`, `maxWidth`, `maxHeight`, and `overflowY` from `CustomModalLayout`; choose an outer config height that fits every normal state. When content can legitimately exceed the frame, use the installed WDS-supported equivalent of `maxHeight="100%"` with `overflowY="auto"`. This keeps the header and footer visible and shows a vertical scrollbar only when the content region actually overflows.
+
+Do not use `overflowY="scroll"`, document-level `overflow: auto/scroll`, horizontal overflow, `100vw`, `100vh`, or `100dvh`. Do not compensate for overflow with clipping on a content wrapper. Make fields and horizontal groups shrink or wrap with `min-width: 0` so content cannot widen the frame.
+
 ## Common Mistakes
 
 | Mistake | Fix |
@@ -103,6 +130,7 @@ export default {
 | Using `extensionId` instead of `modalId` | Use `modalId` in `openModal()` |
 | Can't access params in modal | Use `dashboard.observeState()` to read passed data |
 | Modal won't close | Use `dashboard.closeModal()` from `@wix/dashboard` |
+| Scrollbars appear around a short modal | Reset the modal document margin/overflow, size only the outer frame from config, and remove mirrored dimensions from `CustomModalLayout` |
 
 ## Real-World Example
 
@@ -113,16 +141,20 @@ End-to-end edit-item flow. The scaffolded `<modal>.tsx` already wires up `Custom
 const handleEdit = (item: Item) => {
   dashboard.openModal({
     modalId: "edit-item-modal-guid",
-    params: { item }, // objects are passed directly via params
+    params: { itemId: item._id }, // Prefer stable identity over a duplicated mutable record.
   });
 };
 
 // Modal: read params, save, toast, close
 const [formData, setFormData] = useState<Item | null>(null);
+const [loadError, setLoadError] = useState<string | null>(null);
 
 useEffect(() => {
   dashboard.observeState((state) => {
-    if (state.item) setFormData(state.item);
+    if (!state?.itemId) return;
+    void loadItem(state.itemId)
+      .then(setFormData)
+      .catch(() => setLoadError("Could not load this item."));
   });
 }, []);
 
@@ -132,3 +164,14 @@ const handleSave = async () => {
   dashboard.closeModal();
 };
 ```
+
+## Runtime Gate
+
+Compilation proves neither modal registration nor rendering. Before completion:
+
+1. Confirm the `modalId` passed to `openModal()` exactly matches the generated `dashboardModal({ id })`.
+2. Open the modal from its real row/action caller.
+3. Verify loading, missing/invalid params, loaded content, validation/error content, cancel/close, and any mutation result.
+4. Inspect the modal frame's console and network activity. A visible scrim with no surface means the opener ran but the modal extension failed to mount or crashed.
+5. At the shortest and longest expected content states, confirm the document root has no horizontal overflow and no document-level vertical overflow. A short modal has no scrollbar. Long content scrolls only inside the WDS content region with the header and footer fixed.
+6. If an interactive browser is unavailable, report this check as `blocked`; do not describe the modal as verified because TypeScript and build passed.

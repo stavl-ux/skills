@@ -48,6 +48,14 @@ It must be installed before TypeScript compilation will succeed.
 
 If you see any method with `DataItem` in the name, it is **wrong**.
 
+## Replacement Safety
+
+`items.update()` is a full replacement, not a patch. Fields omitted from the submitted item can be erased. Never implement a status transition with only `{ _id, status }`, even when the call succeeds.
+
+- When the host already supplies the complete optimistic record, persist and return that submitted record.
+- When a surface may receive a partial record, call `items.get()` first, merge the declared changes into the canonical item, then call `items.update()`.
+- Keep row, bulk, and detail resolvers on the same shared transition helper so one surface cannot use different replacement semantics.
+
 ## Full Type Definitions
 
 ### WixDataItem
@@ -224,17 +232,23 @@ const created = await items.insert("MyCollection", {
   price: 29.99,
 });
 
-// --- Update (MUST include _id) ---
-await items.update("MyCollection", {
-  _id: "item-id-123",
+// --- Update (full replacement: retain canonical fields) ---
+const current = await items.get("MyCollection", "item-id-123");
+if (!current) throw new Error("Item not found");
+const updated = await items.update("MyCollection", {
+  ...current,
   title: "Updated Title",
   price: 39.99,
 });
 
 // ❌ WRONG — three args
 await items.update("MyCollection", "item-id", { title: "x" });
-// ✅ CORRECT — _id inside data object
+// ❌ WRONG — syntactically valid but destructive partial replacement
 await items.update("MyCollection", { _id: "item-id", title: "x" });
+// ✅ CORRECT — preserve the canonical item and merge the intended change
+const item = await items.get("MyCollection", "item-id");
+if (!item) throw new Error("Item not found");
+await items.update("MyCollection", { ...item, title: "x" });
 
 // --- Remove ---
 await items.remove("MyCollection", "item-id-123");

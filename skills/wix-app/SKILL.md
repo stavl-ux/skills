@@ -11,32 +11,30 @@ The Wix CLI owns scaffolding. This skill classifies the request, selects one exe
 
 ## Core Workflow
 
-1. Classify the extension, physical data sources, and primary user workflow.
-2. Read one selected extension guide or dashboard playbook.
-3. Read only the exact API/component documentation named by that guide.
-4. For dashboards, save the selected route in `.dashboard-route.json`, then scaffold with the CLI and implement in generated files.
-5. Validate build and the real browser workflow before reporting completion.
+1. Classify the extension. For every record-oriented dashboard, read [DOMAIN_DISCOVERY.md](references/DOMAIN_DISCOVERY.md) first. Perform bounded, read-only reconnaissance of the relevant project, site, entities, existing surfaces, terminology, and available operations; do not choose UI or mutate infrastructure.
+2. Read [DASHBOARD_WORKFLOW.md](references/DASHBOARD_WORKFLOW.md) and translate the prompt plus discovered context through its five-WHAT journey gate. Define the outcome, understanding, investigation, actions, and visible success, then complete targeted discovery for only those required actions. Bind every action to a verified capability before resolving data or naming a component.
+3. Resolve each requested data system through [DATA_FOUNDATION.md](references/DATA_FOUNDATION.md). Seek an Auto Patterns-compatible record interface regardless of data origin. Reconcile unavailable capabilities with the journey explicitly; never silently weaken the required workflow.
+4. Read [DASHBOARD_PRESENTATION.md](references/DASHBOARD_PRESENTATION.md) and define how the completed journey, discovered domain context, and verified data should be represented. Choose and justify the primary representation, supporting representations, drill-in, hierarchy across the five stages, and state-consistency expectations before selecting a route or component.
+5. Choose one route from the dashboard fast path below, then read one selected extension guide. The route must consume the completed discovery, workflow, data-foundation, and presentation contracts rather than reinterpret the prompt.
+6. Scaffold with the CLI. Custom and hybrid dashboards then save `.dashboard-route.json` and pass the route-only audit before loading WDS documentation or implementing UI. Standard Auto Patterns pages use `patterns.json`; they do not create a route record or run route-only audit.
+7. Read only the exact API/component documentation named by the accepted route. Before importing an SDK or host module, identify its execution host, confirm the method supports that host, and verify every required app scope is granted. Call an available permission tool as soon as scopes are known and before writing permission evidence; `recorded` requests setup but does not prove the app or installation grants access. `auth.elevate()` changes identity; it never grants a missing scope. TypeScript compatibility is not runtime evidence. Then implement only in generated files.
+8. Validate with the checks available in the current environment before reporting completion.
 
-Read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. Do not claim completion after a build alone.
+For non-dashboard extensions, read [CODE_QUALITY.md](references/CODE_QUALITY.md) before implementation. For dashboards, treat discovery, workflow, data, and presentation as connected success contracts. Discovery supplies facts; the five WHATs define the problem; Understand → Focus → Investigate → Act → Verify defines the operational journey; presentation determines how that journey is expressed. Do not claim completion after a build alone.
 
 ## Dashboard Route
 
-For every dashboard request, read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md) and select exactly one primary playbook:
+Use this fast path only after completing discovery, workflow, data-foundation, and presentation contracts:
 
-| Route | Playbook |
-| --- | --- |
-| New supported one-collection manager, including contextual record detail, entity-page inputs, or bounded action overlays | [DASHBOARD_AUTO_PATTERNS_PLAYBOOK.md](references/DASHBOARD_AUTO_PATTERNS_PLAYBOOK.md) |
-| Change an existing page with `patterns.json` | [DASHBOARD_AUTO_PATTERNS_CHANGE_PLAYBOOK.md](references/DASHBOARD_AUTO_PATTERNS_CHANGE_PLAYBOOK.md) |
-| Custom or multi-source WDS table with no analytics regions | [DASHBOARD_CUSTOM_TABLE_PLAYBOOK.md](references/DASHBOARD_CUSTOM_TABLE_PLAYBOOK.md) |
-| Unsupported custom table with selected-record detail and no analytics regions | [DASHBOARD_CUSTOM_TABLE_PANEL_PLAYBOOK.md](references/DASHBOARD_CUSTOM_TABLE_PANEL_PLAYBOOK.md) |
-| KPIs, charts, calculated summaries, or multiple page regions, including table + panel pages | [DASHBOARD_ANALYTICS_PLAYBOOK.md](references/DASHBOARD_ANALYTICS_PLAYBOOK.md) |
-| Focused blocking task | [DASHBOARD_MODAL_PLAYBOOK.md](references/DASHBOARD_MODAL_PLAYBOOK.md) |
+- Existing page with `patterns.json`, or any standard record workspace: read [AUTO_PATTERNS_DASHBOARD.md](references/AUTO_PATTERNS_DASHBOARD.md) directly. Auto Patterns owns its table, gallery, filters, views, selection, actions, and refresh. Resolve a compatible interface first: native CMS, Wix App Collection, external database adaptor, or maintained app-owned projection.
+- Read [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md) only when the Auto Patterns evaluation identifies a specific unsupported table/workspace capability, or when a non-record analytical region needs supplemental composition. Multiple source systems, a true join, an API response, mock data, or a chart beside the table do not alone transfer table ownership to custom WDS.
+- If no reliable compatible record interface can be established, mark the data foundation blocked rather than substituting a static or custom table. If a verified unsupported capability remains after the Auto Patterns evaluation, record it before choosing the custom fallback.
 
-The selected playbook owns the behavioral contract and acceptance criteria. Detailed extension, SDK, and WDS documentation owns exact APIs. Do not load other dashboard playbooks unless the selected playbook explicitly requires one for a combined surface.
+For Auto Patterns, read [configuration.md](references/auto-patterns-dashboard/configuration.md) for base page configuration, [collection-workflows.md](references/auto-patterns-dashboard/collection-workflows.md) for Focus and collection actions, [entity-workflows.md](references/auto-patterns-dashboard/entity-workflows.md) for investigation and editing surfaces, and [extensions.md](references/auto-patterns-dashboard/extensions.md) only for supplemental overrides and SDK utilities. Read only the capabilities required by the completed journey. The selected route owns behavior and acceptance criteria; exact extension, SDK, Auto Patterns, and WDS references own APIs.
 
 ## Auto Patterns Extension And Fallback Gate
 
-Auto Patterns is the mandatory first route for a new one-collection manager. A contextual SidePanel, Dashboard Modal action, or structured input flow does not make the table custom by itself: first use the documented Auto Patterns row-action/AppContext, Dashboard Modal action, or entity-page path. Read [DASHBOARD_WDS_COMPONENT_GATE.md](references/DASHBOARD_WDS_COMPONENT_GATE.md) when that documented extension needs the exact WDS composition. Only when a required capability is absent from its documented configuration or override path may the agent record it as unsupported and build a custom dashboard surface.
+Auto Patterns is the default for every dashboard record workspace, regardless of source origin. Search, filters, derived worksets, joins represented through a maintained record interface, bulk selection or transitions, row actions, contextual SidePanel, Dashboard Modal, structured input flows, and mock/demo records do not make the table custom. Do not replace the table with custom WDS merely because the original source was an API, has multiple systems behind it, or needs derived fields. Use custom WDS only after the Auto Patterns evaluation records a specific unsupported table/workspace capability.
 
 ## Extension Directory
 
@@ -61,12 +59,14 @@ For every CLI-supported extension except Backend API, use `npx wix generate --pa
 
 | Source | Action |
 | --- | --- |
-| Existing site CMS collection | Resolve and use it; do not create app-owned storage. |
-| New app-owned data | Create a Data Collection extension and obtain the namespace. |
-| Wix business data or external API | Read its exact API; create CMS storage only for explicit app-owned persistence. |
-| Unknown | Inspect context or ask one targeted question. |
+| Existing site CMS collection | Resolve its ID, schema, permissions, and capabilities; use it directly. |
+| Wix business application data | Resolve the corresponding Wix App Collection and inspect it through Wix Data. Do not copy it merely to populate a dashboard table. |
+| Connected external database | Resolve the collection exposed by the installed adaptor and inspect its supported operations. Do not call the external API directly for a one-source table. |
+| New app-owned operational data | Create a Data Collection extension and obtain the namespace. Derived copies require an explicit synchronization and ownership contract. |
+| No compatible collection interface | Mark the data foundation blocked. Do not fabricate a driver, insert sample data, or silently fall back to a custom table. |
 
-For collection schema, references, joins, assignments, and writes, read [DATA_MODEL_AND_OPERATIONS.md](references/DATA_MODEL_AND_OPERATIONS.md). A reference field defines schema only; separately plan population and missing-reference behavior.
+Use [DATA_FOUNDATION.md](references/DATA_FOUNDATION.md) for source resolution. Use [DATA_COLLECTION.md](references/DATA_COLLECTION.md) only when the app truly owns the collection schema. For a unified or multi-source workspace, first resolve a maintained compatible record interface; use the Data Model and Operations section of [DASHBOARD_ROUTING.md](references/DASHBOARD_ROUTING.md) only after Auto Patterns identifies a specific unsupported requirement. A reference field defines schema only; separately plan population and missing-reference behavior.
+For namespace and code-identifier retrieval, use [APP_IDENTIFIERS.md](references/APP_IDENTIFIERS.md).
 
 ## Documentation Discipline
 
@@ -75,14 +75,17 @@ For collection schema, references, joins, assignments, and writes, read [DATA_MO
 - Stores: [STORES_VERSIONING.md](references/STORES_VERSIONING.md)
 - App Market: [APP_MARKET_REVIEW.md](references/APP_MARKET_REVIEW.md)
 - Registration recovery: [EXTENSION_REGISTRATION.md](references/EXTENSION_REGISTRATION.md)
+- Official extension documentation index: [DOCUMENTATION.md](references/DOCUMENTATION.md)
 
-Before importing WDS, invoke the Wix Design System skill and read the exact installed component documentation and examples named by the selected playbook or component gate. Record the component, documentation target, and reason it is required before implementation. Import `@wix/design-system/styles.global.css` once in the main component entry. Do not approximate a documented WDS component with custom markup or positioning.
+Before importing WDS, invoke the Wix Design System skill and read the exact installed component documentation and examples named by the selected route. Record the component, documentation target, and reason it is required before implementation. Import `@wix/design-system/styles.global.css` once in the main component entry. Do not approximate a documented WDS component with custom markup or positioning.
 
 Use focused discovery only when the selected local guide does not cover the required API. Read the discovered method schema before implementation.
 
 ## Validation
 
-1. Run `npx tsc --noEmit`, `npx wix build`, and `npx wix preview`.
-2. For every generated dashboard, run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory>`. This blocking audit validates the route record and generated ownership; a TypeScript/build validator does not replace it.
-3. Open the registered dashboard route in a browser. Confirm the loader resolves, representative records render, console and network are clean, and the primary filter/action/detail workflow persists after refresh.
-4. Report runtime status as `passed`, `failed`, or `blocked`, followed by separate manual steps.
+1. For a proposed custom or hybrid dashboard, immediately run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" --route-only <dashboard-source-directory>` after saving `.dashboard-route.json`. Standard Auto Patterns pages skip this step. On `RT-05` or `RT-06`, return to Auto Patterns ownership; do not rewrite the explanation to preserve the rejected route.
+2. Treat audit output as an API. Never open, grep, or reverse-engineer the audit script during generation. Fix the named rule from the selected guide and rerun only after a route or code change.
+3. For every dashboard implementation, including standard Auto Patterns pages, run `node "$HOME/.agents/skills/wix-app/scripts/audit-dashboard-code.mjs" <dashboard-source-directory> [each referenced backend endpoint]`. Include every app-owned backend file the dashboard calls so the audit sees both sides of the runtime boundary. This code audit is local and blocking; a non-zero result stops implementation and must be corrected before TypeScript, build, or completion.
+4. Run TypeScript first. Fix its errors and rerun TypeScript only after a code change. After TypeScript and the dashboard audit pass, run exactly one final project build directly, without piping it through `head`, `tail`, or another early-closing command. Do not repeat a successful build to obtain shorter output.
+5. Run `wix preview` and browser checks only when the environment exposes an interactive preview/runtime session. Do not start a long-lived preview command in a non-interactive codegen worker.
+6. When browser access exists, open the registered route and verify loader, representative data, console/network, primary workflow, and persistence. Otherwise report runtime validation as `blocked` with the exact manual check; do not retry or wait indefinitely.

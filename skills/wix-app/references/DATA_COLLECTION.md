@@ -1,6 +1,8 @@
 
 # Wix Data Collection Builder
 
+Use this guide only when the app owns the records or an explicitly maintained operational projection. First resolve existing native CMS, Wix App Collection, and external database collection options through [DATA_FOUNDATION.md](DATA_FOUNDATION.md). A Data Collections Extension is app-owned storage, not a generic database driver or a shortcut for copying Wix business data.
+
 Creates CMS data collections for Wix CLI apps. The data collections extension allows your app to automatically create CMS collections when it's installed on a site. Collections store structured data that can be accessed from dashboard pages, site pages, backend code, and external applications.
 
 **Important:** This extension automatically enables the site's code editor, which is required for the Wix Data APIs to work. Without this extension, apps using Data APIs would need the Wix user to manually enable the code editor on their site, which isn't guaranteed. With the data collections extension, your app can reliably use Data APIs to read and write data in the collections.
@@ -181,6 +183,19 @@ Text fields used by dashboard filters need a deliberate value contract. Decide w
 
 Wix Data equality filters are exact. Never use a label such as `Paid` as a query value for an uncontrolled text field unless the stored records are verified to use exactly `Paid`.
 
+## Bounded Value Contracts
+
+The Data Collection extension has no native enum or choice field type. Choose storage from cardinality and ownership:
+
+| Meaning | Field type |
+|---|---|
+| Binary state such as reviewed | `BOOLEAN` |
+| Exactly one controlled value | `TEXT` |
+| Zero-to-many controlled values such as issue types or tags | `ARRAY_STRING` |
+| One or many options managed as records with their own metadata | `REFERENCE` / `MULTI_REFERENCE` |
+
+Define one canonical set of stable stored values and reuse it in schema fixtures, create/edit inputs, validation, filters, and badge mappings. `ARRAY_STRING` preserves multiple values but does not create a multi-select automatically; the dashboard must provide a documented controlled input rather than a free-text or generic JSON editor.
+
 ## Naming Conventions
 
 - **Field keys:** `lowerCamelCase`, ASCII only (e.g., `productName`, `isActive`, `createdAt`)
@@ -234,6 +249,21 @@ Use `SITE_MEMBER_AUTHOR` on `itemUpdate` / `itemRemove` when members should only
 1. **Identify every place the collection is read or written** — custom element widgets, dashboard pages, embedded scripts, backend APIs.
 2. **Use the least restrictive context as the floor.** If a custom element widget reads the data AND a dashboard page also reads it, `itemRead` must be `ANYONE` (because the widget is public).
 3. **Apply per-operation.** A collection can have `itemRead: ANYONE` (widget displays it) but `itemInsert: CMS_EDITOR` (only dashboard users add items). Each operation is independent.
+
+### Permission-to-Interface Contract
+
+Resolve permissions for the intended dashboard audience per operation; do not infer one global read-only or editor mode.
+
+| Permission available to the audience | Dashboard capability |
+|---|---|
+| `itemRead` | List and inspect records. |
+| `itemInsert` | Offer create only when creation belongs to the workflow. |
+| `itemUpdate` | Persist only the changes the intended workflow authorizes. Provide general editing only when authoritative field editing belongs to the actor's job; transition-only workflows may update named status or feedback fields from a read-only decision surface. |
+| `itemRemove` | Default to `CMS_EDITOR` for an app-owned editor workflow and provide confirmed single-record deletion; add bulk deletion when useful. |
+
+Permissions cap possible UI capabilities; they do not determine which capabilities the product should expose. Record the actor's field policy separately. App-owned editor collections normally pair `itemUpdate: CMS_EDITOR` with `itemRemove: CMS_EDITOR`, while review or process queues may allow update only to support workflow transitions without exposing general field editing. Restrict removal for an explicit ownership, retention, workflow, or safety reason and annotate `// dashboard-item-remove: restricted - <reason>` beside it. Process source queues with transitions; separately stored app-owned exceptions remain deletable.
+
+There is no separate `CMS_VIEWER` value. A CMS collaborator is effectively a viewer for an operation when they satisfy `itemRead` but not that operation's write permission.
 
 ## Relationships
 

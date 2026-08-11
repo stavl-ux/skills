@@ -1,7 +1,7 @@
 
 # Wix App Validation
 
-Validates Wix CLI applications through a four-step sequential workflow: package installation, TypeScript compilation check, build, and preview.
+Validates Wix CLI applications through a four-step sequential workflow: dependency readiness, TypeScript compilation check, one final build, and preview.
 
 ## Validation Workflow
 
@@ -9,7 +9,7 @@ Execute these steps sequentially. Stop and report errors if any step fails.
 
 ### Step 1: Package Installation
 
-Ensure all dependencies are installed before proceeding with the build.
+Ensure all dependencies are installed before proceeding. If `node_modules` already exists and dependency files did not change, do not reinstall packages.
 
 **Detect package manager:**
 - Check for `package-lock.json` → use `npm`
@@ -43,6 +43,15 @@ pnpm install
 - Missing Node.js or package manager
 
 ### Step 2: TypeScript Compilation Check
+
+For an Auto Patterns page, validate each final `patterns.json` before TypeScript:
+
+```bash
+node <SKILL_ROOT>/scripts/generate-auto-patterns.js \
+  --validate-config src/extensions/dashboard/pages/<page-name>/patterns.json
+```
+
+This rejects Saved View filter keys that are not declared in `filters.items`, duplicate filter IDs, and missing filter mappings. The dashboard audit additionally rejects inert text filters and disconnected active-workset metrics. Fix these configuration errors before compiling.
 
 Run TypeScript compiler to check for type errors.
 
@@ -96,18 +105,20 @@ npx tsc --noEmit src/extensions/backend/**/*.ts
 
 ### Step 3: Build Validation
 
-Run the build command and check for compilation errors:
+After TypeScript passes, run the project's build command once and check for compilation errors:
 
 ```bash
 npx wix build
 ```
+
+Use the repository's declared build script instead when it wraps the Wix build. Run the command directly. Never pipe a build through `head`, `tail`, or another command that can close the output stream before the build exits. If concise diagnostics are needed, redirect the complete output to a file and inspect that file after the command finishes.
 
 **Success criteria:**
 - Exit code 0
 - No TypeScript errors
 - No missing dependencies
 
-**On failure:** Report the specific compilation errors, [check the debug log](#debug-log-on-errors) for detailed diagnostics, and stop validation.
+**On failure:** Report the specific compilation errors, [check the debug log](#debug-log-on-errors) for detailed diagnostics, and stop validation. Fix the cause, rerun TypeScript, and then run one new final build. Do not repeat an unchanged failed or successful build merely to obtain a different output slice.
 
 ### Step 4: Preview Deployment
 
@@ -169,3 +180,14 @@ Read: .wix/debug.log (with offset to the end)
 | UI not rendering | Component errors | Review component code and imports |
 | CLI error with no clear message | Truncated terminal output | Read `.wix/debug.log` for the full error trace and stack details |
 | Mysterious failures after config change | Stale CLI state | Read `.wix/debug.log` to confirm, then delete `.wix/` and rebuild |
+
+## Auto Patterns Filter Verification
+
+When a collection page uses both Saved Views and filter-panel controls:
+
+1. Select each View and verify its rows and total.
+2. Open the filter panel and verify the controls reflect the selected View.
+3. Add a panel filter and verify the table narrows without a hard refresh.
+4. Switch Views and verify the table and panel reset to the new preset.
+5. Confirm every panel filter is explicitly declared in `filters.items`.
+6. Confirm every `active-workset` metric changes with the filtered rows and returns to the original value when filters clear.

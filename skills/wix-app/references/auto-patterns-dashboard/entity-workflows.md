@@ -1,0 +1,529 @@
+# Auto Patterns Entity Workflows
+
+Use for entity-page layout, view and edit actions, custom form components, and entity header composition.
+
+## Contents
+
+- [Registering Entity Overrides](#registering-entity-overrides)
+- [Entity Page](#entity-page)
+- [Entity Edit Actions](#entity-edit-actions)
+- [Entity View Actions](#entity-view-actions)
+- [Custom Form Components](#custom-form-components)
+- [Custom Entity Headers](#custom-entity-headers)
+
+## Registering Entity Overrides
+
+Keep entity overrides in their documented component folders and export one `use*` hook from each folder's index. Import and call the required hooks in `page.tsx`, then add their returned objects to the existing overrides provider without removing other overrides.
+
+| Override | Folder | Hook | Provider key |
+| --- | --- | --- | --- |
+| Form component | `components/customComponents/` | `useComponents` | `components` |
+| Subtitle | `components/entityPageHeaderSubtitle/` | `useEntityPageHeaderSubtitle` | `entityPageHeaderSubtitle` |
+| Badges | `components/entityPageHeaderBadges/` | `useEntityPageHeaderBadges` | `entityPageHeaderBadges` |
+
+## Entity Page
+
+### Type Definitions
+```typescript
+interface EntityPageConfig {
+  type: 'entityPage';
+  entityPage: {
+    mode?: 'edit' | 'view'; // Default 'edit'
+    route: { path: string; params: { id: string } };
+    parentPageId: string; // REQUIRED
+    collectionId: string;
+    entityTypeSource: 'cms' | 'custom';
+    title?: {
+      text: string;
+      badges?: { id: string }; // Dynamic badges override ID
+    };
+    subtitle?: {
+      text: string;
+      id?: string; // Dynamic subtitle override ID
+    };
+    layout?: {
+      main: CardLayout[];
+      sidebar?: CardLayout[];
+    };
+    actions?: EntityPageActions; // See Action Rules
+  };
+}
+
+interface CardLayout {
+  type: 'card';
+  card: {
+    title?: { text: string };
+    children: LayoutContent[];
+  };
+}
+
+type LayoutContent = | { type: 'field'; field: { fieldId: string; span?: number } } | { type: 'container'; container: { children: LayoutContent[]; span?: number } } | { type: 'component'; component: { componentId: string; span?: number } };
+
+// Override Types
+type EntityPageHeaderSubtitle = (entity: any) => { text: string };
+type EntityPageHeaderBadges = (entity: any) => {
+  text: string;
+  skin?: import('@wix/design-system').BadgeSkin;
+  prefixIcon?: ReactElement;
+  suffixIcon?: ReactElement;
+}[];
+```
+
+### Validation Logic
+- **IF** `mode` is undefined **THEN** defaults to `'edit'`.
+- **IF** `mode: 'edit'` **THEN** only `moreActions` supported.
+- **IF** `mode: 'view'` **THEN** `primaryActions`, `secondaryActions`, `moreActions` supported.
+- **IF** `badges.id` defined **THEN** implementation MUST return array of badge objects.
+- **IF** `subtitle.id` defined **THEN** implementation MUST return `{ text: string }`.
+
+### Mutability Decision
+
+- **MUST** resolve `itemRead`, `itemInsert`, `itemUpdate`, and `itemRemove` for the intended dashboard audience before choosing entity mode.
+- **MUST** identify the actor's primary job, then separate read-only evidence, bounded decision inputs, workflow transition fields, and authoritative editable fields.
+- **MUST** treat `itemUpdate` as permission to persist allowed changes, not evidence that a general edit form belongs in the workflow.
+- **MUST** use `edit` mode only when changing authoritative fields belongs to the actor's primary or supporting job.
+- **MUST** use paired `view` + `edit` pages when an operational transition must remain a primary detail action while general field editing is also required. The view page owns the transition and links to edit; the edit page owns Save/Cancel.
+- **MUST** allow a `view` entity page or SidePanel to persist named workflow transitions or feedback when the audience has update permission but authoritative content editing is not part of the job.
+- **MUST** keep relevant single-record transitions available on the entity surface when equivalent row or bulk actions exist. Collection actions do not propagate automatically.
+- **MUST** preserve the complete `presentation.actionPresentation.actionIds` set on the entity surface. A valid layout adaptation cannot silently leave only one of several promised actions.
+- **MUST** bind surface-specific resolver IDs back to one logical workflow action and call the same shared transition operation used by row and bulk adapters.
+- **MUST** keep the workflow-defining transition primary on the view page, editing supporting, and confirmed Delete destructive in `moreActions` when `itemRemove` is available.
+- **MUST** keep immediate operational actions visible in the first composition of a view page, near the evidence used to decide. Prefer header/primary/secondary placement and a main-evidence/sidebar-action composition over burying workflow actions in `moreActions` or below long content.
+- **MUST** render evidence for comprehension. Use formatted rich content for review; do not expose raw markup in a generic field editor unless editing that source is intended.
+- **MUST** treat business-field editing and workflow transitions as separate capabilities. A custom transition such as **Mark as Reviewed** neither requires nor replaces general editing.
+- **NEVER** infer edit intent from update or delete permission alone. Infer it from the actor's job and declared authoritative editable fields.
+
+### Implementation Rules
+- **MUST** use route format `/[segment]/:entityId` (NEVER `/:entityId`).
+- **MUST** map dynamic parameter in `route.params` (e.g. `{ id: 'entityId' }`).
+- **MUST** register overrides for `badges` and `subtitle` if IDs are used.
+- **MUST** use 12-column grid system for `span` (wraps if > 12).
+- **SHOULD** put primary info in `main` layout, metadata in `sidebar`.
+- **NEVER** return JSX from badge/subtitle functions (return data objects).
+
+### Canonical Example
+```typescript
+// Config
+{
+  type: 'entityPage',
+  entityPage: {
+    mode: 'view',
+    route: { path: '/pet/:entityId', params: { id: 'entityId' } },
+    parentPageId: 'pets-list',
+    collectionId: 'pets',
+    entityTypeSource: 'cms',
+    title: {
+      text: 'Pet Details',
+      badges: { id: 'petBadges' }
+    },
+    layout: {
+      main: [{
+        type: 'card',
+        card: {
+          title: { text: 'Info' },
+          children: [
+            { type: 'field', field: { fieldId: 'name', span: 6 } },
+            { type: 'field', field: { fieldId: 'age', span: 6 } }
+          ]
+        }
+      }]
+    }
+  }
+}
+
+// Override Implementation
+export const petBadges = (entity) => ([
+  { text: entity.status, skin: entity.status === 'Active' ? 'success' : 'neutral' }
+]);
+```
+
+## Entity Edit Actions
+
+### Type Definitions
+```typescript
+interface EntityPageConfig {
+  entityPage: {
+    actions: {
+      moreActions: (CustomActionItem | DividerItem)[];
+    };
+  };
+}
+
+interface CustomActionItem {
+  id: string; // Matches resolver name
+  type: 'custom';
+  label: string;
+  biName: string; // MANDATORY
+}
+
+interface DividerItem {
+  type: 'divider';
+}
+
+// Resolver Type
+type CustomEntityPageActionResolver = (params: {
+  actionParams: {
+    entity?: Record<string, any>; // May be absent while the route resolves
+    form: UseFormReturn; // react-hook-form instance
+  };
+  sdk: AutoPatternsSDK;
+}) => ResolvedAction;
+```
+
+### Validation Logic
+- **IF** mode is `'edit'` **THEN** ONLY `moreActions` is supported (`primaryActions` forbidden).
+- **IF** `type: 'custom'` **THEN** `id` MUST match exported resolver name.
+- **IF** `type: 'divider'` **THEN** NO other properties allowed.
+- **ONLY** `'custom'` and `'divider'` are valid action types in moreActions. There is NO built-in `'duplicate'`, `'copy'`, `'clone'`, `'archive'`, `'export'`, or similar action type.
+- **IF** you need any operation beyond navigation (duplicate, archive, export, share, etc.) **THEN** use `type: 'custom'` with a resolver implementation.
+
+### Implementation Rules
+- **MUST** place all custom actions in `moreActions` array for Edit Mode.
+- **MUST** include `biName` for every action.
+- **MUST** return a valid `ResolvedAction` object (see resolved_action.md).
+- **MUST** use the documented resolver SDK and optimistic-action error path for mutations; `AutoPatternsSDK` has no generic `errorHandler`.
+- **MUST** tolerate an absent or partial `entity` during route loading. Return a disabled action until required identity and fields exist; guard again inside `onClick`.
+- **NEVER** use `primaryActions` or `secondaryActions` in Edit Mode.
+
+### Canonical Example
+```typescript
+// Config
+{
+  moreActions: [
+    { id: 'sendEmail', type: 'custom', label: 'Send Email', biName: 'send-email-action' },
+    { type: 'divider' },
+    { id: 'archive', type: 'custom', label: 'Archive', biName: 'archive-action' }
+  ]
+}
+
+// components/actions/sendEmail.tsx (use .tsx because it contains JSX icon)
+export const sendEmail: CustomEntityPageActionResolver = ({ actionParams, sdk }) => {
+  return {
+    label: 'Send Email',
+    icon: <EmailIcon />,
+    biName: 'send-email-action',
+    onClick: () => {
+      // Logic here
+    }
+  };
+};
+```
+
+## Entity View Actions
+
+### Type Definitions
+```typescript
+interface EntityPageViewActions {
+  primaryActions?: ActionGroup;
+  secondaryActions?: ActionGroup;
+  moreActions?: (CustomActionItem | DividerItem)[];
+}
+
+type ActionGroup = | { type: 'action'; action: { item: ActionItem } } | { type: 'menu'; menu: { label: string; items: (ActionItem | DividerItem)[] } };
+
+interface DividerItem {
+  type: 'divider';
+}
+
+interface ActionItem {
+  id: string; // Must match resolver if custom
+  label: string;
+  type: 'create' | 'custom';
+  biName: string; // MANDATORY
+  create?: {
+    mode: 'page';
+    page: { id: string };
+  };
+}
+
+type CustomEntityPageActionResolver = (params: {
+  actionParams: { entity?: Record<string, any> };
+  sdk: AutoPatternsSDK;
+}) => ResolvedAction;
+```
+
+### Validation Logic
+- **IF** mode is `'view'` **THEN** supports `primaryActions`, `secondaryActions`, AND `moreActions`.
+- **IF** action type is `'create'` **THEN** `create` config is **REQUIRED**.
+- **IF** action type is `'custom'` **THEN** resolver implementation is **REQUIRED**.
+
+### Implementation Rules
+- **MUST** use `primaryActions` for main workflow (e.g. Create).
+- **MUST** use `secondaryActions` for supporting workflows.
+- **MUST** use `moreActions` for less common/admin tasks.
+- **MUST** use optimistic-action `errorToast` for collection mutations and explicit `try/catch` for other documented calls; never invent `sdk.errorHandler`.
+- **MUST** tolerate an absent or partial `entity` during route loading. Entity-dependent actions start disabled and their click handlers reject missing identity.
+- **MUST** preserve the complete canonical item for replacement-style updates. If the entity payload may be partial, fetch the canonical item before merging the transition fields.
+- **MUST** return the persisted record from the optimistic submit, show success only after it resolves, expose retryable failure feedback, and defer `refreshCollection()` so the entity, collection, Saved Views, and counts reconcile.
+- **NEVER** manually add "Edit" action; it's automatic if an Edit Mode page exists.
+
+### Canonical Example
+```typescript
+{
+  primaryActions: {
+    type: 'action',
+    action: {
+      item: {
+        id: 'createEntity',
+        label: 'Create New',
+        type: 'create',
+        biName: 'create-entity-action',
+        create: {
+          mode: 'page',
+          page: { id: 'entity-edit-page' }
+        }
+      }
+    }
+  },
+  moreActions: [
+    {
+      id: 'duplicateEntity',
+      type: 'custom',
+      label: 'Duplicate',
+      biName: 'duplicate-entity-action'
+    }
+  ]
+}
+```
+
+```typescript
+export const duplicateEntity: CustomEntityPageActionResolver = ({ actionParams }) => {
+  const entity = actionParams.entity;
+  const ready = Boolean(entity?._id);
+  return {
+    label: 'Duplicate',
+    biName: 'duplicate-entity-action',
+    disabled: !ready,
+    tooltip: ready ? undefined : 'Loading record',
+    onClick: async () => {
+      if (!entity?._id) return;
+      await duplicateRecord(entity._id);
+    },
+  };
+};
+```
+
+### Canonical Mutation Lifecycle
+
+Use the same transition helper from row and detail resolvers. The resolver owns surface state; the helper owns canonical replacement safety.
+
+```typescript
+async function persistStatusTransition(
+  collectionId: string,
+  itemId: string,
+  changes: Record<string, unknown>,
+) {
+  const canonical = await items.get(collectionId, itemId);
+  if (!canonical) throw new Error('Record not found');
+  return items.update(collectionId, { ...canonical, ...changes });
+}
+
+export const approveEntity: CustomEntityPageActionResolver = ({ actionParams, sdk }) => {
+  const entity = actionParams.entity;
+  const ready = Boolean(entity?._id);
+  return {
+    label: 'Approve',
+    biName: 'approve-entity-action',
+    disabled: !ready,
+    tooltip: ready ? undefined : 'Loading record',
+    onClick: () => {
+      if (!entity?._id) return;
+      const optimistic = sdk.getOptimisticActions(sdk.collectionId);
+      optimistic.updateOne({ ...entity, status: 'approved' }, {
+        submit: async ([submitted]) => {
+          const persisted = await persistStatusTransition(
+            sdk.collectionId,
+            submitted._id,
+            { status: submitted.status },
+          );
+          setTimeout(() => sdk.refreshCollection(), 0);
+          return persisted;
+        },
+        successToast: 'Submission approved',
+        errorToast: (_error, { retry }) => ({
+          message: 'Could not approve submission',
+          action: { text: 'Retry', onClick: retry },
+        }),
+      });
+    },
+  };
+};
+```
+
+After implementation, exercise this action from both the collection and entity surfaces. Confirm that unrelated fields remain populated, the entity displays the persisted status, the active workset and counts update, and failures remain visible and retryable.
+
+## Custom Form Components
+
+### Type Definitions
+```typescript
+interface CustomComponentProps {
+  form: UseFormReturn; // react-hook-form instance
+  entity: Record<string, any>; // Initial entity state (static)
+}
+
+// Override Component Signature
+type CustomComponent = React.FC<CustomComponentProps>;
+```
+
+### Configuration Schema
+```json
+{
+  "layout": [
+    {
+      "type": "Form",
+      "form": {
+        "groups": [
+          {
+            "fields": [
+              {
+                "id": "myCustomField",
+                "type": "custom",
+                "componentId": "myCustomComponent" // Matches override key
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+### Validation Logic
+- **IF** overriding an input field **THEN** MUST use `useController` from `@wix/patterns/form` to bind to form state.
+- **IF** editing a bounded `ARRAY_STRING` field **THEN** use a documented WDS multi-select through this custom-component override, backed by the canonical stored values. Do not render it as free text or a generic JSON input.
+- **IF** needing reactivity **THEN** MUST use `form.watch()`, NEVER rely on `entity` prop for updates (it is initial state only).
+- **IF** implementing a standalone widget (not input) **THEN** can use `entity` for display-only static data.
+- **NEVER** import `useController` from `react-hook-form` directly; use `@wix/patterns/form`.
+
+### Implementation Rules
+- **MUST** be placed in `components/customComponents/` folder.
+- **MUST** export a `useComponents` hook from `components/customComponents/index.tsx`.
+- **MUST** handle form state (invalid, error message, onChange) properly via controller.
+
+### Canonical Example
+```tsx
+// components/customComponents/CustomInput.tsx
+import { useController } from '@wix/patterns/form';
+import type { CustomComponentProps } from '@wix/auto-patterns';
+import { Input, FormField } from '@wix/design-system';
+
+export const CustomInput: React.FC<CustomComponentProps> = ({ form, entity }) => {
+  const { field, fieldState } = useController({
+    name: 'title', // Matches schema field ID
+    control: form.control,
+    defaultValue: entity?.title
+  });
+
+  return (
+    <FormField label="Title" status={fieldState.error ? 'error' : undefined}>
+      <Input {...field} />
+    </FormField>
+  );
+};
+
+// components/customComponents/index.tsx
+import { CustomInput } from './CustomInput';
+export const useComponents = () => ({ CustomInput });
+```
+
+## Custom Entity Headers
+
+### Type Definitions
+```typescript
+// Subtitle Override
+type SubtitleResolver = (entity?: Record<string, any>) => { text: string };
+
+// Badge Override
+import type { BadgeSkin } from '@wix/design-system';
+
+interface BadgeObject {
+  text: string;                     // Required: Text to display
+  skin?: BadgeSkin;                 // Optional: Visual styling
+  prefixIcon?: React.ReactElement;  // Optional: Icon before text (from @wix/wix-ui-icons-common)
+  suffixIcon?: React.ReactElement;  // Optional: Icon after text (from @wix/wix-ui-icons-common)
+}
+
+type BadgesResolver = (entity?: Record<string, any>) => BadgeObject[];
+```
+
+Use the installed WDS `BadgeSkin` type instead of redeclaring its values. In current WDS, danger badges use `danger`; `destructive` is an action skin and is not a valid badge skin.
+
+### Configuration Schema
+```json
+{
+  "entityPage": {
+    "title": {
+      "text": "Entity Details",
+      "badges": {
+        "id": "entityPageHeaderBadges"  // Must match override key
+      }
+    },
+    "subtitle": {
+      "text": "Default subtitle text",
+      "id": "entityPageHeaderSubtitle"  // Must match override key
+    }
+  }
+}
+```
+
+### Validation Logic
+- **IF** overriding subtitle **THEN** function MUST return `{ text: string }` object.
+- **IF** overriding badges **THEN** function MUST return array of `BadgeObject` (NOT JSX components).
+- **IF** `badges.id` or `subtitle.id` defined in config **THEN** matching override MUST exist.
+- **IF** logic depends on entity data **THEN** first guard the entity itself, then check each field. Resolvers may run while the route is loading, before an entity exists.
+- **IF** `id` in config does not match override key **THEN** override will not render.
+
+### Implementation Rules
+- **MUST** be placed in `components/entityPageHeaderSubtitle/` or `components/entityPageHeaderBadges/`.
+- **MUST** export `useEntityPageHeaderSubtitle` / `useEntityPageHeaderBadges` hooks from respective index files.
+- **MUST** be pure functions (no hooks inside the resolver functions).
+- **MUST** ensure `id` in config matches the key in override object exactly.
+- **NEVER** return JSX from badge/subtitle functions (return data objects only).
+
+### Canonical Example
+
+#### 1. Subtitle Override
+```typescript
+// components/entityPageHeaderSubtitle/entityPageHeaderSubtitle.ts
+export const entityPageHeaderSubtitle = (entity?: Record<string, any>) => {
+  if (!entity) return { text: 'Loading details' };
+  return { text: `Created by ${entity.owner || 'Unknown'} on ${entity.date || 'N/A'}` };
+};
+
+// components/entityPageHeaderSubtitle/index.ts
+import { entityPageHeaderSubtitle } from './entityPageHeaderSubtitle';
+export const useEntityPageHeaderSubtitle = () => ({ entityPageHeaderSubtitle });
+```
+
+#### 2. Badges Override
+```typescript
+// components/entityPageHeaderBadges/entityPageHeaderBadges.ts
+export const entityPageHeaderBadges = (entity?: Record<string, any>) => {
+  if (!entity) return [];
+  const badges = [];
+
+  // Add status badge
+  if (entity.isActive) {
+    badges.push({ text: 'Active', skin: 'success' });
+  } else {
+    badges.push({ text: 'Inactive', skin: 'neutral' });
+  }
+
+  // Add premium badge if applicable
+  if (entity.isPremium) {
+    badges.push({ text: 'Premium', skin: 'premium' });
+  }
+
+  // Add warning badge if needed
+  if (entity.needsAttention) {
+    badges.push({ text: 'Needs Attention', skin: 'warning' });
+  }
+
+  return badges;
+};
+
+// components/entityPageHeaderBadges/index.ts
+import { entityPageHeaderBadges } from './entityPageHeaderBadges';
+export const useEntityPageHeaderBadges = () => ({ entityPageHeaderBadges });
+```
